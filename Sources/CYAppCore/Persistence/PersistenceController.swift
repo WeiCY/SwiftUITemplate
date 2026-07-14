@@ -39,7 +39,7 @@ import SwiftData
 // }
 // ```
 
-public struct CYPersistenceController {
+public struct CYPersistenceController: @unchecked Sendable {
     
     /// 生产环境实例（磁盘持久化）
     public static let shared = CYPersistenceController()

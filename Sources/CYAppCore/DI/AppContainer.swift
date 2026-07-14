@@ -10,7 +10,7 @@ import Foundation
 /// ```swift
 /// @Injected(\.networkClient) var networkClient
 /// ```
-public final class CYAppContainer: DIContainerProtocol {
+public final class CYAppContainer: DIContainerProtocol, @unchecked Sendable {
     
     public static let shared = CYAppContainer()
     

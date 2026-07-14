@@ -61,10 +61,10 @@ public struct CYLocalizationManager {
     // MARK: - 内部状态
     
     /// 当前使用的 Bundle（用于加载 .strings 文件）
-    private static var _bundle: Bundle = .main
+    nonisolated(unsafe) private static var _bundle: Bundle = .main
     
     /// 当前语言代码（如 "zh-Hans", "en"）
-    private static var _currentLanguage: String = Locale.current.language.languageCode?.identifier ?? "en"
+    nonisolated(unsafe) private static var _currentLanguage: String = Locale.current.language.languageCode?.identifier ?? "en"
     
     // MARK: - 公开 API
     

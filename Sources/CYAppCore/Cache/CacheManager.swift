@@ -33,7 +33,7 @@ private struct CacheEntry<T: Codable>: Codable {
 }
 
 @Observable
-public final class CYCacheManager {
+public final class CYCacheManager: @unchecked Sendable {
     public static let shared = CYCacheManager()
     
     private let memoryCache = NSCache<NSString, NSData>()

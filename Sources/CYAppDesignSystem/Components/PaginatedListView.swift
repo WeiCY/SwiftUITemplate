@@ -43,7 +43,7 @@ import CYAppCore
 /// - Note: 内部通过 `@Bindable` 持有 `@Observable` 的 ViewModel，
 ///   直接在 `body` 中读取其属性以确保观察订阅生效（不使用 `let` 快照，
 ///   否则数据更新后列表不会刷新）。
-public struct CYPaginatedListView<Item: Identifiable, Row: View, Empty: View>: View {
+public struct CYPaginatedListView<Item: Identifiable & Sendable, Row: View, Empty: View>: View {
     
     @Bindable var viewModel: CYPaginatedListViewModel<Item>
     let emptyView: () -> Empty

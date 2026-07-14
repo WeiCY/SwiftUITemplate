@@ -120,7 +120,7 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
     /// 业务码按 `CYBusinessCodePolicy` 判定：普通失败抛 `businessError`，
     /// 命中 Token 过期策略抛 `tokenExpired`（并自动刷新 + 重放，与 HTTP 401 同链路），
     /// 命中需重新登录策略抛 `needReLogin`。
-    public func request<T: Decodable>(_ endpoint: CYEndpoint) async throws -> T {
+    public func request<T: Decodable & Sendable>(_ endpoint: CYEndpoint) async throws -> T {
         try await performRequest {
             let apiResponse: CYAPIResponse<T> = try await self.fetchRaw(endpoint)
             return try self.resolveData(apiResponse)
@@ -141,7 +141,7 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
     /// default: break
     /// }
     /// ```
-    public func requestRaw<T: Decodable>(_ endpoint: CYEndpoint) async throws -> CYAPIResponse<T> {
+    public func requestRaw<T: Decodable & Sendable>(_ endpoint: CYEndpoint) async throws -> CYAPIResponse<T> {
         try await performRequest {
             try await self.fetchRaw(endpoint)
         }
@@ -187,7 +187,7 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
     ///     body: LoginRequest(username: "john", password: "123")
     /// )
     /// ```
-    public func post<B: Encodable & Sendable, T: Decodable>(_ endpoint: CYEndpoint, body: B) async throws -> T {
+    public func post<B: Encodable & Sendable, T: Decodable & Sendable>(_ endpoint: CYEndpoint, body: B) async throws -> T {
         try await performRequest {
             var urlRequest = try self.buildURLRequest(for: endpoint, encodableBody: body)
             await self.applyRequestInterceptors(to: &urlRequest)
@@ -222,7 +222,7 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
     ///     mimeType: "image/jpeg"
     /// )
     /// ```
-    public func upload<T: Decodable>(_ endpoint: CYEndpoint, data: Data, mimeType: String) async throws -> T {
+    public func upload<T: Decodable & Sendable>(_ endpoint: CYEndpoint, data: Data, mimeType: String) async throws -> T {
         try await performRequest {
             var urlRequest = try self.buildURLRequest(for: endpoint)
             await self.applyRequestInterceptors(to: &urlRequest)

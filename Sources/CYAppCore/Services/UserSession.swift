@@ -17,8 +17,11 @@ import Observation
 // ```
 
 /// 用户会话协议
+///
+/// 主线程隔离（@MainActor）天然保证线程安全，因此可标记为 Sendable，
+/// 便于在并发上下文中跨 await 边界安全传递（如 CYAuthService 的 async 方法）。
 @MainActor
-public protocol UserSessionProtocol: AnyObject {
+public protocol UserSessionProtocol: AnyObject, Sendable {
     /// 当前登录用户
     var user: User? { get }
     /// 是否已登录
@@ -39,7 +42,7 @@ public protocol UserSessionProtocol: AnyObject {
 
 @MainActor
 @Observable
-public final class CYUserSession: UserSessionProtocol {
+public final class CYUserSession: UserSessionProtocol, @unchecked Sendable {
     /// 当前登录用户
     public var user: User?
     

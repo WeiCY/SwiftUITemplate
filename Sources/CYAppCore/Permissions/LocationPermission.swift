@@ -38,7 +38,7 @@ public final class CYLocationPermission: NSObject, CYPermissionRequester, CLLoca
         return await withCheckedContinuation { continuation in
             lock.lock()
             // 已有进行中的请求：直接以当前状态唤醒新续体，避免覆盖导致原续体泄漏 / 永不恢复
-            if let existing = self.continuation {
+            if self.continuation != nil {
                 lock.unlock()
                 continuation.resume(returning: currentStatus)
                 return

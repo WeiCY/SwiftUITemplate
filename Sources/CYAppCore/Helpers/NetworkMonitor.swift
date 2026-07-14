@@ -17,7 +17,7 @@ import Observation
 // ```
 
 @Observable
-public final class CYNetworkMonitor {
+public final class CYNetworkMonitor: @unchecked Sendable {
     
     /// 全局单例
     public static let shared = CYNetworkMonitor()

@@ -28,7 +28,7 @@ public final class CYDebouncer: @unchecked Sendable {
     }
     
     /// 调度新的防抖操作，之前的待执行操作会被取消
-    public func debounce(action: @escaping () -> Void) {
+    public func debounce(action: @escaping @Sendable () -> Void) {
         workItem?.cancel()
         
         let item = DispatchWorkItem(block: action)
@@ -72,7 +72,7 @@ public final class CYThrottler: @unchecked Sendable {
     
     /// 执行节流操作
     /// - Parameter trailing: 为 true 时在间隔结束时也执行一次（默认 false）
-    public func throttle(trailing: Bool = false, action: @escaping () -> Void) {
+    public func throttle(trailing: Bool = false, action: @escaping @Sendable () -> Void) {
         let now = Date()
         
         if let last = lastExecution, now.timeIntervalSince(last) < interval {

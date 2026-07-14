@@ -38,6 +38,8 @@ public struct CYAppDimens {
     public static let radiusL: CGFloat = 12.0
     /// 超大圆角（20pt）
     public static let radiusXL: CGFloat = 20.0
+    /// 卡片圆角（16pt，Loading 弹窗等）
+    public static let radiusCard: CGFloat = 16.0
     /// 全圆角（胶囊形）
     public static let radiusFull: CGFloat = .infinity
     
@@ -53,6 +55,8 @@ public struct CYAppDimens {
     public static let iconSizeM: CGFloat = 24.0
     /// 大图标（32pt）
     public static let iconSizeL: CGFloat = 32.0
+    /// 加载指示器尺寸（64pt）
+    public static let loaderSize: CGFloat = 64.0
     
     // MARK: - 线宽
     

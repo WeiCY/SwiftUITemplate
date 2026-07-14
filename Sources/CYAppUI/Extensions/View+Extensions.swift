@@ -248,15 +248,15 @@ private struct PulseModifier: ViewModifier {
 // MARK: - Preference Key
 
 /// 尺寸 PreferenceKey
-private struct SizePreferenceKey: PreferenceKey {
-    static var defaultValue: CGSize = .zero
+private struct SizePreferenceKey: PreferenceKey, Sendable {
+    nonisolated(unsafe) static var defaultValue: CGSize = .zero
     static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
         value = nextValue()
     }
 }
 
 /// 纯 SwiftUI 角定义（替代 UIRectCorner）
-public struct RectCorner: OptionSet {
+public struct RectCorner: OptionSet, Sendable {
     public let rawValue: Int
     
     public init(rawValue: Int) { self.rawValue = rawValue }

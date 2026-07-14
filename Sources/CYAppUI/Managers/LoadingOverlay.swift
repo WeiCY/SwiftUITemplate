@@ -15,17 +15,18 @@ public struct CYLoadingOverlay: View {
     
     public var body: some View {
         ZStack {
-            // 毛玻璃背景
-            Color.black.opacity(0.25)
+            // 单一毛玻璃遮罩：材质 + 轻量暗化，避免多层背景叠加致色偏暗
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .overlay(Color.black.opacity(0.2))
                 .ignoresSafeArea()
-                .background(.ultraThinMaterial)
             
-            VStack(spacing: 20) {
+            VStack(spacing: CYAppDimens.marginL) {
                 // 脉冲动画指示器
                 ZStack {
                     Circle()
                         .fill(CYAppColor.primary.opacity(0.1))
-                        .frame(width: 64, height: 64)
+                        .frame(width: CYAppDimens.loaderSize, height: CYAppDimens.loaderSize)
                         .scaleEffect(pulseScale)
                     
                     ProgressView()
@@ -45,10 +46,10 @@ public struct CYLoadingOverlay: View {
                         .multilineTextAlignment(.center)
                 }
             }
-            .padding(.horizontal, 32)
-            .padding(.vertical, 24)
+            .padding(.horizontal, CYAppDimens.marginXL)
+            .padding(.vertical, CYAppDimens.marginL)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: CYAppDimens.radiusCard, style: .continuous)
                     .fill(CYAppColor.background)
                     .shadow(color: CYAppColor.shadow, radius: 12, y: 4)
             )

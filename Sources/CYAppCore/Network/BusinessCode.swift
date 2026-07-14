@@ -88,7 +88,7 @@ public struct CYBusinessCodePolicy: Sendable {
     /// 全局共享策略，App 启动时按后端契约覆盖即可
     ///
     /// 与 `CYAppEnvironment.current` 同模式：在发起任何请求前于主线程配置一次。
-    public static var shared = CYBusinessCodePolicy()
+    public nonisolated(unsafe) static var shared = CYBusinessCodePolicy()
 
     /// 不可变默认策略（用于测试或不定制的场景）
     public static let `default` = CYBusinessCodePolicy()

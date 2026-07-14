@@ -97,16 +97,16 @@ public protocol CYNetworkClientProtocol: Sendable {
     
     /// 发起请求并自动解包 CYAPIResponse.data
     /// 业务错误码非 0 时自动抛出 CYNetworkError.businessError
-    func request<T: Decodable>(_ endpoint: CYEndpoint) async throws -> T
+    func request<T: Decodable & Sendable>(_ endpoint: CYEndpoint) async throws -> T
     
     /// 发起请求并返回完整 CYAPIResponse（含 code + data + message）
-    func requestRaw<T: Decodable>(_ endpoint: CYEndpoint) async throws -> CYAPIResponse<T>
+    func requestRaw<T: Decodable & Sendable>(_ endpoint: CYEndpoint) async throws -> CYAPIResponse<T>
     
     /// 发起 POST 请求，body 使用 Encodable 类型安全编码
-    func post<B: Encodable & Sendable, T: Decodable>(_ endpoint: CYEndpoint, body: B) async throws -> T
+    func post<B: Encodable & Sendable, T: Decodable & Sendable>(_ endpoint: CYEndpoint, body: B) async throws -> T
     
     /// 上传数据
-    func upload<T: Decodable>(_ endpoint: CYEndpoint, data: Data, mimeType: String) async throws -> T
+    func upload<T: Decodable & Sendable>(_ endpoint: CYEndpoint, data: Data, mimeType: String) async throws -> T
     
     /// 下载文件到指定路径
     func download(_ endpoint: CYEndpoint, to fileURL: URL) async throws -> URL

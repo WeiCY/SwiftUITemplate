@@ -15,7 +15,7 @@ public struct CYOnboardingPage: Identifiable {
     }
     
     /// 所有引导页内容 — 请替换为你的 App 介绍
-    public static let allPages: [CYOnboardingPage] = [
+    public nonisolated(unsafe) static let allPages: [CYOnboardingPage] = [
         CYOnboardingPage(
             icon: "sparkles",
             title: "欢迎使用",

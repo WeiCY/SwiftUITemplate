@@ -12,7 +12,7 @@ import Security
 // CYKeychainHelper.standard.delete(service: "com.app.auth", account: "token")
 // ```
 
-public final class CYKeychainHelper {
+public final class CYKeychainHelper: @unchecked Sendable {
     public static let standard = CYKeychainHelper()
     
     private init() {}
@@ -35,7 +35,9 @@ public final class CYKeychainHelper {
         let status = SecItemAdd(query, nil)
         
         if status != errSecSuccess {
+            #if DEBUG
             print("Keychain 保存失败: \(status)")
+            #endif
         }
     }
     
