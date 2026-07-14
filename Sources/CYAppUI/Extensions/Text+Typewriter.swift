@@ -13,21 +13,25 @@ public struct TypewriterModifier: ViewModifier {
     @State private var hasStarted = false
     
     public func body(content: Content) -> some View {
-        Text(currentText)
-            .onAppear {
-                if trigger && !hasStarted {
-                    hasStarted = true
-                    startTypewriter()
-                } else if !trigger {
-                    displayedText = fullText
-                }
+        ZStack {
+            // 保留原始 content 于视图树中（仅隐藏），避免丢弃调用方传入的视图
+            content.hidden()
+            Text(currentText)
+        }
+        .onAppear {
+            if trigger && !hasStarted {
+                hasStarted = true
+                startTypewriter()
+            } else if !trigger {
+                displayedText = fullText
             }
-            .onChange(of: trigger) { _, newValue in
-                if newValue && !hasStarted {
-                    hasStarted = true
-                    startTypewriter()
-                }
+        }
+        .onChange(of: trigger) { _, newValue in
+            if newValue && !hasStarted {
+                hasStarted = true
+                startTypewriter()
             }
+        }
     }
     
     private var currentText: String {

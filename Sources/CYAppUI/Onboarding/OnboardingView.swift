@@ -23,7 +23,7 @@ public struct CYOnboardingView: View {
                 HStack {
                     Spacer()
                     if currentPage < pages.count - 1 {
-                        Button("跳过") {
+                        Button("onboarding_skip".cyLocalized) {
                             withAnimation(.easeInOut(duration: 0.3)) {
                                 hasCompleted = true
                             }

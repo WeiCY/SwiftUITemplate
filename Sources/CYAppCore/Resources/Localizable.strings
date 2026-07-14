@@ -1,0 +1,14 @@
+"error_generic" = "Something went wrong";
+"action_retry" = "Retry";
+"loading" = "Loading...";
+"pagination_end" = "— End —";
+"empty_title" = "No data";
+"empty_message" = "Pull down to refresh";
+"load_more" = "Load more";
+"onboarding_skip" = "Skip";
+"source_picker_title" = "Choose source";
+"album" = "Album";
+"cancel" = "Cancel";
+"camera_unavailable_title" = "Cannot take photo";
+"camera_unavailable_message" = "This device has no available camera";
+"image_load_failed" = "Image failed to load";

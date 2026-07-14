@@ -1,6 +1,7 @@
 #if canImport(UIKit)
 import UIKit
 import UserNotifications
+import os
 
 // MARK: - App 角标管理
 //
@@ -19,8 +20,12 @@ public final class CYAppBadgeManager {
     
     private init() {}
     
-    /// 内部缓存当前角标数量
-    private static var cachedCount: Int = 0
+    /// 内部缓存当前角标数量（用锁保护并发读写）
+    private static let countLock = OSAllocatedUnfairLock(initialState: 0)
+    private static var cachedCount: Int {
+        get { countLock.withLock { $0 } }
+        set { countLock.withLock { $0 = newValue } }
+    }
     
     /// 获取当前角标数量
     public static var current: Int {

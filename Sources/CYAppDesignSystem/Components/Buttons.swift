@@ -30,17 +30,21 @@ public struct CYScaledButtonStyle: ButtonStyle {
 
 // MARK: - 主按钮
 
-/// 主按钮（填充背景色 + 加载状态）
+/// 主按钮（填充背景色 + 加载状态 + 禁用状态）
 public struct PrimaryButton: View {
     let title: String
     let action: () -> Void
     var isLoading: Bool
+    var isDisabled: Bool = false
     
-    public init(title: String, action: @escaping () -> Void, isLoading: Bool = false) {
+    public init(title: String, action: @escaping () -> Void, isLoading: Bool = false, isDisabled: Bool = false) {
         self.title = title
         self.action = action
         self.isLoading = isLoading
+        self.isDisabled = isDisabled
     }
+    
+    private var isInactive: Bool { isLoading || isDisabled }
     
     public var body: some View {
         Button(action: action) {
@@ -55,11 +59,11 @@ public struct PrimaryButton: View {
             }
             .frame(maxWidth: .infinity, minHeight: CYAppDimens.buttonHeight)
             .padding(.horizontal, CYAppDimens.marginM)
-            .background(CYAppColor.primary)
-            .foregroundColor(.white)
+            .background(CYAppColor.primary.opacity(isInactive ? 0.4 : 1))
+            .foregroundColor(.white.opacity(isDisabled && !isLoading ? 0.6 : 1))
             .cornerRadius(CYAppDimens.radiusM)
         }
-        .disabled(isLoading)
+        .disabled(isInactive)
     }
 }
 

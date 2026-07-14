@@ -64,6 +64,10 @@ public protocol CYEndpoint: Sendable {
     var body: CYRequestParams? { get }
     /// URL 查询参数（GET 请求）
     var queryItems: [URLQueryItem]? { get }
+    /// JSON 解码策略（响应解析），默认 convertFromSnakeCase，适配 snake_case 后端
+    var keyDecodingStrategy: JSONDecoder.KeyDecodingStrategy { get }
+    /// JSON 编码策略（请求体），默认 convertToSnakeCase，与后端对齐
+    var keyEncodingStrategy: JSONEncoder.KeyEncodingStrategy { get }
 }
 
 /// CYEndpoint 默认实现 — 可选属性提供默认值
@@ -71,6 +75,8 @@ public extension CYEndpoint {
     var headers: [String: String]? { nil }
     var body: CYRequestParams? { nil }
     var queryItems: [URLQueryItem]? { nil }
+    var keyDecodingStrategy: JSONDecoder.KeyDecodingStrategy { .convertFromSnakeCase }
+    var keyEncodingStrategy: JSONEncoder.KeyEncodingStrategy { .convertToSnakeCase }
 }
 
 // MARK: - 网络客户端协议

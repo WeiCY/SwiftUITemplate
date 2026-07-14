@@ -35,6 +35,19 @@ public struct CYRemoteImageView: View {
                 Image(uiImage: loadedImage)
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
+            } else if let error {
+                VStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 24))
+                        .foregroundStyle(CYAppColor.textSecondary)
+                    Text("image_load_failed".cyLocalized)
+                        .font(CYAppFont.caption)
+                        .foregroundStyle(CYAppColor.textSecondary)
+                    Button("重试") {
+                        Task { await loadImage() }
+                    }
+                    .font(CYAppFont.caption)
+                }
             } else if let placeholder {
                 placeholder
                     .resizable()
@@ -50,26 +63,44 @@ public struct CYRemoteImageView: View {
     
     // MARK: - 私有方法
     
+    /// 加载图片，最多重试 `maxRetries` 次（指数退避）。
+    /// 循环代替递归以避免栈增长，并在每次重试前检查 `Task.isCancelled`。
     private func loadImage() async {
         guard let url else { return }
         isLoading = true
         error = nil
+        defer { isLoading = false }
         
-        do {
-            let data = try await imageLoader.loadImage(from: url)
-            if let image = UIImage(data: data) {
-                loadedImage = image
-            }
-        } catch {
-            self.error = error
-            if retryCount < maxRetries {
-                retryCount += 1
-                try? await Task.sleep(for: .seconds(retryCount))
-                await loadImage()
+        var attempt = 0
+        while attempt <= maxRetries {
+            if Task.isCancelled { return }
+            
+            do {
+                let data = try await imageLoader.loadImage(from: url)
+                if Task.isCancelled { return }
+                if let image = UIImage(data: data) {
+                    loadedImage = image
+                    error = nil
+                    return
+                }
+                throw NSError(
+                    domain: "CYRemoteImageView",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "图片数据解析失败"]
+                )
+            } catch {
+                if Task.isCancelled { return }
+                self.error = error
+                attempt += 1
+                if attempt <= maxRetries {
+                    do {
+                        try await Task.sleep(for: .seconds(min(Double(attempt), 3)))
+                    } catch {
+                        return
+                    }
+                }
             }
         }
-        
-        isLoading = false
     }
 }
 

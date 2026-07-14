@@ -65,7 +65,7 @@ public enum CYLogLevel: Int, Comparable, Sendable {
     }
 }
 
-public final class CYLogger {
+public final class CYLogger: @unchecked Sendable {
     
     /// 全局共享实例
     public static let shared = CYLogger()
@@ -89,14 +89,15 @@ public final class CYLogger {
     /// os.Logger 实例
     private let logger: os.Logger
     
-    /// 最低日志级别（低于此级别的日志会被过滤）
-    private var minimumLevel: CYLogLevel = {
+    /// 最低日志级别（低于此级别的日志会被过滤）。
+    /// 使用 `OSAllocatedUnfairLock` 保护，避免跨 actor 并发读写竞争。
+    private let minimumLevelLock = OSAllocatedUnfairLock(initialState: {
         #if DEBUG
-        return .debug
+        return CYLogLevel.debug
         #else
-        return .info
+        return CYLogLevel.info
         #endif
-    }()
+    }())
     
     /// 初始化（可指定分类）
     public init(category: String = "App") {
@@ -113,7 +114,7 @@ public final class CYLogger {
     ///
     /// - Parameter level: 低于此级别的日志将被过滤
     public func setMinimumLevel(_ level: CYLogLevel) {
-        self.minimumLevel = level
+        minimumLevelLock.withLock { $0 = level }
     }
     
     // MARK: - 日志输出
@@ -158,7 +159,7 @@ public final class CYLogger {
     
     /// 内部统一日志输出
     private func log(level: CYLogLevel, message: String, file: String, function: String, line: Int) {
-        guard level >= minimumLevel else { return }
+        guard level >= minimumLevelLock.withLock({ $0 }) else { return }
         
         let fileName = (file as NSString).lastPathComponent
         let formattedMessage = "\(level.prefix) [\(category)] \(fileName):\(line) \(function) -> \(message)"

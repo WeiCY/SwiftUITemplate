@@ -9,7 +9,9 @@ import CoreLocation
 /// - `NSLocationAlwaysAndWhenInUseUsageDescription`（始终定位，如需要）
 public final class CYLocationPermission: NSObject, CYPermissionRequester, CLLocationManagerDelegate, @unchecked Sendable {
     
-    private var locationManager: CLLocationManager?
+    /// 复用同一个 CLLocationManager 实例，避免每次请求都新建。
+    private let locationManager = CLLocationManager()
+    private let lock = NSLock()
     private var continuation: CheckedContinuation<CYPermissionStatus, Never>?
     
     public override init() {
@@ -18,8 +20,7 @@ public final class CYLocationPermission: NSObject, CYPermissionRequester, CLLoca
     
     public var status: CYPermissionStatus {
         get async {
-            let manager = CLLocationManager()
-            let status = manager.authorizationStatus
+            let status = locationManager.authorizationStatus
             switch status {
             case .authorizedWhenInUse, .authorizedAlways: return .authorized
             case .denied: return .denied
@@ -35,11 +36,18 @@ public final class CYLocationPermission: NSObject, CYPermissionRequester, CLLoca
         guard currentStatus == .notDetermined else { return currentStatus }
         
         return await withCheckedContinuation { continuation in
+            lock.lock()
+            // 已有进行中的请求：直接以当前状态唤醒新续体，避免覆盖导致原续体泄漏 / 永不恢复
+            if let existing = self.continuation {
+                lock.unlock()
+                continuation.resume(returning: currentStatus)
+                return
+            }
             self.continuation = continuation
-            let manager = CLLocationManager()
-            manager.delegate = self
-            self.locationManager = manager
-            manager.requestWhenInUseAuthorization()
+            lock.unlock()
+            
+            locationManager.delegate = self
+            locationManager.requestWhenInUseAuthorization()
         }
     }
     
@@ -55,8 +63,11 @@ public final class CYLocationPermission: NSObject, CYPermissionRequester, CLLoca
         @unknown default: status = .notDetermined
         }
         
+        lock.lock()
+        let continuation = self.continuation
+        self.continuation = nil
+        lock.unlock()
+        
         continuation?.resume(returning: status)
-        continuation = nil
-        locationManager = nil
     }
 }

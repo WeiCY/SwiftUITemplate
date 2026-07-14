@@ -78,10 +78,13 @@ public final class CYAppRouter {
     public var sheetItem: CYSheetItem?
     
     /// 关联的 AppState（用于获取/切换当前 Tab）
+    /// 使用强引用以避免「替换 appState 时弱引用静默失效」的问题；
+    /// AppState 由 Environment 持有，不会与 Router 形成循环引用。
     @ObservationIgnored
-    private weak var appState: CYAppState?
+    private var appState: CYAppState?
     
-    public init() {
+    public init(appState: CYAppState? = nil) {
+        self.appState = appState
         var p: [CYAppTab: NavigationPath] = [:]
         for tab in CYAppTab.allCases {
             p[tab] = NavigationPath()
@@ -89,9 +92,13 @@ public final class CYAppRouter {
         self.paths = p
     }
     
-    /// 绑定 AppState（在 App 入口的 .onAppear 中调用）
+    /// 绑定 AppState（在 App 入口的 .onAppear 中调用，或直接在 init 中注入）
     ///
     /// ```swift
+    /// // 方式 1：init 注入（推荐）
+    /// @State private var router = CYAppRouter(appState: appState)
+    ///
+    /// // 方式 2：onAppear 绑定
     /// .onAppear { router.bind(to: appState) }
     /// ```
     public func bind(to appState: CYAppState) {

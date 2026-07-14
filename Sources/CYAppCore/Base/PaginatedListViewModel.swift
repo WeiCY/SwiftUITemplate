@@ -76,11 +76,11 @@ open class CYPaginatedListViewModel<Item: Identifiable & Sendable>: CYBaseViewMo
     
     // MARK: - 下拉刷新
     
-    /// 下拉刷新 — 重置到第一页，清空旧数据
+    /// 下拉刷新 — 重置到第一页。
+    /// 注意：刷新成功前**保留旧数据**，仅在成功后替换，
+    /// 避免请求失败时用户看到空白而非原有内容。
     public func refresh() async {
-        currentPage = 1
         hasMore = true
-        items = []
         
         await executeTask { [weak self] in
             guard let self else { return }

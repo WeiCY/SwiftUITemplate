@@ -40,6 +40,10 @@ public final class CYCacheManager {
     private let fileManager = FileManager.default
     private let queue = DispatchQueue(label: "SwiftUITemplate.CYCacheManager.queue")
     private let baseCacheDirectory: URL
+
+    /// 内存缓存键索引（namespace -> safeKey 集合），用于在按命名空间清除时同步清理 NSCache。
+    /// 由于 NSCache 不提供枚举 API，此处单独维护一份索引。
+    private var memoryKeyIndex: [String: Set<String>] = [:]
     
     public init() {
         let url = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
@@ -83,6 +87,7 @@ public final class CYCacheManager {
             let safeKey = safeFileName(for: key)
             let fullKey = namespace.map { "\($0)/\(safeKey)" } ?? safeKey
             memoryCache.setObject(data as NSData, forKey: fullKey as NSString)
+            registerMemoryKey(safeKey, namespace: namespace)
             let directory = getDirectory(for: namespace)
             let fileURL = directory.appendingPathComponent(safeKey)
             try? data.write(to: fileURL)
@@ -113,6 +118,7 @@ public final class CYCacheManager {
                 if let entry = try? JSONDecoder().decode(CacheEntry<T>.self, from: data) {
                     if !entry.isExpired {
                         memoryCache.setObject(data as NSData, forKey: fullKey as NSString)
+                        registerMemoryKey(safeKey, namespace: namespace)
                         return entry.value
                     }
                     removeUnsafe(safeKey: safeKey, fullKey: fullKey, namespace: namespace)
@@ -137,18 +143,33 @@ public final class CYCacheManager {
     public func clear(namespace: String? = nil) {
         queue.sync {
             if let namespace = namespace {
+                let indexKey = namespace
+                if let keys = memoryKeyIndex[indexKey] {
+                    for safeKey in keys {
+                        let fullKey = "\(indexKey)/\(safeKey)"
+                        memoryCache.removeObject(forKey: fullKey as NSString)
+                    }
+                    memoryKeyIndex[indexKey] = nil
+                }
                 let directory = getDirectory(for: namespace)
                 try? fileManager.removeItem(at: directory)
             } else {
                 memoryCache.removeAllObjects()
+                memoryKeyIndex.removeAll()
                 try? fileManager.removeItem(at: baseCacheDirectory)
                 try? fileManager.createDirectory(at: baseCacheDirectory, withIntermediateDirectories: true)
             }
         }
     }
 
+    private func registerMemoryKey(_ safeKey: String, namespace: String?) {
+        let indexKey = namespace ?? ""
+        memoryKeyIndex[indexKey, default: []].insert(safeKey)
+    }
+
     private func removeUnsafe(safeKey: String, fullKey: String, namespace: String?) {
         memoryCache.removeObject(forKey: fullKey as NSString)
+        memoryKeyIndex[namespace ?? ""]?.remove(safeKey)
         let directory = getDirectory(for: namespace)
         let fileURL = directory.appendingPathComponent(safeKey)
         try? fileManager.removeItem(at: fileURL)

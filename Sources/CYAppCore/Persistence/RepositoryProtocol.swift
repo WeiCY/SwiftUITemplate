@@ -73,10 +73,8 @@ public protocol CYRepositoryProtocol {
 
 /// Repository 协议默认实现
 public extension CYRepositoryProtocol {
-    
-    func fetch(predicate: Predicate<Entity>? = nil) throws -> [Entity] {
-        return try fetch(predicate: predicate)
-    }
+    /// `fetch(predicate:)` 必须由具体类型实现（基于各自的 ModelContext / FetchDescriptor），
+    /// 此处不再提供默认实现，避免误调用时无限递归导致栈溢出。
     
     func insert(_ entities: [Entity]) throws {
         for entity in entities {

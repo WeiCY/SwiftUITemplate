@@ -1,0 +1,14 @@
+"error_generic" = "出错了";
+"action_retry" = "重试";
+"loading" = "加载中...";
+"pagination_end" = "— 已加载全部 —";
+"empty_title" = "暂无数据";
+"empty_message" = "下拉刷新试试";
+"load_more" = "加载更多";
+"onboarding_skip" = "跳过";
+"source_picker_title" = "选择来源";
+"album" = "相册";
+"cancel" = "取消";
+"camera_unavailable_title" = "无法拍照";
+"camera_unavailable_message" = "当前设备没有可用的相机";
+"image_load_failed" = "图片加载失败";

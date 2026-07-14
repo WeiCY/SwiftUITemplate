@@ -33,9 +33,19 @@ public struct CYAPIResponse<T: Decodable>: Decodable, Sendable where T: Sendable
     // MARK: - 计算属性
     
     /// 判断业务是否成功
-    /// 默认 code == 0 为成功，可根据后端规范调整
+    ///
+    /// 不再硬编码 `code == 0 || 200`，而是交由 `CYBusinessCodePolicy.shared`
+    /// 统一判定，保证与网络框架、上层 UI 使用同一套业务码语义。
     public var isSuccess: Bool {
-        code == 0 || code == 200
+        businessResult.isSuccess
+    }
+    
+    /// 按 `CYBusinessCodePolicy` 分类后的业务语义结果
+    ///
+    /// 业务方可用它区分「成功 / 普通错误 / Token 过期 / 需重新登录」，
+    /// 以及普通错误建议的展示方式（toast / alert / silent）。
+    public var businessResult: CYBusinessCodeResult {
+        CYBusinessCodePolicy.shared.classify(code, message: message)
     }
     
     // MARK: - 解码
@@ -48,7 +58,21 @@ public struct CYAPIResponse<T: Decodable>: Decodable, Sendable where T: Sendable
     
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        code = (try? container.decode(Int.self, forKey: .code)) ?? 0
+        // 缺失 code 时宽容地视为 0（兼容不返回 code 的接口）；
+        // 但 code 存在却类型错误时，明确抛出，避免掩盖后端契约 Bug。
+        if container.contains(.code) {
+            do {
+                code = try container.decode(Int.self, forKey: .code)
+            } catch {
+                throw DecodingError.typeMismatch(
+                    Int.self,
+                    .init(codingPath: [CodingKeys.code],
+                           debugDescription: "CYAPIResponse.code 类型错误，期望 Int")
+                )
+            }
+        } else {
+            code = 0
+        }
         data = try? container.decodeIfPresent(T.self, forKey: .data)
         message = try? container.decodeIfPresent(String.self, forKey: .message)
     }

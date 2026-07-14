@@ -34,7 +34,7 @@ public struct CYAlertManagerModifier: ViewModifier {
                     Button(confirmTitle, role: isDestructive ? .destructive : .none) {
                         action()
                     }
-                    Button("取消", role: .cancel) { }
+                    Button("cancel".cyLocalized, role: .cancel) { }
                 }
             } message: {
                 if let message = alertManager.message {

@@ -147,6 +147,9 @@ public struct CYTokenRefreshInterceptor: Sendable {
     /// 尝试刷新 Token
     ///
     /// - Returns: 新的 TokenPair（刷新成功），nil（无 RefreshToken 或刷新失败）
+    ///
+    /// 注意：并发安全由 `CYTokenRefreshCoordinator` 保证，
+    /// 多个请求同时 401 时只有第一个真正发起刷新，其余复用同一次结果。
     public func attemptRefresh() async -> TokenPair? {
         guard let refreshToken = refreshTokenProvider() else {
             await onRefreshFailed()
@@ -162,6 +165,36 @@ public struct CYTokenRefreshInterceptor: Sendable {
             await onRefreshFailed()
             return nil
         }
+    }
+}
+
+// MARK: - Token 刷新并发协调器
+
+/// 401 并发刷新协调器（actor 保证线程安全）
+///
+/// 多个请求同时收到 401 时，仅第一个请求真正调用 `attemptRefresh()`，
+/// 其余请求挂起并复用同一个刷新结果，避免并发刷新导致 RefreshToken 被多次消费。
+///
+/// 由 `CYNetworkClient.setTokenRefreshInterceptor(_:)` 内部创建并持有。
+public actor CYTokenRefreshCoordinator {
+    private var refreshTask: Task<TokenPair?, Never>?
+    private let interceptor: CYTokenRefreshInterceptor
+    
+    public init(interceptor: CYTokenRefreshInterceptor) {
+        self.interceptor = interceptor
+    }
+    
+    /// 触发一次刷新（并发去重）。
+    /// - Returns: 新的 TokenPair（刷新成功），nil（无 RefreshToken 或刷新失败）
+    public func refreshIfNeeded() async -> TokenPair? {
+        if let existing = refreshTask {
+            return await existing.value
+        }
+        let task = Task { await interceptor.attemptRefresh() }
+        refreshTask = task
+        let result = await task.value
+        refreshTask = nil
+        return result
     }
 }
 

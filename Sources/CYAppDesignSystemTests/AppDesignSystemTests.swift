@@ -1,0 +1,52 @@
+import XCTest
+import SwiftUI
+import CYAppDesignSystem
+
+#if canImport(AppKit)
+import AppKit
+#endif
+
+// MARK: - 设计系统补充测试
+//
+// 覆盖历史上「零单测」的高风险模块：Color+Hex（非法输入应安全降级为透明、合法解析正确）。
+// 注意：SwiftUI 的 `Color` 在带透明度时 `==` 不可靠（相同 debug 描述仍判不等），
+// 故对透明度/通道用平台 NSColor 分量校验，不透明度单独断言。
+
+final class AppDesignSystemTests: XCTestCase {
+
+    private let sRGBRed = Color(.sRGB, red: 1, green: 0, blue: 0, opacity: 1)
+    private let sRGBGreen = Color(.sRGB, red: 0, green: 1, blue: 0, opacity: 1)
+    private let sRGBClear = Color(.sRGB, red: 0, green: 0, blue: 0, opacity: 0)
+
+    func testColorHexValidRed() {
+        XCTAssertEqual(Color(hex: "FF0000"), sRGBRed)
+    }
+
+    func testColorHexValidGreenWithHash() {
+        XCTAssertEqual(Color(hex: "#00FF00"), sRGBGreen)
+    }
+
+    func testColorHexInvalidReturnsClear() {
+        // 非法输入应安全降级为透明色，而非崩溃
+        XCTAssertEqual(Color(hex: "xyz"), sRGBClear)
+        XCTAssertEqual(Color(hex: ""), sRGBClear)
+        XCTAssertEqual(Color(hex: "ZZ"), sRGBClear)
+    }
+
+    #if canImport(AppKit)
+    func testColorHexARGBAlphaValue() {
+        // 8 位按 ARGB 解析：80FF0000 -> a=0x80(~0.5), r=ff, g=00, b=00
+        let ns = NSColor(Color(hex: "80FF0000"))
+        XCTAssertEqual(ns.alphaComponent, 0.5, accuracy: 0.02, "透明度应约为 0.5")
+        XCTAssertEqual(ns.redComponent, 1.0, accuracy: 0.02, "红色分量应为 1")
+        XCTAssertEqual(ns.greenComponent, 0.0, accuracy: 0.02, "绿色分量应为 0")
+    }
+
+    func testColorHexARGBOpaqueBlue() {
+        // FF000080 -> a=FF(不透明), r=00, g=00, b=80
+        let ns = NSColor(Color(hex: "FF000080"))
+        XCTAssertEqual(ns.alphaComponent, 1.0, accuracy: 0.02, "8 位高字节为 A，应不透明")
+        XCTAssertEqual(ns.blueComponent, Double(0x80) / 255.0, accuracy: 0.02, "蓝色分量应为 0x80")
+    }
+    #endif
+}

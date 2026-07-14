@@ -120,10 +120,12 @@ public struct CYMediaPicker<Label: View>: View {
             .ignoresSafeArea()
         }
         // 选择来源 ActionSheet
-        .confirmationDialog("选择来源", isPresented: $showSourceSheet) {
-            Button("相册") { photoItems = [] ; triggerAlbumPicker = true }
-            Button("拍照") { showCamera = true }
-            Button("取消", role: .cancel) {}
+        .confirmationDialog("source_picker_title".cyLocalized, isPresented: $showSourceSheet) {
+            Button("album".cyLocalized) { photoItems = [] ; triggerAlbumPicker = true }
+            if CYCameraView.isCameraAvailable {
+                Button("拍照") { showCamera = true }
+            }
+            Button("cancel".cyLocalized, role: .cancel) {}
         }
         // 相册选择（通过 PhotosPicker 的 programmatic 方式）
         .photosPicker(
@@ -185,23 +187,38 @@ public struct CYMediaPicker<Label: View>: View {
 /// UIImagePickerController 的 SwiftUI 桥接
 ///
 /// 封装系统相机，处理拍照回调和生命周期。
-/// 仅在 iOS 设备上有实际功能，模拟器上会显示提示。
+/// 仅在 iOS 设备上有实际功能，模拟器 / 无相机设备会自动显示提示而非崩溃。
 public struct CYCameraView: UIViewControllerRepresentable {
     
     let onImagePicked: (UIImage?) -> Void
+    
+    /// 当前设备是否支持相机（模拟器返回 false）
+    public static var isCameraAvailable: Bool {
+        UIImagePickerController.isSourceTypeAvailable(.camera)
+    }
     
     public init(onImagePicked: @escaping (UIImage?) -> Void) {
         self.onImagePicked = onImagePicked
     }
     
-    public func makeUIViewController(context: Context) -> UIImagePickerController {
+    public func makeUIViewController(context: Context) -> UIViewController {
+        guard CYCameraView.isCameraAvailable else {
+            // 无可用相机（如模拟器）：返回提示 Alert，避免 sourceType = .camera 崩溃
+            let alert = UIAlertController(
+                title: "camera_unavailable_title".cyLocalized,
+                message: "camera_unavailable_message".cyLocalized,
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "确定", style: .default))
+            return alert
+        }
         let picker = UIImagePickerController()
         picker.sourceType = .camera
         picker.delegate = context.coordinator
         return picker
     }
     
-    public func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    public func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
     
     public func makeCoordinator() -> Coordinator {
         Coordinator(onImagePicked: onImagePicked)

@@ -27,7 +27,8 @@ let package = Package(
                 .product(name: "Kingfisher", package: "Kingfisher"),
                 .product(name: "Factory", package: "Factory"),
             ],
-            path: "Sources/CYAppCore"
+            path: "Sources/CYAppCore",
+            resources: [.process("Resources")]
         ),
         // Layer 1: SwiftUI 设计系统 + UI 组件
         .target(
@@ -46,6 +47,22 @@ let package = Package(
             name: "CYAppCoreTests",
             dependencies: ["CYAppCore"],
             path: "Sources/CYAppCoreTests"
+        ),
+        .testTarget(
+            name: "CYAppDesignSystemTests",
+            dependencies: ["CYAppDesignSystem"],
+            path: "Sources/CYAppDesignSystemTests"
+        ),
+        .testTarget(
+            name: "CYAppUITests",
+            dependencies: ["CYAppUI", "CYAppCore"],
+            path: "Sources/CYAppUITests"
+        ),
+        // 可运行 Demo（业务接入参考）
+        .executableTarget(
+            name: "ExampleApp",
+            dependencies: ["CYAppCore", "CYAppDesignSystem", "CYAppUI"],
+            path: "ExampleApp/Sources"
         ),
     ]
 )

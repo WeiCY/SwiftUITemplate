@@ -39,14 +39,13 @@ import CYAppCore
 /// 分页列表 UI 组件
 ///
 /// 自动处理：下拉刷新、上拉加载更多、空状态、加载中状态
+///
+/// - Note: 内部通过 `@Bindable` 持有 `@Observable` 的 ViewModel，
+///   直接在 `body` 中读取其属性以确保观察订阅生效（不使用 `let` 快照，
+///   否则数据更新后列表不会刷新）。
 public struct CYPaginatedListView<Item: Identifiable, Row: View, Empty: View>: View {
     
-    let items: [Item]
-    let isLoading: Bool
-    let isLoadingMore: Bool
-    let hasMore: Bool
-    let error: CYAppError?
-    let isEmpty: Bool
+    @Bindable var viewModel: CYPaginatedListViewModel<Item>
     let emptyView: () -> Empty
     let onRefresh: () async -> Void
     let onLoadMore: () async -> Void
@@ -59,12 +58,7 @@ public struct CYPaginatedListView<Item: Identifiable, Row: View, Empty: View>: V
         onLoadMore: @escaping () async -> Void,
         @ViewBuilder rowContent: @escaping (Item) -> Row
     ) {
-        self.items = viewModel.items
-        self.isLoading = viewModel.isLoading
-        self.isLoadingMore = viewModel.isLoadingMore
-        self.hasMore = viewModel.hasMore
-        self.error = viewModel.error
-        self.isEmpty = viewModel.isEmpty
+        self._viewModel = Bindable(viewModel)
         self.emptyView = emptyView
         self.onRefresh = onRefresh
         self.onLoadMore = onLoadMore
@@ -73,7 +67,7 @@ public struct CYPaginatedListView<Item: Identifiable, Row: View, Empty: View>: V
     
     public var body: some View {
         Group {
-            if isEmpty && !isLoading {
+            if viewModel.isEmpty && !viewModel.isLoading {
                 emptyView()
             } else {
                 listContent
@@ -83,12 +77,12 @@ public struct CYPaginatedListView<Item: Identifiable, Row: View, Empty: View>: V
     
     private var listContent: some View {
         List {
-            ForEach(items) { item in
+            ForEach(viewModel.items) { item in
                 rowContent(item)
                     .onAppear {
                         // 最后一个 item 出现时触发加载更多
-                        if let lastId = items.last?.id, item.id == lastId {
-                            if hasMore && !isLoadingMore {
+                        if let lastId = viewModel.items.last?.id, item.id == lastId {
+                            if viewModel.hasMore && !viewModel.isLoadingMore {
                                 Task { await onLoadMore() }
                             }
                         }
@@ -104,21 +98,21 @@ public struct CYPaginatedListView<Item: Identifiable, Row: View, Empty: View>: V
     
     @ViewBuilder
     private var footerView: some View {
-        if isLoadingMore {
+        if viewModel.isLoadingMore {
             HStack {
                 Spacer()
                 ProgressView()
                     .scaleEffect(0.8)
-                Text("加载中...")
+                Text("loading".cyLocalized)
                     .font(CYAppFont.caption)
                     .foregroundColor(CYAppColor.textSecondary)
                 Spacer()
             }
             .padding(.vertical, CYAppDimens.marginS)
-        } else if !hasMore && !items.isEmpty {
+        } else if !viewModel.hasMore && !viewModel.items.isEmpty {
             HStack {
                 Spacer()
-                Text("— 已加载全部 —")
+                Text("pagination_end".cyLocalized)
                     .font(CYAppFont.caption)
                     .foregroundColor(CYAppColor.textTertiary)
                 Spacer()
@@ -157,8 +151,8 @@ public struct CYDefaultEmptyView: View {
     let systemImage: String
     
     public init(
-        title: String = "暂无数据",
-        message: String = "下拉刷新试试",
+        title: String = "empty_title".cyLocalized,
+        message: String = "empty_message".cyLocalized,
         systemImage: String = "tray"
     ) {
         self.title = title
@@ -205,19 +199,19 @@ public struct CYLoadMoreButton: View {
             if isLoading {
                 ProgressView()
                     .scaleEffect(0.8)
-                Text("加载中...")
+                Text("loading".cyLocalized)
                     .font(CYAppFont.bodySmall)
                     .foregroundColor(CYAppColor.textSecondary)
             } else if hasMore {
                 Button {
                     Task { await action() }
                 } label: {
-                    Text("加载更多")
+                    Text("load_more".cyLocalized)
                         .font(CYAppFont.label)
                         .foregroundColor(CYAppColor.accent)
                 }
             } else {
-                Text("— 已加载全部 —")
+                Text("pagination_end".cyLocalized)
                     .font(CYAppFont.caption)
                     .foregroundColor(CYAppColor.textTertiary)
             }

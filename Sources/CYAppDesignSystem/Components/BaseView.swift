@@ -70,7 +70,7 @@ public struct CYBaseView<Content: View>: View {
                 .font(.system(size: 50))
                 .foregroundColor(CYAppColor.error)
             
-            Text("Something went wrong")
+            Text("error_generic".cyLocalized)
                 .font(CYAppFont.h3)
                 .foregroundColor(CYAppColor.textPrimary)
             
@@ -82,7 +82,7 @@ public struct CYBaseView<Content: View>: View {
             
             if let onRetry = onRetry {
                 Button(action: onRetry) {
-                    Text("Retry")
+                    Text("action_retry".cyLocalized)
                         .font(CYAppFont.button)
                         .foregroundColor(.white)
                         .padding(.horizontal, CYAppDimens.marginL)
