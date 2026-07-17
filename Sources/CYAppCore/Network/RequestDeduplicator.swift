@@ -27,10 +27,25 @@ import Foundation
 /// ```
 public actor CYRequestDeduplicator {
     
-    /// 存储正在执行的任务
-    private var tasks: [String: Any] = [:]
+    /// 存储正在执行的任务（使用类型擦除的 Task 包装）
+    private var tasks: [String: TaskWrapper] = [:]
     
     public init() {}
+    
+    /// Task 包装器（用于类型擦除，标记为 @unchecked Sendable）
+    private struct TaskWrapper: @unchecked Sendable {
+        private let _task: Any  // 存储任务引用
+        let cancel: @Sendable () -> Void
+        
+        init<T: Sendable>(_ task: Task<T, Error>) {
+            self._task = task
+            self.cancel = { task.cancel() }
+        }
+        
+        func getTask<T: Sendable>(as type: T.Type) -> Task<T, Error>? {
+            _task as? Task<T, Error>
+        }
+    }
     
     /// 执行请求（带去重）
     ///
@@ -45,20 +60,21 @@ public actor CYRequestDeduplicator {
     /// 3. 任务完成后，从缓存中移除
     public func execute<T: Sendable>(
         key: String,
-        action: @escaping () async throws -> T
+        action: @escaping @Sendable () async throws -> T
     ) async throws -> T {
         // 检查是否已有相同请求正在执行
-        if let existingTask = tasks[key] as? Task<T, Error> {
+        if let wrapper = tasks[key],
+           let existingTask = wrapper.getTask(as: T.self) {
             return try await existingTask.value
         }
         
         // 创建新任务
-        let task = Task<T, Error> {
+        let task = Task<T, Error> { @Sendable in
             try await action()
         }
         
         // 缓存任务
-        tasks[key] = task
+        tasks[key] = TaskWrapper(task)
         
         // 执行并清理
         do {
@@ -73,18 +89,16 @@ public actor CYRequestDeduplicator {
     
     /// 取消指定 key 的请求
     public func cancel(key: String) {
-        if let task = tasks[key] as? Task<Any, Error> {
-            task.cancel()
+        if let wrapper = tasks[key] {
+            wrapper.cancel()
             tasks[key] = nil
         }
     }
     
     /// 取消所有请求
     public func cancelAll() {
-        for (_, task) in tasks {
-            if let task = task as? Task<Any, Error> {
-                task.cancel()
-            }
+        for (_, wrapper) in tasks {
+            wrapper.cancel()
         }
         tasks.removeAll()
     }

@@ -3,6 +3,9 @@ import Observation
 #if canImport(UIKit)
 import UIKit
 #endif
+#if canImport(AppKit)
+import AppKit
+#endif
 
 /// 统一权限管理器
 /// 集中管理所有权限的查询和请求

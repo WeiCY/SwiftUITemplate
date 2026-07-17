@@ -1,7 +1,5 @@
-#if canImport(UIKit)
-import SwiftUI
-
 #if canImport(UIKit) && canImport(PhotosUI)
+import SwiftUI
 import PhotosUI
 
 // MARK: - 媒体选择器（仅 iOS）

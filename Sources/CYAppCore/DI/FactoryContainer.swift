@@ -89,6 +89,7 @@ public final class CYFactoryContainer: DIContainerProtocol, @unchecked Sendable 
     public var imageLoader: CYImageLoaderProtocol { container.imageLoader() }
     public var permissionManager: CYPermissionManager { container.permissionManager() }
     public var appState: CYAppState { container.appState() }
+    public var requestDeduplicator: CYRequestDeduplicator { container.requestDeduplicator() }
     
     public init() {}
 }
