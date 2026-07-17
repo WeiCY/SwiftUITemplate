@@ -75,17 +75,17 @@ final class HighPriorityTests: XCTestCase {
 
     // MARK: - CacheManager 清命名空间同步清内存（P0 #3）
 
-    func testCacheManagerClearNamespaceClearsMemory() {
+    func testCacheManagerClearNamespaceClearsMemory() async {
         let cache = CYCacheManager()
-        defer { cache.clear() }
+        defer { Task { await cache.clear() } }
 
-        cache.save(value: "value", forKey: "k", namespace: "Ns")
-        let loaded: String? = cache.load(forKey: "k", namespace: "Ns")
+        await cache.save(value: "value", forKey: "k", namespace: "Ns")
+        let loaded: String? = await cache.load(forKey: "k", namespace: "Ns")
         XCTAssertEqual(loaded, "value")
 
-        cache.clear(namespace: "Ns")
+        await cache.clear(namespace: "Ns")
 
-        let after: String? = cache.load(forKey: "k", namespace: "Ns")
+        let after: String? = await cache.load(forKey: "k", namespace: "Ns")
         XCTAssertNil(after, "clear(namespace:) 应同步清掉内存缓存")
     }
 
@@ -161,11 +161,15 @@ final class HighPriorityTests: XCTestCase {
     }
 
     func testNetworkErrorDisplayKind() {
-        var p = CYBusinessCodePolicy.default
-        p.alertCodes = [50000]
-        p.silentCodes = [90001]
-        CYBusinessCodePolicy.shared = p
-        defer { CYBusinessCodePolicy.shared = .default }
+        let p = CYBusinessCodePolicy(
+            successCodes: [0, 200],
+            tokenExpiredCodes: [401, 10001, 10002],
+            reLoginCodes: [10003],
+            silentCodes: [90001],
+            alertCodes: [50000]
+        )
+        CYBusinessCodePolicy.configure { $0 = p }
+        defer { CYBusinessCodePolicy.configure { $0 = .default } }
         XCTAssertEqual(CYNetworkError.businessError(code: 50000, message: "x").displayKind, .alert)
         XCTAssertEqual(CYNetworkError.businessError(code: 90001, message: "x").displayKind, .silent)
         XCTAssertEqual(CYNetworkError.businessError(code: 123, message: "x").displayKind, .toast)

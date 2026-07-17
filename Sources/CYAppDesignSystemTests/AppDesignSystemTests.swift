@@ -34,18 +34,18 @@ final class AppDesignSystemTests: XCTestCase {
     }
 
     #if canImport(AppKit)
-    func testColorHexARGBAlphaValue() {
-        // 8 位按 ARGB 解析：80FF0000 -> a=0x80(~0.5), r=ff, g=00, b=00
-        let ns = NSColor(Color(hex: "80FF0000"))
+    func testColorHexRRGGBBAAAlphaValue() {
+        // 8 位按 RRGGBBAA 解析：FF000080 -> r=FF, g=00, b=00, a=0x80(~0.5)
+        let ns = NSColor(Color(hex: "FF000080"))
         XCTAssertEqual(ns.alphaComponent, 0.5, accuracy: 0.02, "透明度应约为 0.5")
         XCTAssertEqual(ns.redComponent, 1.0, accuracy: 0.02, "红色分量应为 1")
         XCTAssertEqual(ns.greenComponent, 0.0, accuracy: 0.02, "绿色分量应为 0")
     }
 
-    func testColorHexARGBOpaqueBlue() {
-        // FF000080 -> a=FF(不透明), r=00, g=00, b=80
-        let ns = NSColor(Color(hex: "FF000080"))
-        XCTAssertEqual(ns.alphaComponent, 1.0, accuracy: 0.02, "8 位高字节为 A，应不透明")
+    func testColorHexRRGGBBAATransparentBlue() {
+        // 000080FF -> r=00, g=00, b=0x80, a=FF(不透明)
+        let ns = NSColor(Color(hex: "000080FF"))
+        XCTAssertEqual(ns.alphaComponent, 1.0, accuracy: 0.02, "8 位低字节为 A，应不透明")
         XCTAssertEqual(ns.blueComponent, Double(0x80) / 255.0, accuracy: 0.02, "蓝色分量应为 0x80")
     }
     #endif

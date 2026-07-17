@@ -396,20 +396,27 @@ CYAppRouter.shared.popToRoot()
 ```swift
 struct RootView: View {
     @Bindable var router = CYAppRouter.shared
+    @Environment(CYAppState.self) private var appState
 
     var body: some View {
-        NavigationStack(path: $router.path) {
-            HomeView()
-                .navigationDestination(for: Route.self) { route in
-                    switch route {
-                    case .productDetail(let id):
-                        ProductDetailView(id: id)
-                    case .settings:
-                        SettingsView()
-                    case .profile(let userId):
-                        ProfileView(userId: userId)
-                    }
+        TabView(selection: $appState.selectedTab) {
+            ForEach(CYAppTab.allCases, id: \.self) { tab in
+                NavigationStack(path: router.binding(for: tab)) {
+                    HomeView()
+                        .navigationDestination(for: Route.self) { route in
+                            switch route {
+                            case .productDetail(let id):
+                                ProductDetailView(id: id)
+                            case .settings:
+                                SettingsView()
+                            case .profile(let userId):
+                                ProfileView(userId: userId)
+                            }
+                        }
                 }
+                .tabItem { Label(tab.title, systemImage: tab.icon) }
+                .tag(tab)
+            }
         }
     }
 }
@@ -471,8 +478,8 @@ CYLoadingManager.shared.hide()
 ### 权限请求
 
 ```swift
-let granted = try await CYPermissionManager.shared.request(.camera)
-if granted {
+let status = await CYPermissionManager.shared.request(.camera)
+if status == .granted {
     // 打开相机
 }
 ```
@@ -481,17 +488,17 @@ if granted {
 
 ```swift
 let cache = CYCacheManager.shared
-cache.save(value: token, forKey: "access_token", namespace: "Auth")
-let token: String? = cache.load(forKey: "access_token", namespace: "Auth")
-cache.remove(forKey: "access_token", namespace: "Auth")
+await cache.save(value: token, forKey: "access_token", namespace: "Auth")
+let token: String? = await cache.load(forKey: "access_token", namespace: "Auth")
+await cache.remove(forKey: "access_token", namespace: "Auth")
 ```
 
 ### Keychain 安全存储
 
 ```swift
-CYKeychainHelper.save(key: "refresh_token", value: refreshToken)
-let token = CYKeychainHelper.load(key: "refresh_token")
-CYKeychainHelper.delete(key: "refresh_token")
+CYKeychainHelper.standard.save(refreshToken, service: "com.app.auth", account: "refresh_token")
+let token = CYKeychainHelper.standard.readString(service: "com.app.auth", account: "refresh_token")
+CYKeychainHelper.standard.delete(service: "com.app.auth", account: "refresh_token")
 ```
 
 ---

@@ -66,7 +66,7 @@ public struct CYOnboardingView: View {
                                 hasCompleted = true
                             }
                         } label: {
-                            Text("开始使用")
+                            Text("onboarding_start".cyLocalized)
                                 .font(CYAppFont.button)
                                 .foregroundStyle(CYAppColor.background)
                                 .frame(maxWidth: .infinity)
@@ -82,7 +82,7 @@ public struct CYOnboardingView: View {
                                 currentPage += 1
                             }
                         } label: {
-                            Text("下一页")
+                            Text("onboarding_next".cyLocalized)
                                 .font(CYAppFont.button)
                                 .foregroundStyle(CYAppColor.primary)
                                 .frame(maxWidth: .infinity)

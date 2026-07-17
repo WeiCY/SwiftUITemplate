@@ -45,7 +45,7 @@ public struct CYAPIResponse<T: Decodable>: Decodable, Sendable where T: Sendable
     /// 业务方可用它区分「成功 / 普通错误 / Token 过期 / 需重新登录」，
     /// 以及普通错误建议的展示方式（toast / alert / silent）。
     public var businessResult: CYBusinessCodeResult {
-        CYBusinessCodePolicy.shared.classify(code, message: message)
+        CYBusinessCodePolicy.shared.withLock { $0.classify(code, message: message) }
     }
     
     // MARK: - 解码

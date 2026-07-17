@@ -28,6 +28,7 @@ public final class CYAppContainer: DIContainerProtocol, @unchecked Sendable {
     public var imageLoader: CYImageLoaderProtocol { factory.imageLoader }
     public var permissionManager: CYPermissionManager { factory.permissionManager }
     public var appState: CYAppState { factory.appState }
+    public var requestDeduplicator: CYRequestDeduplicator { factory.requestDeduplicator }
     
     public init() {}
 }

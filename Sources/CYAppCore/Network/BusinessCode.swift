@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // MARK: - 业务码统一定义
 //
@@ -65,13 +66,13 @@ public enum CYBusinessCodeResult: Sendable, Equatable {
 /// 用法：
 /// ```swift
 /// // App 启动时按自家后端契约定制
-/// CYBusinessCodePolicy.shared = CYBusinessCodePolicy(
-///     successCodes: [0, 1, 200],
-///     tokenExpiredCodes: [401, 10001, 10002, 10010],
-///     reLoginCodes: [10003, 10004],
-///     silentCodes: [90001],          // 静默处理
-///     alertCodes: [50000, 50001]     // 弹窗而非 Toast
-/// )
+/// CYBusinessCodePolicy.configure { policy in
+///     policy.successCodes = [0, 1, 200]
+///     policy.tokenExpiredCodes = [401, 10001, 10002, 10010]
+///     policy.reLoginCodes = [10003, 10004]
+///     policy.silentCodes = [90001]          // 静默处理
+///     policy.alertCodes = [50000, 50001]    // 弹窗而非 Toast
+/// }
 /// ```
 public struct CYBusinessCodePolicy: Sendable {
     /// 视为「成功」的业务码集合
@@ -85,10 +86,21 @@ public struct CYBusinessCodePolicy: Sendable {
     /// 以 Alert 强提示的业务码集合（其余默认 Toast）
     public var alertCodes: Set<Int>
 
-    /// 全局共享策略，App 启动时按后端契约覆盖即可
+    /// 全局共享策略（线程安全，通过 `OSAllocatedUnfairLock` 保护）
     ///
-    /// 与 `CYAppEnvironment.current` 同模式：在发起任何请求前于主线程配置一次。
-    public nonisolated(unsafe) static var shared = CYBusinessCodePolicy()
+    /// App 启动时按后端契约覆盖：
+    /// ```swift
+    /// CYBusinessCodePolicy.shared.configure { policy in
+    ///     policy.successCodes = [0, 1, 200]
+    ///     policy.tokenExpiredCodes = [401, 10001, 10002, 10010]
+    /// }
+    /// ```
+    public static let shared = OSAllocatedUnfairLock(initialState: CYBusinessCodePolicy())
+
+    /// 线程安全地修改全局策略
+    public static func configure(_ mutate: @Sendable (inout CYBusinessCodePolicy) -> Void) {
+        shared.withLock { mutate(&$0) }
+    }
 
     /// 不可变默认策略（用于测试或不定制的场景）
     public static let `default` = CYBusinessCodePolicy()

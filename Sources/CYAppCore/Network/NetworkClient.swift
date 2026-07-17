@@ -231,7 +231,7 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
                 formData.append(data, withName: "file", fileName: "upload", mimeType: mimeType)
                 if let body = endpoint.body {
                     for (key, value) in body {
-                        if let string = value as? String, let d = string.data(using: .utf8) {
+                        if let string = value.stringValue, let d = string.data(using: .utf8) {
                             formData.append(d, withName: key)
                         }
                     }
@@ -357,8 +357,20 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
                     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                 }
             } else if let body = endpoint.body {
-                // 回退到字典参数（使用 JSONSerialization 兼容）
-                request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+                let jsonObject = body.mapValues { $0.jsonObject }
+                guard JSONSerialization.isValidJSONObject(jsonObject) else {
+                    CYLogger.network.error("endpoint.body 不可序列化: \(endpoint.path)")
+                    throw CYNetworkError.encodingFailed(
+                        NSError(domain: "CYNetworkClient", code: -2,
+                                userInfo: [NSLocalizedDescriptionKey: "endpoint.body 包含不可序列化的值"])
+                    )
+                }
+                do {
+                    request.httpBody = try JSONSerialization.data(withJSONObject: jsonObject)
+                } catch {
+                    CYLogger.network.error("endpoint.body 编码失败: \(endpoint.path)", error: error)
+                    throw CYNetworkError.encodingFailed(error)
+                }
                 if request.value(forHTTPHeaderField: "Content-Type") == nil {
                     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                 }

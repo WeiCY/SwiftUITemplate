@@ -69,10 +69,14 @@ public final class CYPermissionManager {
     }
     
     /// 打开系统设置页
-    #if canImport(UIKit)
     public func openSettings() {
+        #if canImport(UIKit)
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         UIApplication.shared.open(url)
+        #elseif canImport(AppKit)
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy") {
+            NSWorkspace.shared.open(url)
+        }
+        #endif
     }
-    #endif
 }

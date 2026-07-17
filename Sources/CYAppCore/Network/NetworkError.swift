@@ -44,6 +44,9 @@ public enum CYNetworkError: Error, LocalizedError, Sendable {
     
     /// JSON 解码失败
     case decodingFailed(any Error & Sendable)
+
+    /// JSON 编码失败（请求体序列化）
+    case encodingFailed(any Error & Sendable)
     
     // MARK: - 系统层错误
     
@@ -73,6 +76,8 @@ public enum CYNetworkError: Error, LocalizedError, Sendable {
             return message
         case .decodingFailed(let error):
             return "数据解析失败: \(error.localizedDescription)"
+        case .encodingFailed(let error):
+            return "请求体编码失败: \(error.localizedDescription)"
         case .underlying(let error):
             return "网络错误: \(error.localizedDescription)"
         case .unknown:
@@ -111,11 +116,11 @@ public enum CYNetworkError: Error, LocalizedError, Sendable {
     public var displayKind: CYErrorDisplay {
         switch self {
         case .businessError(let code, _):
-            return CYBusinessCodePolicy.shared.display(for: code)
+            return CYBusinessCodePolicy.shared.withLock { $0.display(for: code) }
         case .tokenExpired(let code, _):
-            return CYBusinessCodePolicy.shared.display(for: code)
+            return CYBusinessCodePolicy.shared.withLock { $0.display(for: code) }
         case .needReLogin(let code, _):
-            return CYBusinessCodePolicy.shared.display(for: code)
+            return CYBusinessCodePolicy.shared.withLock { $0.display(for: code) }
         default:
             return .toast
         }

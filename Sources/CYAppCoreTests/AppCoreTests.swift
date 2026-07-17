@@ -76,28 +76,28 @@ final class AppCoreTests: XCTestCase {
     
     // MARK: - CYCacheManager Tests
     
-    func testCacheManagerSaveAndLoad() {
+    func testCacheManagerSaveAndLoad() async {
         let cache = CYCacheManager.shared
         let testValue = "hello_cache"
-        cache.save(value: testValue, forKey: "test_key", namespace: "UnitTest")
-        let loaded: String? = cache.load(forKey: "test_key", namespace: "UnitTest")
+        await cache.save(value: testValue, forKey: "test_key", namespace: "UnitTest")
+        let loaded: String? = await cache.load(forKey: "test_key", namespace: "UnitTest")
         XCTAssertTrue(loaded == testValue)
-        cache.clear(namespace: "UnitTest")
+        await cache.clear(namespace: "UnitTest")
     }
     
-    func testCacheManagerRemove() {
+    func testCacheManagerRemove() async {
         let cache = CYCacheManager.shared
-        cache.save(value: 42, forKey: "num_key", namespace: "UnitTest")
-        cache.remove(forKey: "num_key", namespace: "UnitTest")
-        let loaded: Int? = cache.load(forKey: "num_key", namespace: "UnitTest")
+        await cache.save(value: 42, forKey: "num_key", namespace: "UnitTest")
+        await cache.remove(forKey: "num_key", namespace: "UnitTest")
+        let loaded: Int? = await cache.load(forKey: "num_key", namespace: "UnitTest")
         XCTAssertNil(loaded)
     }
     
-    func testCacheManagerTTLExpiration() {
+    func testCacheManagerTTLExpiration() async {
         let cache = CYCacheManager.shared
-        cache.save(value: "expired", forKey: "ttl_key", namespace: "UnitTest", ttl: 0)
-        Thread.sleep(forTimeInterval: 0.1)
-        let loaded: String? = cache.load(forKey: "ttl_key", namespace: "UnitTest")
+        await cache.save(value: "expired", forKey: "ttl_key", namespace: "UnitTest", ttl: 0)
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        let loaded: String? = await cache.load(forKey: "ttl_key", namespace: "UnitTest")
         XCTAssertNil(loaded, "Cached value should have expired")
     }
     

@@ -15,4 +15,5 @@ public protocol DIContainerProtocol {
     var imageLoader: CYImageLoaderProtocol { get }
     var permissionManager: CYPermissionManager { get }
     var appState: CYAppState { get }
+    var requestDeduplicator: CYRequestDeduplicator { get }
 }

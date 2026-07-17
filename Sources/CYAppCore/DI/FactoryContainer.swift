@@ -56,7 +56,16 @@ extension Container {
     
     /// 全局 App 状态
     public var appState: Factory<CYAppState> {
-        self { CYAppState() }.singleton
+        self { CYAppState() }
+            .singleton
+    }
+    
+    // MARK: - 网络请求去重器
+    
+    /// 请求去重器（用于防止重复请求）
+    public var requestDeduplicator: Factory<CYRequestDeduplicator> {
+        self { CYRequestDeduplicator() }
+            .singleton
     }
 }
 

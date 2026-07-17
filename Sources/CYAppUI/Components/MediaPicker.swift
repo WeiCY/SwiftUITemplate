@@ -1,14 +1,18 @@
 #if canImport(UIKit)
 import SwiftUI
+
+#if canImport(UIKit) && canImport(PhotosUI)
 import PhotosUI
 
-// MARK: - 媒体选择器
+// MARK: - 媒体选择器（仅 iOS）
 //
 // 统一封装图片选择（相册）和拍照功能，支持：
 // - 仅相册 / 仅拍照 / 两者皆可
 // - 单选 / 多选 + 数量限制
 // - 图片 / 视频 / 混合
 // - 返回 UIImage 或 Data
+//
+// **注意**：此组件仅支持 iOS/iPadOS，macOS 请使用 NSOpenPanel。
 //
 // ## 相册选图（原生 PhotosPicker）
 // ```swift

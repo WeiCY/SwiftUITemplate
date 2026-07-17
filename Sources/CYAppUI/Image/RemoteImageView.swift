@@ -1,6 +1,7 @@
 #if canImport(UIKit)
 import SwiftUI
 import CYAppCore
+import CYAppDesignSystem
 
 /// 远程图片视图
 /// 通过 CYImageLoaderProtocol 加载图片，不直接依赖 Kingfisher

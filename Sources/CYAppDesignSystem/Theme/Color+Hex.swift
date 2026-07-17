@@ -2,19 +2,21 @@ import SwiftUI
 
 // MARK: - 颜色十六进制 扩展
 //
-// 通过十六进制字符串创建 Color，支持 RGB/ARGB 格式。
+// 通过十六进制字符串创建 Color，支持 RGB/RRGGBBAA 格式。
 //
 // 用法：
 // ```swift
 // Color(hex: "#FF0000")  // 红色
 // Color(hex: "FF0000")   // 红色（不带 #）
-// Color(hex: "80FF0000") // 半透明红色
+// Color(hex: "FF000080") // 半透明红色（RRGGBBAA，与 CSS 惯例一致）
 // ```
 
 extension Color {
     /// 通过十六进制字符串创建颜色
-    /// - Parameter hex: 十六进制字符串（支持 "#FF0000"、"FF0000"、"80FF0000" 格式）
-    /// - Note: 非法输入（空串、非十六进制字符、长度非 3/6/8）时返回透明色（.clear），
+    /// - Parameter hex: 十六进制字符串（支持 "#FF0000"、"FF0000"、"FF000080" 格式）
+    /// - Note: 8 位格式按 **RRGGBBAA** 解析（与 CSS / Android 惯例一致），
+    ///   而非 ARGB。如需不透明红色：`"FF0000FF"`。
+    ///   非法输入（空串、非十六进制字符、长度非 3/6/8）时返回透明色（.clear），
     ///   而非产生「近透明黑黄」等误导性颜色。
     public init(hex: String) {
         let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
@@ -32,8 +34,8 @@ extension Color {
             (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
         case 6: // RGB (24-bit)
             (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        case 8: // ARGB (32-bit)
-            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        case 8: // RRGGBBAA (32-bit)
+            (r, g, b, a) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
         default:
             (a, r, g, b) = (255, 0, 0, 0)
         }

@@ -13,8 +13,14 @@ public enum CYHTTPMethod: String, Sendable {
 
 // MARK: - 请求参数
 
-/// 简单请求参数类型别名（适用于参数较少的场景）
-public typealias CYRequestParams = [String: any Sendable]
+/// 类型安全的 JSON 请求参数（编译期保证可序列化）
+///
+/// ```swift
+/// var body: CYRequestParams? {
+///     ["username": .string("john"), "age": .int(25), "vip": true]
+/// }
+/// ```
+public typealias CYRequestParams = [String: CYJSONValue]
 
 // MARK: - 端点协议
 
@@ -34,7 +40,7 @@ public typealias CYRequestParams = [String: any Sendable]
 ///     var method: CYHTTPMethod { ... }
 ///     var body: CYRequestParams? {
 ///         switch self {
-///         case .login(let u, let p): return ["username": u, "password": p]
+///         case .login(let u, let p): return ["username": .string(u), "password": .string(p)]
 ///         case .profile: return nil
 ///         }
 ///     }

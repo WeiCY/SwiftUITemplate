@@ -6,6 +6,8 @@
 "empty_message" = "Pull down to refresh";
 "load_more" = "Load more";
 "onboarding_skip" = "Skip";
+"onboarding_start" = "Get Started";
+"onboarding_next" = "Next";
 "source_picker_title" = "Choose source";
 "album" = "Album";
 "cancel" = "Cancel";

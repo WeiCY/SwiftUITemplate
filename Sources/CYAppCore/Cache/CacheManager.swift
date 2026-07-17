@@ -6,19 +6,21 @@ import Observation
 // 支持内存缓存（NSCache）和磁盘缓存（FileManager），提供 TTL 过期机制。
 // 使用命名空间分组缓存项（如 "UserProfile"、"Images"）。
 //
+// 所有方法均为 async，磁盘 I/O 在后台 actor 执行，不阻塞主线程。
+//
 // 用法：
 // ```swift
 // // 保存缓存（300秒过期）
-// CYCacheManager.shared.save(value: user, forKey: "profile", namespace: "User", ttl: 300)
+// await CYCacheManager.shared.save(value: user, forKey: "profile", namespace: "User", ttl: 300)
 //
 // // 读取缓存
-// let user: User? = CYCacheManager.shared.load(forKey: "profile", namespace: "User")
+// let user: User? = await CYCacheManager.shared.load(forKey: "profile", namespace: "User")
 //
 // // 清除指定命名空间
-// CYCacheManager.shared.clear(namespace: "User")
+// await CYCacheManager.shared.clear(namespace: "User")
 //
 // // 清除全部缓存
-// CYCacheManager.shared.clear()
+// await CYCacheManager.shared.clear()
 // ```
 
 /// 缓存条目（带 TTL 过期信息）
@@ -32,134 +34,104 @@ private struct CacheEntry<T: Codable>: Codable {
     }
 }
 
-@Observable
-public final class CYCacheManager: @unchecked Sendable {
-    public static let shared = CYCacheManager()
-    
+/// 缓存后台 actor，所有磁盘 I/O 在此执行，天然串行且隔离。
+private actor CacheStorage {
     private let memoryCache = NSCache<NSString, NSData>()
-    private let fileManager = FileManager.default
-    private let queue = DispatchQueue(label: "SwiftUITemplate.CYCacheManager.queue")
     private let baseCacheDirectory: URL
-
-    /// 内存缓存键索引（namespace -> safeKey 集合），用于在按命名空间清除时同步清理 NSCache。
-    /// 由于 NSCache 不提供枚举 API，此处单独维护一份索引。
     private var memoryKeyIndex: [String: Set<String>] = [:]
-    
-    public init() {
-        let url = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
-            ?? fileManager.temporaryDirectory
-        self.baseCacheDirectory = url.appendingPathComponent("AppCache")
-        
-        if !fileManager.fileExists(atPath: baseCacheDirectory.path) {
-            try? fileManager.createDirectory(at: baseCacheDirectory, withIntermediateDirectories: true)
+    private let serializer: CYCacheSerializer
+
+    init(serializer: CYCacheSerializer = CYJSONSerializer()) {
+        let fm = FileManager.default
+        let cachesURL = fm.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? fm.temporaryDirectory
+        self.baseCacheDirectory = cachesURL.appendingPathComponent("AppCache")
+        self.serializer = serializer
+
+        if !fm.fileExists(atPath: baseCacheDirectory.path) {
+            try? fm.createDirectory(at: baseCacheDirectory, withIntermediateDirectories: true)
         }
     }
-    
-    /// 获取命名空间对应的目录
+
+    func save<T: Codable>(value: T, forKey key: String, namespace: String?, ttl: TimeInterval?) {
+        let expirationDate = ttl.map { Date().addingTimeInterval($0) }
+        let entry = CacheEntry(value: value, expirationDate: expirationDate)
+        guard let data = try? serializer.serialize(entry) else { return }
+        let safeKey = safeFileName(for: key)
+        let fullKey = namespace.map { "\($0)/\(safeKey)" } ?? safeKey
+        memoryCache.setObject(data as NSData, forKey: fullKey as NSString)
+        registerMemoryKey(safeKey, namespace: namespace)
+        let directory = getDirectory(for: namespace)
+        let fileURL = directory.appendingPathComponent(safeKey)
+        try? data.write(to: fileURL)
+    }
+
+    func load<T: Codable>(forKey key: String, namespace: String?) -> T? {
+        let safeKey = safeFileName(for: key)
+        let fullKey = namespace.map { "\($0)/\(safeKey)" } ?? safeKey
+        if let data = memoryCache.object(forKey: fullKey as NSString) as Data? {
+            if let entry = try? serializer.deserialize(data, as: CacheEntry<T>.self) {
+                if !entry.isExpired {
+                    return entry.value
+                }
+                removeUnsafe(safeKey: safeKey, fullKey: fullKey, namespace: namespace)
+                return nil
+            }
+        }
+        let directory = getDirectory(for: namespace)
+        let fileURL = directory.appendingPathComponent(safeKey)
+        if let data = try? Data(contentsOf: fileURL) {
+            if let entry = try? serializer.deserialize(data, as: CacheEntry<T>.self) {
+                if !entry.isExpired {
+                    memoryCache.setObject(data as NSData, forKey: fullKey as NSString)
+                    registerMemoryKey(safeKey, namespace: namespace)
+                    return entry.value
+                }
+                removeUnsafe(safeKey: safeKey, fullKey: fullKey, namespace: namespace)
+                return nil
+            }
+        }
+        return nil
+    }
+    func remove(forKey key: String, namespace: String?) {
+        let safeKey = safeFileName(for: key)
+        let fullKey = namespace.map { "\($0)/\(safeKey)" } ?? safeKey
+        removeUnsafe(safeKey: safeKey, fullKey: fullKey, namespace: namespace)
+    }
+
+    func clear(namespace: String?) {
+        if let namespace = namespace {
+            let indexKey = namespace
+            if let keys = memoryKeyIndex[indexKey] {
+                for safeKey in keys {
+                    let fullKey = "\(indexKey)/\(safeKey)"
+                    memoryCache.removeObject(forKey: fullKey as NSString)
+                }
+                memoryKeyIndex[indexKey] = nil
+            }
+            let directory = getDirectory(for: namespace)
+            try? FileManager.default.removeItem(at: directory)
+        } else {
+            memoryCache.removeAllObjects()
+            memoryKeyIndex.removeAll()
+            try? FileManager.default.removeItem(at: baseCacheDirectory)
+            try? FileManager.default.createDirectory(at: baseCacheDirectory, withIntermediateDirectories: true)
+        }
+    }
+
     private func getDirectory(for namespace: String?) -> URL {
         guard let namespace = namespace, !namespace.isEmpty else {
             return baseCacheDirectory
         }
-        
         let namespaceDir = baseCacheDirectory.appendingPathComponent(namespace)
-        if !fileManager.fileExists(atPath: namespaceDir.path) {
-            try? fileManager.createDirectory(at: namespaceDir, withIntermediateDirectories: true)
+        if !FileManager.default.fileExists(atPath: namespaceDir.path) {
+            try? FileManager.default.createDirectory(at: namespaceDir, withIntermediateDirectories: true)
         }
         return namespaceDir
     }
-    
-    /// 生成安全的文件名
+
     private func safeFileName(for key: String) -> String {
         return key.replacingOccurrences(of: "/", with: "_")
-    }
-    
-    /// 保存 Codable 对象到缓存
-    /// - 参数：
-    ///   - value: 要缓存的对象
-    ///   - key: 缓存键
-    ///   - namespace: 可选命名空间（如 "UserProfile"、"Images"）
-    ///   - ttl: 过期时间（秒），nil 表示永不过期
-    public func save<T: Codable>(value: T, forKey key: String, namespace: String? = nil, ttl: TimeInterval? = nil) {
-        queue.sync {
-            let expirationDate = ttl.map { Date().addingTimeInterval($0) }
-            let entry = CacheEntry(value: value, expirationDate: expirationDate)
-            guard let data = try? JSONEncoder().encode(entry) else { return }
-            let safeKey = safeFileName(for: key)
-            let fullKey = namespace.map { "\($0)/\(safeKey)" } ?? safeKey
-            memoryCache.setObject(data as NSData, forKey: fullKey as NSString)
-            registerMemoryKey(safeKey, namespace: namespace)
-            let directory = getDirectory(for: namespace)
-            let fileURL = directory.appendingPathComponent(safeKey)
-            try? data.write(to: fileURL)
-        }
-    }
-    
-    /// 从缓存中加载对象
-    /// - 参数：
-    ///   - key: 缓存键
-    ///   - namespace: 命名空间
-    /// - Returns: 缓存对象，不存在或已过期时返回 nil
-    public func load<T: Codable>(forKey key: String, namespace: String? = nil) -> T? {
-        queue.sync {
-            let safeKey = safeFileName(for: key)
-            let fullKey = namespace.map { "\($0)/\(safeKey)" } ?? safeKey
-            if let data = memoryCache.object(forKey: fullKey as NSString) as Data? {
-                if let entry = try? JSONDecoder().decode(CacheEntry<T>.self, from: data) {
-                    if !entry.isExpired {
-                        return entry.value
-                    }
-                    removeUnsafe(safeKey: safeKey, fullKey: fullKey, namespace: namespace)
-                    return nil
-                }
-            }
-            let directory = getDirectory(for: namespace)
-            let fileURL = directory.appendingPathComponent(safeKey)
-            if let data = try? Data(contentsOf: fileURL) {
-                if let entry = try? JSONDecoder().decode(CacheEntry<T>.self, from: data) {
-                    if !entry.isExpired {
-                        memoryCache.setObject(data as NSData, forKey: fullKey as NSString)
-                        registerMemoryKey(safeKey, namespace: namespace)
-                        return entry.value
-                    }
-                    removeUnsafe(safeKey: safeKey, fullKey: fullKey, namespace: namespace)
-                    return nil
-                }
-            }
-            return nil
-        }
-    }
-    
-    /// 移除指定缓存项
-    public func remove(forKey key: String, namespace: String? = nil) {
-        queue.sync {
-            let safeKey = safeFileName(for: key)
-            let fullKey = namespace.map { "\($0)/\(safeKey)" } ?? safeKey
-            removeUnsafe(safeKey: safeKey, fullKey: fullKey, namespace: namespace)
-        }
-    }
-    
-    /// 清除缓存
-    /// - Parameter namespace: 指定命名空间则只清除该命名空间，nil 清除全部
-    public func clear(namespace: String? = nil) {
-        queue.sync {
-            if let namespace = namespace {
-                let indexKey = namespace
-                if let keys = memoryKeyIndex[indexKey] {
-                    for safeKey in keys {
-                        let fullKey = "\(indexKey)/\(safeKey)"
-                        memoryCache.removeObject(forKey: fullKey as NSString)
-                    }
-                    memoryKeyIndex[indexKey] = nil
-                }
-                let directory = getDirectory(for: namespace)
-                try? fileManager.removeItem(at: directory)
-            } else {
-                memoryCache.removeAllObjects()
-                memoryKeyIndex.removeAll()
-                try? fileManager.removeItem(at: baseCacheDirectory)
-                try? fileManager.createDirectory(at: baseCacheDirectory, withIntermediateDirectories: true)
-            }
-        }
     }
 
     private func registerMemoryKey(_ safeKey: String, namespace: String?) {
@@ -172,6 +144,59 @@ public final class CYCacheManager: @unchecked Sendable {
         memoryKeyIndex[namespace ?? ""]?.remove(safeKey)
         let directory = getDirectory(for: namespace)
         let fileURL = directory.appendingPathComponent(safeKey)
-        try? fileManager.removeItem(at: fileURL)
+        try? FileManager.default.removeItem(at: fileURL)
+    }
+}
+
+@Observable
+public final class CYCacheManager: Sendable {
+    public static let shared = CYCacheManager()
+
+    private let storage: CacheStorage
+
+    /// 初始化缓存管理器
+    /// - Parameter serializer: 序列化器，默认使用 JSON
+    ///
+    /// **性能优化建议**：
+    /// - 小对象（< 1KB）：使用默认 `CYJSONSerializer()`
+    /// - 大对象（> 10KB）或高频读写：使用 `CYPropertyListSerializer()`
+    ///
+    /// 示例：
+    /// ```swift
+    /// // 高性能缓存实例（用于列表数据）
+    /// let fastCache = CYCacheManager(serializer: CYPropertyListSerializer())
+    /// ```
+    public init(serializer: CYCacheSerializer = CYJSONSerializer()) {
+        self.storage = CacheStorage(serializer: serializer)
+    }
+
+    /// 保存 Codable 对象到缓存
+    /// - 参数：
+    ///   - value: 要缓存的对象
+    ///   - key: 缓存键
+    ///   - namespace: 可选命名空间（如 "UserProfile"、"Images"）
+    ///   - ttl: 过期时间（秒），nil 表示永不过期
+    public func save<T: Codable & Sendable>(value: T, forKey key: String, namespace: String? = nil, ttl: TimeInterval? = nil) async {
+        await storage.save(value: value, forKey: key, namespace: namespace, ttl: ttl)
+    }
+
+    /// 从缓存中加载对象
+    /// - 参数：
+    ///   - key: 缓存键
+    ///   - namespace: 命名空间
+    /// - Returns: 缓存对象，不存在或已过期时返回 nil
+    public func load<T: Codable & Sendable>(forKey key: String, namespace: String? = nil) async -> T? {
+        await storage.load(forKey: key, namespace: namespace)
+    }
+
+    /// 移除指定缓存项
+    public func remove(forKey key: String, namespace: String? = nil) async {
+        await storage.remove(forKey: key, namespace: namespace)
+    }
+
+    /// 清除缓存
+    /// - Parameter namespace: 指定命名空间则只清除该命名空间，nil 清除全部
+    public func clear(namespace: String? = nil) async {
+        await storage.clear(namespace: namespace)
     }
 }

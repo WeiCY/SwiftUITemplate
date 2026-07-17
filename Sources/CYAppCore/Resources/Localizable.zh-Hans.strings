@@ -6,6 +6,8 @@
 "empty_message" = "下拉刷新试试";
 "load_more" = "加载更多";
 "onboarding_skip" = "跳过";
+"onboarding_start" = "开始使用";
+"onboarding_next" = "下一页";
 "source_picker_title" = "选择来源";
 "album" = "相册";
 "cancel" = "取消";
