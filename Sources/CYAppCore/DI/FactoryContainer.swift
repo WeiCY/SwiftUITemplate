@@ -1,5 +1,5 @@
 import Foundation
-import Factory
+import FactoryKit
 
 // MARK: - Factory 容器（桥接层）
 //

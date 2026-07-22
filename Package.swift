@@ -14,9 +14,9 @@ let package = Package(
         .library(name: "CYAppUI", targets: ["CYAppUI"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/Alamofire/Alamofire.git", from: "5.9.0"),
-        .package(url: "https://github.com/onevcat/Kingfisher.git", from: "7.0.0"),
-        .package(url: "https://github.com/hmlongco/Factory.git", from: "2.0.0"),
+        .package(url: "https://github.com/Alamofire/Alamofire.git", from: "5.12.0"),
+        .package(url: "https://github.com/onevcat/Kingfisher.git", from: "8.11.0"),
+        .package(url: "https://github.com/hmlongco/Factory.git", from: "3.3.2"),
     ],
     targets: [
         // Layer 0: Foundation 纯逻辑，无 SwiftUI
@@ -25,7 +25,7 @@ let package = Package(
             dependencies: [
                 .product(name: "Alamofire", package: "Alamofire"),
                 .product(name: "Kingfisher", package: "Kingfisher"),
-                .product(name: "Factory", package: "Factory"),
+                .product(name: "FactoryKit", package: "Factory"),
             ],
             path: "Sources/CYAppCore",
             resources: [.process("Resources")]
