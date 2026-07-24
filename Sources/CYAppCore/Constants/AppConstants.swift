@@ -6,8 +6,6 @@ import Foundation
 //
 // 用法：
 // ```swift
-// let url = CYAppConstants.baseURL
-// let timeout = CYAppConstants.timeoutInterval
 // CYKeychainHelper.standard.save(token, service: CYAppConstants.keyUserToken, ...)
 // ```
 
@@ -21,15 +19,6 @@ public struct CYAppConstants {
     public static let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
     /// Build 号
     public static let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
-    
-    // MARK: - 网络配置
-    
-    /// API 基础 URL
-    public static var baseURL: String { CYAppEnvironment.current.baseURL }
-    /// 请求超时时间（秒）
-    public static let timeoutInterval: TimeInterval = 30.0
-    /// 最大重试次数
-    public static let maxRetryAttempts = 3
     
     // MARK: - 默认值
     

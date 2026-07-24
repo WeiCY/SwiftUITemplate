@@ -1,42 +1,56 @@
 import SwiftUI
 import CYAppCore
+import CYFeedbackStyle
 import CYAppDesignSystem
 
-/// Toast 消息视图
-/// 显示带图标和颜色的提示消息
+/// Toast 消息视图。
 public struct CYToastView: View {
     public let message: String
     public let type: CYToastType
-    
-    public init(message: String, type: CYToastType) {
+    public let style: CYToastStyle
+
+    public init(
+        message: String,
+        type: CYToastType,
+        style: CYToastStyle = .default
+    ) {
         self.message = message
         self.type = type
+        self.style = style
     }
-    
+
     public var body: some View {
-        HStack(spacing: CYAppDimens.marginS + 4) {
+        HStack(spacing: style.iconTextSpacing) {
             Image(systemName: type.icon)
                 .font(.system(size: 18, weight: .medium))
-                .foregroundColor(type.color)
-            
+                .foregroundStyle(style.iconColorStrategy.color(for: type))
+                .accessibilityHidden(true)
+
             Text(message)
-                .font(CYAppFont.bodySmall)
-                .foregroundColor(CYAppColor.textPrimary)
-                .lineLimit(2)
-            
+                .font(style.textFont)
+                .foregroundStyle(style.textColor)
+                .lineLimit(style.maxLines)
+                .fixedSize(horizontal: false, vertical: true)
+
             Spacer(minLength: 0)
         }
         .padding(.horizontal, CYAppDimens.marginM)
         .padding(.vertical, CYAppDimens.marginS + 4)
-        .background(CYAppColor.background)
-        .cornerRadius(CYAppDimens.radiusM)
-        .shadow(color: CYAppColor.shadow, radius: CYAppDimens.shadowRadius, x: 0, y: CYAppDimens.shadowOffset)
-        .padding(.horizontal, CYAppDimens.marginM)
+        .background(style.backgroundColor, in: RoundedRectangle(cornerRadius: style.cornerRadius))
+        .shadow(
+            color: style.shadow.color,
+            radius: style.shadow.radius,
+            x: style.shadow.x,
+            y: style.shadow.y
+        )
+        .padding(.horizontal, style.horizontalMargin)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(message)
+        .accessibilityAddTraits(.isStaticText)
     }
 }
 
-/// CYToastType 的 SwiftUI 颜色扩展
-/// 分离到此处因为 Color 依赖 SwiftUI
 extension CYToastType {
     var color: Color {
         switch self {
@@ -48,14 +62,22 @@ extension CYToastType {
     }
 }
 
-// MARK: - 预览
-
-#Preview("Toast Types") {
+#Preview("Toast Styles") {
     VStack(spacing: 16) {
-        CYToastView(message: "Operation completed successfully!", type: .success)
-        CYToastView(message: "Something went wrong. Please try again.", type: .error)
-        CYToastView(message: "New update available.", type: .info)
-        CYToastView(message: "Storage is almost full.", type: .warning)
+        CYToastView(message: "Default toast style", type: .success)
+        CYToastView(
+            message: "Custom toast style with dynamic text support",
+            type: .info,
+            style: CYToastStyle(
+                cornerRadius: 16,
+                backgroundColor: .indigo,
+                textColor: .white,
+                textFont: .headline,
+                maxLines: 3,
+                iconColorStrategy: .fixed(.yellow),
+                shadow: .init(color: .indigo.opacity(0.3), radius: 8, y: 4)
+            )
+        )
     }
     .padding()
     .background(CYAppColor.secondaryBackground)

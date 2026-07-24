@@ -2,75 +2,114 @@ import Foundation
 import Observation
 
 // MARK: - Toast 消息管理
-//
-// 管理全局 Toast 提示的显示和自动消失。
-//
-// 用法：
-// ```swift
-// // 显示提示
-// CYToastManager.shared.show("操作成功", type: .success)
-// CYToastManager.shared.show("网络错误", type: .error, duration: 3.0)
-//
-// // 手动关闭
-// CYToastManager.shared.dismiss()
-//
-// // View 中使用：
-// .toastView()
-// ```
 
+/// 多条 Toast 到达时的展示策略。
+public enum CYToastQueueMode: Sendable {
+    /// 新消息立即替换当前消息。
+    case replace
+    /// 新消息按到达顺序依次展示。
+    case queue
+}
+
+/// 管理全局 Toast 的展示、队列和自动消失。
 @Observable
 @MainActor
 public final class CYToastManager {
     public nonisolated static let shared = CYToastManager()
-    
-    /// 当前显示的消息文本
-    public var message: String?
-    /// 消息类型
-    public var type: CYToastType = .info
-    /// 是否正在显示
-    public var isPresented: Bool = false
-    
-    public nonisolated init() {}
-    
+
+    public private(set) var message: String?
+    public private(set) var type: CYToastType = .info
+    public private(set) var isPresented = false
+    /// 每次展示都会变化，供 SwiftUI 重播转场动画。
+    public private(set) var presentationID = UUID()
+    public private(set) var queueCount = 0
+
+    public var queueMode: CYToastQueueMode = .replace
+
     @ObservationIgnored
     private var dismissTask: Task<Void, Never>?
-    
-    /// 显示 Toast 消息
-    /// - 参数：
-    ///   - message: 消息文本
-    ///   - type: 消息类型（info/success/error/warning）
-    ///   - duration: 显示时长（秒），默认 2.0s
-    public func show(_ message: String, type: CYToastType = .info, duration: TimeInterval = 2.0) {
-        dismissTask?.cancel()
-        self.message = message
-        self.type = type
-        self.isPresented = true
-        
-        // 自动消失
-        dismissTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(duration))
-            guard !Task.isCancelled else { return }
-            await MainActor.run {
-                self?.isPresented = false
-            }
+    @ObservationIgnored
+    private var queue: [ToastRequest] = []
+
+    public nonisolated init() {}
+
+    /// 显示 Toast。空白消息会被忽略，时长最短为 0.1 秒。
+    public func show(
+        _ message: String,
+        type: CYToastType = .info,
+        duration: TimeInterval = 2.0
+    ) {
+        let message = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !message.isEmpty else { return }
+
+        let request = ToastRequest(
+            message: message,
+            type: type,
+            duration: max(duration, 0.1)
+        )
+
+        if queueMode == .queue, isPresented {
+            queue.append(request)
+            queueCount = queue.count
+        } else {
+            present(request)
         }
     }
-    
-    /// 手动关闭当前 Toast
+
+    /// 关闭当前 Toast；队列模式下继续展示下一条。
     public func dismiss() {
         dismissTask?.cancel()
+        finishCurrent()
+    }
+
+    /// 关闭当前 Toast 并清空等待队列。
+    public func dismissAll() {
+        dismissTask?.cancel()
+        queue.removeAll()
+        queueCount = 0
         isPresented = false
+        message = nil
+    }
+
+    private func present(_ request: ToastRequest) {
+        dismissTask?.cancel()
+        message = request.message
+        type = request.type
+        presentationID = UUID()
+        isPresented = true
+
+        let currentID = presentationID
+        dismissTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(request.duration))
+            guard !Task.isCancelled, self?.presentationID == currentID else { return }
+            self?.finishCurrent()
+        }
+    }
+
+    private func finishCurrent() {
+        isPresented = false
+        message = nil
+
+        guard queueMode == .queue, !queue.isEmpty else { return }
+        let next = queue.removeFirst()
+        queueCount = queue.count
+        present(next)
     }
 }
 
-/// Toast 消息类型
+private struct ToastRequest {
+    let message: String
+    let type: CYToastType
+    let duration: TimeInterval
+}
+
+/// Toast 消息类型。
 public enum CYToastType: Sendable {
     case info
     case success
     case error
     case warning
-    
-    /// 对应的 SF Symbol 图标
+
     public var icon: String {
         switch self {
         case .info: return "info.circle"

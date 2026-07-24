@@ -4,15 +4,25 @@ import CYAppDesignSystem
 import CYAppUI
 
 // MARK: - 可运行 Demo
-//
-// 业务方接入口参考：演示三层封装的装配方式（AppState / AppRouter / BaseView /
-// PrimaryButton / Toast + Loading 全局挂载 / 本地化切换）。
-// 仅使用跨平台（iOS / macOS）安全的组件；MediaPicker、RemoteImageView、
-// OnboardingView 等 UIKit 专属组件请直接在 iOS Target 中引用。
 
 @MainActor
 @main
 struct DemoApp: App {
+    init() {
+        CYAppConfiguration.configure(
+            environment: .development,
+            baseURL: "https://dev-api.example.com",
+            defaultHeaders: ["X-App-Platform": "iOS"],
+            timeoutInterval: 30
+        )
+
+        CYFeedbackConfiguration.configure(
+            toastStyle: CYToastStyle(position: .center),
+            loadingStyle: .default
+        )
+        CYToastManager.shared.queueMode = .replace
+    }
+
     @State private var appState = CYAppState()
     @State private var router = CYAppRouter.shared
 
@@ -48,8 +58,7 @@ struct RootView: View {
             }
         }
         .onAppear { router.bind(to: appState) }
-        .toastView()
-        .loadingOverlay()
+        .feedbackOverlay()
     }
 
     @ViewBuilder
@@ -76,10 +85,18 @@ struct HomeDemoView: View {
                     CYToastManager.shared.show("Hello Toast", type: .success)
                 }
 
+                PrimaryButton(title: "连续 Toast") {
+                    CYToastManager.shared.show("第一条消息", type: .info, duration: 1)
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(300))
+                        CYToastManager.shared.show("最新消息已替换", type: .success)
+                    }
+                }
+
                 PrimaryButton(title: "显示 Loading") {
                     CYLoadingManager.shared.show("加载中…")
                     Task {
-                        try? await Task.sleep(nanoseconds: 1_000_000_000)
+                        try? await Task.sleep(for: .seconds(1))
                         CYLoadingManager.shared.hide()
                     }
                 }

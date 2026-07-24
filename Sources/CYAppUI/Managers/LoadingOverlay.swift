@@ -1,58 +1,102 @@
 import SwiftUI
-import Observation
 import CYAppDesignSystem
+import CYFeedbackStyle
 
-/// 全局加载遮罩视图
-/// 毛玻璃背景 + 脉冲动画指示器 + 可选消息文本
+/// 全局加载遮罩视图。
 public struct CYLoadingOverlay: View {
     public let message: String?
-    
-    public init(message: String?) {
+    public let style: CYLoadingStyle
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulseScale: CGFloat
+
+    public init(message: String?, style: CYLoadingStyle = .default) {
         self.message = message
+        self.style = style
+        _pulseScale = State(initialValue: style.pulseScaleRange.lowerBound)
     }
-    
-    @State private var pulseScale: CGFloat = 0.9
-    
+
     public var body: some View {
         ZStack {
-            // 单一毛玻璃遮罩：材质 + 轻量暗化，避免多层背景叠加致色偏暗
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .overlay(Color.black.opacity(0.2))
+            mask
                 .ignoresSafeArea()
-            
-            VStack(spacing: CYAppDimens.marginL) {
-                // 脉冲动画指示器
+
+            VStack(spacing: style.card.contentSpacing) {
                 ZStack {
                     Circle()
-                        .fill(CYAppColor.primary.opacity(0.1))
-                        .frame(width: CYAppDimens.loaderSize, height: CYAppDimens.loaderSize)
+                        .fill(style.indicator.color.opacity(style.indicator.backgroundOpacity))
+                        .frame(width: style.indicator.size, height: style.indicator.size)
                         .scaleEffect(pulseScale)
-                    
+
                     ProgressView()
-                        .scaleEffect(1.2)
-                        .tint(CYAppColor.primary)
+                        .scaleEffect(style.indicator.scale)
+                        .tint(style.indicator.color)
                 }
                 .onAppear {
-                    withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
-                        pulseScale = 1.15
+                    guard !reduceMotion else {
+                        pulseScale = 1
+                        return
+                    }
+                    withAnimation(style.indicator.pulseAnimation) {
+                        pulseScale = style.indicator.pulseScaleRange.upperBound
                     }
                 }
-                
-                if let message = message {
+
+                if let message {
                     Text(message)
-                        .font(CYAppFont.bodySmall)
-                        .foregroundStyle(CYAppColor.textPrimary)
+                        .font(style.textFont)
+                        .foregroundStyle(style.textColor)
                         .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .padding(.horizontal, CYAppDimens.marginXL)
-            .padding(.vertical, CYAppDimens.marginL)
+            .padding(style.card.insets)
             .background(
-                RoundedRectangle(cornerRadius: CYAppDimens.radiusCard, style: .continuous)
-                    .fill(CYAppColor.background)
-                    .shadow(color: CYAppColor.shadow, radius: 12, y: 4)
+                RoundedRectangle(cornerRadius: style.card.cornerRadius, style: .continuous)
+                    .fill(style.card.backgroundColor)
+                    .shadow(
+                        color: style.card.shadow.color,
+                        radius: style.card.shadow.radius,
+                        x: style.card.shadow.x,
+                        y: style.card.shadow.y
+                    )
             )
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(message ?? "Loading")
+            .accessibilityAddTraits(.updatesFrequently)
         }
+    }
+
+    @ViewBuilder
+    private var mask: some View {
+        if let material = style.maskMaterial {
+            Rectangle()
+                .fill(material)
+                .overlay(style.maskBackgroundColor.opacity(style.maskOpacity))
+        } else {
+            Rectangle()
+                .fill(style.maskBackgroundColor.opacity(style.maskOpacity))
+        }
+    }
+}
+
+#Preview("Loading Styles") {
+    HStack(spacing: 0) {
+        CYLoadingOverlay(message: "Default style")
+        CYLoadingOverlay(
+            message: "Custom style",
+            style: CYLoadingStyle(
+                maskMaterial: nil,
+                maskBackgroundColor: .indigo,
+                maskOpacity: 0.15,
+                cardBackgroundColor: .black,
+                cornerRadius: 24,
+                indicatorColor: .mint,
+                indicatorScale: 1.5,
+                textFont: .headline,
+                textColor: .white,
+                cardInsets: .init(top: 28, leading: 36, bottom: 28, trailing: 36)
+            )
+        )
     }
 }

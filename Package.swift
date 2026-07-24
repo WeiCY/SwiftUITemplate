@@ -10,6 +10,7 @@ let package = Package(
     ],
     products: [
         .library(name: "CYAppCore", targets: ["CYAppCore"]),
+        .library(name: "CYFeedbackStyle", targets: ["CYFeedbackStyle"]),
         .library(name: "CYAppDesignSystem", targets: ["CYAppDesignSystem"]),
         .library(name: "CYAppUI", targets: ["CYAppUI"]),
     ],
@@ -30,16 +31,21 @@ let package = Package(
             path: "Sources/CYAppCore",
             resources: [.process("Resources")]
         ),
+        // Layer 0 UI: 共享反馈样式，不依赖业务模块
+        .target(
+            name: "CYFeedbackStyle",
+            path: "Sources/CYFeedbackStyle"
+        ),
         // Layer 1: SwiftUI 设计系统 + UI 组件
         .target(
             name: "CYAppDesignSystem",
-            dependencies: ["CYAppCore"],
+            dependencies: ["CYAppCore", "CYFeedbackStyle"],
             path: "Sources/CYAppDesignSystem"
         ),
         // Layer 2: SwiftUI 功能组件 + 路由 + 全局视图
         .target(
             name: "CYAppUI",
-            dependencies: ["CYAppCore", "CYAppDesignSystem"],
+            dependencies: ["CYAppCore", "CYFeedbackStyle", "CYAppDesignSystem"],
             path: "Sources/CYAppUI"
         ),
         // Tests
@@ -49,22 +55,26 @@ let package = Package(
             path: "Sources/CYAppCoreTests"
         ),
         .testTarget(
+            name: "CYFeedbackStyleTests",
+            dependencies: ["CYFeedbackStyle"],
+            path: "Sources/CYFeedbackStyleTests"
+        ),
+        .testTarget(
             name: "CYAppDesignSystemTests",
-            dependencies: ["CYAppDesignSystem"],
+            dependencies: ["CYAppDesignSystem", "CYFeedbackStyle"],
             path: "Sources/CYAppDesignSystemTests"
         ),
         .testTarget(
             name: "CYAppUITests",
-            dependencies: ["CYAppUI", "CYAppCore"],
+            dependencies: ["CYAppUI", "CYAppCore", "CYFeedbackStyle"],
             path: "Sources/CYAppUITests"
         ),
         // 可运行 Demo（业务接入参考）
         .executableTarget(
             name: "ExampleApp",
-            dependencies: ["CYAppCore", "CYAppDesignSystem", "CYAppUI"],
+            dependencies: ["CYAppCore", "CYFeedbackStyle", "CYAppDesignSystem", "CYAppUI"],
             path: "ExampleApp/Sources"
         ),
     ],
-    // 直接以 Swift 6 语言模式编译（不再依赖 upcoming feature 开关）
     swiftLanguageModes: [.v6]
 )

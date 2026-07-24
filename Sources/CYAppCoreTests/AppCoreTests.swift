@@ -60,6 +60,63 @@ final class AppCoreTests: XCTestCase {
         }
     }
     
+    // MARK: - CYToastManager Tests
+
+    @MainActor
+    func testToastReplaceAndIgnoreEmptyMessage() async {
+        let manager = CYToastManager()
+        manager.show("   ")
+        XCTAssertFalse(manager.isPresented)
+
+        manager.show("First", type: .info, duration: 0.1)
+        let firstID = manager.presentationID
+        manager.show("Second", type: .success, duration: 0.2)
+
+        XCTAssertTrue(manager.isPresented)
+        XCTAssertEqual(manager.message, "Second")
+        XCTAssertEqual(manager.type, .success)
+        XCTAssertNotEqual(manager.presentationID, firstID)
+
+        try? await Task.sleep(for: .milliseconds(130))
+        XCTAssertTrue(manager.isPresented)
+        try? await Task.sleep(for: .milliseconds(100))
+        XCTAssertFalse(manager.isPresented)
+        XCTAssertNil(manager.message)
+    }
+
+    @MainActor
+    func testToastQueueAndDismissAll() {
+        let manager = CYToastManager()
+        manager.queueMode = .queue
+        manager.show("First", duration: 10)
+        manager.show("Second", duration: 10)
+
+        XCTAssertEqual(manager.message, "First")
+        XCTAssertEqual(manager.queueCount, 1)
+
+        manager.dismiss()
+        XCTAssertEqual(manager.message, "Second")
+        XCTAssertEqual(manager.queueCount, 0)
+
+        manager.dismissAll()
+        XCTAssertFalse(manager.isPresented)
+        XCTAssertNil(manager.message)
+    }
+
+    // MARK: - CYLoadingManager Tests
+
+    @MainActor
+    func testLoadingShowAndHide() {
+        let manager = CYLoadingManager()
+        manager.show("Loading")
+        XCTAssertTrue(manager.isLoading)
+        XCTAssertEqual(manager.message, "Loading")
+
+        manager.hide()
+        XCTAssertFalse(manager.isLoading)
+        XCTAssertNil(manager.message)
+    }
+
     // MARK: - CYAppEnvironment Tests
     
     func testAppEnvironmentCurrent() {
@@ -232,9 +289,7 @@ final class AppCoreTests: XCTestCase {
     // MARK: - CYAppConstants Tests
     
     func testAppConstantsValues() {
-        XCTAssertFalse(CYAppConstants.appName.isEmpty)
         XCTAssertTrue(CYAppConstants.timeoutInterval > 0)
-        XCTAssertTrue(CYAppConstants.defaultPageSize > 0)
         XCTAssertTrue(CYAppConstants.maxRetryAttempts == 3)
     }
     

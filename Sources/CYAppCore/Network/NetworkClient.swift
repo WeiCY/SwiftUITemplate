@@ -35,9 +35,9 @@ extension CYHTTPMethod {
 /// | 手动判断 code | `CYAPIResponse<T>` 自动解包 |
 public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable {
 
-    public static let shared = CYNetworkClient()
-
     private let baseURL: String
+    private let defaultHeaders: [String: String]
+    private let timeoutInterval: TimeInterval
 
     /// 可变状态（拦截器数组、刷新协调器）用同一把锁保护，避免数据竞争。
     private let stateLock = NSLock()
@@ -46,11 +46,15 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
     private var tokenRefreshCoordinator: CYTokenRefreshCoordinator?
 
     public init(
-        baseURL: String = CYAppEnvironment.current.baseURL,
+        baseURL: String,
+        defaultHeaders: [String: String] = [:],
+        timeoutInterval: TimeInterval = 30,
         requestInterceptors: [any CYRequestInterceptor] = [],
         responseInterceptors: [any CYResponseInterceptor] = []
     ) {
         self.baseURL = baseURL
+        self.defaultHeaders = defaultHeaders
+        self.timeoutInterval = timeoutInterval
         self.requestInterceptors = requestInterceptors
         self.responseInterceptors = responseInterceptors
     }
@@ -342,8 +346,11 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
 
         var request = URLRequest(url: url)
         request.httpMethod = endpoint.method.rawValue
+        request.timeoutInterval = timeoutInterval
 
-        // 设置 Headers
+        defaultHeaders.forEach { key, value in
+            request.setValue(value, forHTTPHeaderField: key)
+        }
         endpoint.headers?.forEach { key, value in
             request.setValue(value, forHTTPHeaderField: key)
         }

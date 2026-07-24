@@ -16,7 +16,9 @@ import FactoryKit
 extension Container {
     /// 网络客户端
     public var networkClient: Factory<CYNetworkClientProtocol> {
-        self { CYNetworkClient.shared }
+        self {
+            preconditionFailure("请先在 App 启动时调用 CYAppConfiguration.configure(_:)")
+        }
     }
     
     /// 缓存管理器
