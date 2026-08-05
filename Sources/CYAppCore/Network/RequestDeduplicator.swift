@@ -130,7 +130,7 @@ extension CYEndpoint {
         
         // 添加 body 参数（如果有）
         if let body = body {
-            let bodyString = body.keys.sorted().map { "\($0)=\(body[$0]!)" }.joined(separator: "&")
+            let bodyString = body.keys.sorted().map { "\($0)=\(body[$0] ?? "")" }.joined(separator: "&")
             components.append(bodyString)
         }
         

@@ -1,29 +1,35 @@
 import SwiftUI
 import CYAppCore
+import CYFeedbackStyle
 
 // MARK: - 全局反馈挂载修饰符
 
 public extension View {
-    /// 在根视图挂载一次全局 Toast。
-    func toastView() -> some View {
-        modifier(CYToastModifier())
+    func toastView(manager: CYToastManagerProtocol = CYToastManager.shared) -> some View {
+        modifier(CYToastModifier(manager: manager))
     }
 
-    /// 在根视图挂载一次全局 Loading。
-    func loadingOverlay() -> some View {
-        modifier(CYLoadingOverlayModifier())
+    func loadingOverlay(manager: CYLoadingManagerProtocol = CYLoadingManager.shared) -> some View {
+        modifier(CYLoadingOverlayModifier(manager: manager))
     }
 
-    /// 同时挂载 Toast 与 Loading。Loading 阻断操作时，Toast 显示在最上层。
-    func feedbackOverlay() -> some View {
-        loadingOverlay().toastView()
+    func feedbackOverlay(
+        toastManager: CYToastManagerProtocol = CYToastManager.shared,
+        loadingManager: CYLoadingManagerProtocol = CYLoadingManager.shared
+    ) -> some View {
+        loadingOverlay(manager: loadingManager)
+            .toastView(manager: toastManager)
     }
 }
 
 private struct CYToastModifier: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var manager = CYToastManager.shared
+    @State private var manager: CYToastManagerProtocol
     @State private var configuration = CYFeedbackConfiguration.shared
+
+    init(manager: CYToastManagerProtocol = CYToastManager.shared) {
+        self._manager = State(initialValue: manager)
+    }
 
     func body(content: Content) -> some View {
         let style = configuration.toastStyle
@@ -62,8 +68,12 @@ private struct CYToastModifier: ViewModifier {
 
 private struct CYLoadingOverlayModifier: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var manager = CYLoadingManager.shared
+    @State private var manager: CYLoadingManagerProtocol
     @State private var configuration = CYFeedbackConfiguration.shared
+
+    init(manager: CYLoadingManagerProtocol = CYLoadingManager.shared) {
+        self._manager = State(initialValue: manager)
+    }
 
     func body(content: Content) -> some View {
         content

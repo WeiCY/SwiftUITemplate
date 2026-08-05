@@ -94,7 +94,7 @@ public final class CYBiometricAuth {
         var error: NSError?
         guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
             guard let laError = error as? LAError else {
-                throw CYBiometricError.unknown(error!)
+                throw CYBiometricError.unknown(error ?? NSError(domain: "com.cyapp.biometric", code: -1))
             }
             
             switch laError.code {

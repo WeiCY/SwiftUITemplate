@@ -83,13 +83,13 @@ extension String {
     /// 读取 CYLocalizationManager 当前语言的本地化资源。
     /// 用法: "key_name".localized
     public var localized: String {
-        return CYLocalizationManager.localized(self)
+        return CYLocalizationManager.shared.localized(self)
     }
     
     /// 带参数的本地化字符串
     /// 用法: "greeting".localized(with: "John")
     public func localized(with arguments: CVarArg...) -> String {
-        return String(format: CYLocalizationManager.localized(self), arguments: arguments)
+        return String(format: CYLocalizationManager.shared.localized(self), arguments: arguments)
     }
     
     /// 使用系统 NSLocalizedString（忽略运行时语言切换）

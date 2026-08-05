@@ -14,6 +14,10 @@ public protocol DIContainerProtocol {
     var analyticsService: CYAnalyticsServiceProtocol { get }
     var imageLoader: CYImageLoaderProtocol { get }
     var permissionManager: CYPermissionManager { get }
-    var appState: CYAppState { get }
     var requestDeduplicator: CYRequestDeduplicator { get }
+    var toastManager: CYToastManagerProtocol { get }
+    var loadingManager: CYLoadingManagerProtocol { get }
+    var alertManager: CYAlertManagerProtocol { get }
+    var themeManager: CYThemeManaging { get }
+    var localizationManager: CYLocalizationManaging { get }
 }

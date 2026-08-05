@@ -2,6 +2,7 @@ import XCTest
 import SwiftUI
 @testable import CYAppUI
 import CYAppCore
+import CYFeedbackStyle
 
 // MARK: - UI 层补充测试
 //
@@ -85,5 +86,50 @@ final class AppUITests: XCTestCase {
         XCTAssertEqual(CYFeedbackConfiguration.shared.loadingStyle.maskOpacity, 0.4)
         XCTAssertEqual(CYFeedbackConfiguration.shared.loadingStyle.cornerRadius, 24)
         XCTAssertEqual(CYFeedbackConfiguration.shared.loadingStyle.indicatorScale, 1.5)
+    }
+    
+    // MARK: - CYAppState Tests
+    
+    @MainActor
+    func testAppStateInitialState() {
+        let state = CYAppState()
+        XCTAssertNil(state.user)
+        XCTAssertFalse(state.isLoggedIn)
+        XCTAssertTrue(state.selectedTab == .home)
+        XCTAssertTrue(state.theme == .system)
+    }
+    
+    @MainActor
+    func testAppStateSetUser() {
+        let state = CYAppState()
+        let user = User(id: 1, name: "Test", email: "test@example.com")
+        state.setUser(user)
+        XCTAssertNotNil(state.user)
+        XCTAssertTrue(state.isLoggedIn)
+        XCTAssertTrue(state.user?.name == "Test")
+    }
+    
+    @MainActor
+    func testAppStateLogout() {
+        let state = CYAppState()
+        let user = User(id: 1, name: "Test", email: nil)
+        state.setUser(user)
+        state.selectedTab = .profile
+        state.logout()
+        XCTAssertNil(state.user)
+        XCTAssertFalse(state.isLoggedIn)
+        XCTAssertTrue(state.selectedTab == .home)
+    }
+    
+    @MainActor
+    func testAppStateReset() {
+        let state = CYAppState()
+        state.setUser(User(id: 1, name: "Test", email: nil))
+        state.selectedTab = .profile
+        state.theme = .dark
+        state.reset()
+        XCTAssertNil(state.user)
+        XCTAssertTrue(state.selectedTab == .home)
+        XCTAssertTrue(state.theme == .system)
     }
 }

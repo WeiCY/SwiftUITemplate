@@ -1,6 +1,16 @@
 import Foundation
 import Observation
 
+// MARK: - Loading 协议
+
+@MainActor
+public protocol CYLoadingManagerProtocol: AnyObject, Sendable {
+    var isLoading: Bool { get }
+    var message: String? { get }
+    func show(_ message: String?)
+    func hide()
+}
+
 // MARK: - 全局加载状态管理
 //
 // 管理全局的加载指示器状态，配合 CYLoadingOverlay 使用。
@@ -19,7 +29,7 @@ import Observation
 
 @Observable
 @MainActor
-public final class CYLoadingManager {
+public final class CYLoadingManager: CYLoadingManagerProtocol, @unchecked Sendable {
     public nonisolated static let shared = CYLoadingManager()
     
     /// 是否正在加载

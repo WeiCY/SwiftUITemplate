@@ -13,6 +13,7 @@ let package = Package(
         .library(name: "CYFeedbackStyle", targets: ["CYFeedbackStyle"]),
         .library(name: "CYAppDesignSystem", targets: ["CYAppDesignSystem"]),
         .library(name: "CYAppUI", targets: ["CYAppUI"]),
+        .library(name: "CYAppPersistence", targets: ["CYAppPersistence"]),
     ],
     dependencies: [
         .package(url: "https://github.com/Alamofire/Alamofire.git", from: "5.12.0"),
@@ -47,6 +48,11 @@ let package = Package(
             name: "CYAppUI",
             dependencies: ["CYAppCore", "CYFeedbackStyle", "CYAppDesignSystem"],
             path: "Sources/CYAppUI"
+        ),
+        // Layer 3: SwiftData 持久化（可选引入，不依赖任何业务模块）
+        .target(
+            name: "CYAppPersistence",
+            path: "Sources/CYAppPersistence"
         ),
         // Tests
         .testTarget(

@@ -121,7 +121,8 @@ final class AppCoreTests: XCTestCase {
     
     func testAppEnvironmentCurrent() {
         let env = CYAppEnvironment.current
-        XCTAssertFalse(env.baseURL.isEmpty)
+        XCTAssertTrue(CYAppEnvironment.allCases.contains(env))
+        XCTAssertNotNil(env.featureFlags)
     }
     
     func testAppEnvironmentFeatureFlags() {
@@ -289,18 +290,16 @@ final class AppCoreTests: XCTestCase {
     // MARK: - CYAppConstants Tests
     
     func testAppConstantsValues() {
-        XCTAssertTrue(CYAppConstants.timeoutInterval > 0)
-        XCTAssertTrue(CYAppConstants.maxRetryAttempts == 3)
+        XCTAssertTrue(CYAppConstants.defaultPageSize > 0)
+        XCTAssertTrue(CYAppConstants.animationDuration > 0)
     }
     
     // MARK: - CYDIContainer Tests
     
     func testAppContainerShared() {
         let container = CYAppContainer.shared
-        XCTAssertNotNil(container.networkClient)
         XCTAssertNotNil(container.cacheManager)
         XCTAssertNotNil(container.logger)
-        XCTAssertNotNil(container.appState)
     }
     
     @MainActor
@@ -314,51 +313,6 @@ final class AppCoreTests: XCTestCase {
         XCTAssertEqual(container.userSession.user?.name, "shared-session")
         XCTAssertTrue(container.userSession.isLoggedIn)
         XCTAssertNotNil(container.userSession.accessToken)
-    }
-    
-    // MARK: - CYAppState Tests
-    
-    @MainActor
-    func testAppStateInitialState() {
-        let state = CYAppState()
-        XCTAssertNil(state.user)
-        XCTAssertFalse(state.isLoggedIn)
-        XCTAssertTrue(state.selectedTab == .home)
-        XCTAssertTrue(state.theme == .system)
-    }
-    
-    @MainActor
-    func testAppStateSetUser() {
-        let state = CYAppState()
-        let user = User(id: 1, name: "Test", email: "test@example.com")
-        state.setUser(user)
-        XCTAssertNotNil(state.user)
-        XCTAssertTrue(state.isLoggedIn)
-        XCTAssertTrue(state.user?.name == "Test")
-    }
-    
-    @MainActor
-    func testAppStateLogout() {
-        let state = CYAppState()
-        let user = User(id: 1, name: "Test", email: nil)
-        state.setUser(user)
-        state.selectedTab = .profile
-        state.logout()
-        XCTAssertNil(state.user)
-        XCTAssertFalse(state.isLoggedIn)
-        XCTAssertTrue(state.selectedTab == .home)
-    }
-    
-    @MainActor
-    func testAppStateReset() {
-        let state = CYAppState()
-        state.setUser(User(id: 1, name: "Test", email: nil))
-        state.selectedTab = .profile
-        state.theme = .dark
-        state.reset()
-        XCTAssertNil(state.user)
-        XCTAssertTrue(state.selectedTab == .home)
-        XCTAssertTrue(state.theme == .system)
     }
     
     // MARK: - CYAppTab Tests

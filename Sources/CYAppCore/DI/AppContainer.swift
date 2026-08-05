@@ -27,8 +27,12 @@ public final class CYAppContainer: DIContainerProtocol, @unchecked Sendable {
     public var analyticsService: CYAnalyticsServiceProtocol { factory.analyticsService }
     public var imageLoader: CYImageLoaderProtocol { factory.imageLoader }
     public var permissionManager: CYPermissionManager { factory.permissionManager }
-    public var appState: CYAppState { factory.appState }
     public var requestDeduplicator: CYRequestDeduplicator { factory.requestDeduplicator }
+    public var toastManager: CYToastManagerProtocol { factory.toastManager }
+    public var loadingManager: CYLoadingManagerProtocol { factory.loadingManager }
+    public var alertManager: CYAlertManagerProtocol { factory.alertManager }
+    public var themeManager: CYThemeManaging { factory.themeManager }
+    public var localizationManager: CYLocalizationManaging { factory.localizationManager }
     
     public init() {}
 }

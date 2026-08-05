@@ -1,6 +1,21 @@
 import Foundation
 import Observation
 
+// MARK: - Toast 协议
+
+@MainActor
+public protocol CYToastManagerProtocol: AnyObject, Sendable {
+    var message: String? { get }
+    var type: CYToastType { get }
+    var isPresented: Bool { get }
+    var presentationID: UUID { get }
+    var queueCount: Int { get }
+    var queueMode: CYToastQueueMode { get set }
+    func show(_ message: String, type: CYToastType, duration: TimeInterval)
+    func dismiss()
+    func dismissAll()
+}
+
 // MARK: - Toast 消息管理
 
 /// 多条 Toast 到达时的展示策略。
@@ -14,7 +29,7 @@ public enum CYToastQueueMode: Sendable {
 /// 管理全局 Toast 的展示、队列和自动消失。
 @Observable
 @MainActor
-public final class CYToastManager {
+public final class CYToastManager: CYToastManagerProtocol, @unchecked Sendable {
     public nonisolated static let shared = CYToastManager()
 
     public private(set) var message: String?

@@ -1,27 +1,14 @@
 import SwiftUI
+import Observation
 import CYAppCore
 
-/// CYAlertManager 的 SwiftUI 视图修饰符
-///
-/// 在根 View 上使用，自动绑定 CYAlertManager 的弹窗状态：
-/// ```swift
-/// @main
-/// struct MyApp: App {
-///     var body: some Scene {
-///         WindowGroup {
-///             RootView()
-///                 .alertManager()
-///         }
-///     }
-/// }
-///
-/// // 任意位置触发：
-/// CYAlertManager.shared.showSuccess("操作完成")
-/// CYAlertManager.shared.showConfirmation(title: "删除？") { delete() }
-/// ```
-public struct CYAlertManagerModifier: ViewModifier {
+public struct CYAlertManagerModifier<Manager: CYAlertManagerProtocol & Observable>: ViewModifier {
     
-    @Bindable var alertManager = CYAlertManager.shared
+    @Bindable var alertManager: Manager
+    
+    public init(manager: Manager) {
+        self.alertManager = manager
+    }
     
     public func body(content: Content) -> some View {
         content
@@ -45,8 +32,11 @@ public struct CYAlertManagerModifier: ViewModifier {
 }
 
 extension View {
-    /// 绑定全局弹窗管理器到视图树
     public func alertManager() -> some View {
-        modifier(CYAlertManagerModifier())
+        modifier(CYAlertManagerModifier(manager: CYAlertManager.shared))
+    }
+    
+    public func alertManager<M: CYAlertManagerProtocol & Observable>(manager: M) -> some View {
+        modifier(CYAlertManagerModifier(manager: manager))
     }
 }

@@ -1,5 +1,6 @@
 import SwiftUI
 import CYAppCore
+import CYFeedbackStyle
 import CYAppDesignSystem
 import CYAppUI
 
@@ -107,7 +108,7 @@ struct HomeDemoView: View {
 
                 PrimaryButton(title: "切换语言") {
                     let next = appState.language == "zh-Hans" ? "en" : "zh-Hans"
-                    CYLocalizationManager.setLanguage(next)
+                    CYLocalizationManager.shared.setLanguage(next)
                 }
             }
             .padding()

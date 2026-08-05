@@ -56,18 +56,39 @@ extension Container {
         self { CYPermissionManager.shared }
     }
     
-    /// 全局 App 状态
-    public var appState: Factory<CYAppState> {
-        self { CYAppState() }
-            .singleton
-    }
-    
     // MARK: - 网络请求去重器
     
     /// 请求去重器（用于防止重复请求）
     public var requestDeduplicator: Factory<CYRequestDeduplicator> {
         self { CYRequestDeduplicator() }
             .singleton
+    }
+    
+    // MARK: - UI 管理器
+    
+    /// Toast 管理器
+    public var toastManager: Factory<CYToastManagerProtocol> {
+        self { CYToastManager.shared }.singleton
+    }
+    
+    /// Loading 管理器
+    public var loadingManager: Factory<CYLoadingManagerProtocol> {
+        self { CYLoadingManager.shared }.singleton
+    }
+    
+    /// Alert 管理器
+    public var alertManager: Factory<CYAlertManagerProtocol> {
+        self { CYAlertManager.shared }.singleton
+    }
+    
+    /// 主题管理器
+    public var themeManager: Factory<CYThemeManaging> {
+        self { CYThemeManager.shared }.singleton
+    }
+    
+    /// 多语言管理器
+    public var localizationManager: Factory<CYLocalizationManaging> {
+        self { CYLocalizationManager.shared }.singleton
     }
 }
 
@@ -90,8 +111,12 @@ public final class CYFactoryContainer: DIContainerProtocol, @unchecked Sendable 
     public var analyticsService: CYAnalyticsServiceProtocol { container.analyticsService() }
     public var imageLoader: CYImageLoaderProtocol { container.imageLoader() }
     public var permissionManager: CYPermissionManager { container.permissionManager() }
-    public var appState: CYAppState { container.appState() }
     public var requestDeduplicator: CYRequestDeduplicator { container.requestDeduplicator() }
+    public var toastManager: CYToastManagerProtocol { container.toastManager() }
+    public var loadingManager: CYLoadingManagerProtocol { container.loadingManager() }
+    public var alertManager: CYAlertManagerProtocol { container.alertManager() }
+    public var themeManager: CYThemeManaging { container.themeManager() }
+    public var localizationManager: CYLocalizationManaging { container.localizationManager() }
     
     public init() {}
 }

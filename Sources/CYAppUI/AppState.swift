@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import CYAppCore
 
 // MARK: - 全局应用状态
 
@@ -47,6 +48,11 @@ import Observation
 @Observable
 public final class CYAppState {
     
+    // MARK: - 注入的依赖
+    
+    private let themeManager: CYThemeManaging
+    private let localizationManager: CYLocalizationManaging
+    
     // MARK: - 用户
     
     /// 当前登录用户（nil = 未登录）
@@ -73,27 +79,20 @@ public final class CYAppState {
         get { _theme }
         set {
             _theme = newValue
-            CYThemeManager.save(newValue)
+            themeManager.save(newValue)
         }
     }
     
     // MARK: - 多语言
     
     /// 当前语言代码（只读，实际状态由 CYLocalizationManager 管理）
-    ///
-    /// 常见值：`"zh-Hans"`（简中）、`"en"`（英文）、`"ja"`（日文）
     public var language: String {
-        CYLocalizationManager.currentLanguage
+        localizationManager.currentLanguage
     }
     
     /// 切换 App 语言
-    ///
-    /// 切换后自动持久化，下次启动自动恢复。
-    /// SwiftUI 界面需配合 `.id(appState.language)` 刷新。
-    ///
-    /// - Parameter languageCode: 语言代码，如 `"zh-Hans"`, `"en"`, `"ja"`
     public func setLanguage(_ languageCode: String) {
-        CYLocalizationManager.setLanguage(languageCode)
+        localizationManager.setLanguage(languageCode)
     }
     
     // MARK: - 引导页
@@ -112,10 +111,20 @@ public final class CYAppState {
     
     // MARK: - 初始化
     
-    public nonisolated init() {
+    /// 创建全局状态实例
+    ///
+    /// - Parameters:
+    ///   - themeManager: 主题管理器，默认 `CYThemeManager.shared`
+    ///   - localizationManager: 多语言管理器，默认 `CYLocalizationManager.shared`
+    public nonisolated init(
+        themeManager: CYThemeManaging = CYThemeManager.shared,
+        localizationManager: CYLocalizationManaging = CYLocalizationManager.shared
+    ) {
+        self.themeManager = themeManager
+        self.localizationManager = localizationManager
         self._hasCompletedOnboarding = UserDefaults.standard.bool(forKey: CYAppConstants.keyOnboardingShown)
-        self._theme = CYThemeManager.savedTheme()
-        CYLocalizationManager.restore()
+        self._theme = themeManager.savedTheme()
+        localizationManager.restore()
     }
     
     // MARK: - 用户 Management
@@ -136,8 +145,7 @@ public final class CYAppState {
         self.user = nil
         self.selectedTab = .home
         self._theme = .system
-        CYThemeManager.save(.system)
-        CYLocalizationManager.resetToSystem()
-        // 不清除 onboarding 标记 — 换号不需要再看引导
+        themeManager.save(.system)
+        localizationManager.resetToSystem()
     }
 }

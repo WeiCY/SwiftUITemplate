@@ -1,6 +1,19 @@
 import Foundation
 import Observation
 
+// MARK: - Alert 协议
+
+@MainActor
+public protocol CYAlertManagerProtocol: AnyObject, Sendable {
+    var isPresented: Bool { get set }
+    var title: String { get set }
+    var message: String? { get set }
+    var alertType: CYAlertManager.AlertType { get set }
+    func showAlert(title: String, message: String?, type: CYAlertManager.AlertType)
+    func showConfirmation(title: String, message: String?, confirmTitle: String, confirmStyle isDestructive: Bool, onConfirm: @escaping @Sendable () -> Void)
+    func dismiss()
+}
+
 /// 统一弹窗/确认对话框管理器
 ///
 /// 支持 Alert、确认对话框、带输入的对话框。
@@ -26,7 +39,7 @@ import Observation
 /// ```
 @Observable
 @MainActor
-public final class CYAlertManager {
+public final class CYAlertManager: CYAlertManagerProtocol, @unchecked Sendable {
     
     public nonisolated static let shared = CYAlertManager()
     
