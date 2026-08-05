@@ -22,7 +22,7 @@ public struct CYRemoteImageView: View {
         url: URL?,
         placeholder: Image? = nil,
         contentMode: SwiftUI.ContentMode = .fill,
-        imageLoader: CYImageLoaderProtocol = CYKingfisherImageLoader.shared
+        imageLoader: CYImageLoaderProtocol = CYAppContainer.shared.imageLoader
     ) {
         self.url = url
         self.placeholder = placeholder

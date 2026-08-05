@@ -401,8 +401,11 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
             try await interceptor.intercept(response, data: data)
         }
     }
+}
 
-    // MARK: - 业务码解析（统一入口）
+// MARK: - 业务码解析 + 错误映射
+
+private extension CYNetworkClient {
 
     /// 按 `CYBusinessCodePolicy` 解析 `CYAPIResponse`，统一处理「成功 / 普通错误 /
     /// Token 过期 / 需重新登录」，并始终优先使用服务端返回的 `message`。
@@ -411,7 +414,7 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
     /// - Token 过期：抛 `CYNetworkError.tokenExpired` → 被 `performRequest` 捕获后自动刷新 + 重放。
     /// - 需重新登录：抛 `CYNetworkError.needReLogin`。
     /// - 普通错误：抛 `CYNetworkError.businessError`（message 取自服务端响应）。
-    private func resolveData<T: Decodable>(_ apiResponse: CYAPIResponse<T>) throws -> T {
+    func resolveData<T: Decodable>(_ apiResponse: CYAPIResponse<T>) throws -> T {
         switch apiResponse.businessResult {
         case .success:
             guard let data = apiResponse.data else {
@@ -433,7 +436,7 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
         }
     }
 
-    private func mapNetworkError(_ error: Error, data: Data?) -> CYNetworkError {
+    func mapNetworkError(_ error: Error, data: Data?) -> CYNetworkError {
         if let networkError = error as? CYNetworkError {
             return networkError
         }
@@ -446,8 +449,7 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
     }
 
     /// 将 Alamofire 错误映射为 CYNetworkError
-    private func mapAlamofireError(_ afError: AFError, data: Data?) -> CYNetworkError {
-        // 网络断开
+    func mapAlamofireError(_ afError: AFError, data: Data?) -> CYNetworkError {
         if let urlError = afError.underlyingError as? URLError {
             switch urlError.code {
             case .notConnectedToInternet, .networkConnectionLost:
@@ -459,12 +461,10 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
             }
         }
 
-        // HTTP 状态码错误
         if let statusCode = afError.responseCode, !(200..<300).contains(statusCode) {
             return .httpError(statusCode: statusCode, data: data)
         }
 
-        // 解码错误
         if case .sessionTaskFailed(let error) = afError,
            error is DecodingError {
             return .decodingFailed(error)
