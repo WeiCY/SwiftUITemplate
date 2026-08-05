@@ -11,7 +11,7 @@ public struct CYSFSymbol {
     private init() {}
     
     // MARK: - 导航
-    public struct nav {
+    public struct Nav {
         public static let back = "chevron.left"
         public static let forward = "chevron.right"
         public static let up = "chevron.up"
@@ -23,7 +23,7 @@ public struct CYSFSymbol {
     }
     
     // MARK: - 常用操作
-    public struct action {
+    public struct Action {
         public static let add = "plus"
         public static let remove = "minus"
         public static let delete = "trash"
@@ -41,7 +41,7 @@ public struct CYSFSymbol {
     }
     
     // MARK: - 状态
-    public struct status {
+    public struct Status {
         public static let checkmark = "checkmark"
         public static let checkmarkCircle = "checkmark.circle.fill"
         public static let xmark = "xmark"
@@ -52,7 +52,7 @@ public struct CYSFSymbol {
     }
     
     // MARK: - 媒体
-    public struct media {
+    public struct Media {
         public static let play = "play.fill"
         public static let pause = "pause.fill"
         public static let stop = "stop.fill"
@@ -66,7 +66,7 @@ public struct CYSFSymbol {
     }
     
     // MARK: - 社交
-    public struct social {
+    public struct Social {
         public static let heart = "heart"
         public static let heartFilled = "heart.fill"
         public static let star = "star"
@@ -80,7 +80,7 @@ public struct CYSFSymbol {
     }
     
     // MARK: - 用户
-    public struct user {
+    public struct User {
         public static let person = "person"
         public static let personFilled = "person.fill"
         public static let personCircle = "person.circle"
@@ -90,7 +90,7 @@ public struct CYSFSymbol {
     }
     
     // MARK: - 位置
-    public struct location {
+    public struct Location {
         public static let pin = "mappin"
         public static let pinFilled = "mappin.circle.fill"
         public static let map = "map"
@@ -99,7 +99,7 @@ public struct CYSFSymbol {
     }
     
     // MARK: - 标签栏
-    public struct tab {
+    public struct Tab {
         public static let home = "house"
         public static let homeFilled = "house.fill"
         public static let explore = "safari"

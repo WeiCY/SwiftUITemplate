@@ -29,7 +29,7 @@ public struct CYAppStorageHelper {
     public static func save<T: Codable>(_ value: T, forKey key: String) {
         if let data = try? JSONEncoder().encode(value) {
             defaults.set(data, forKey: key)
-            let _ = savedKeysLock.withLock { $0.insert(key) }
+            _ = savedKeysLock.withLock { $0.insert(key) }
         }
     }
     
@@ -42,7 +42,7 @@ public struct CYAppStorageHelper {
     /// 删除指定 key 的数据
     public static func remove(forKey key: String) {
         defaults.removeObject(forKey: key)
-        let _ = savedKeysLock.withLock { $0.remove(key) }
+        _ = savedKeysLock.withLock { $0.remove(key) }
     }
     
     /// 检查 key 是否存在

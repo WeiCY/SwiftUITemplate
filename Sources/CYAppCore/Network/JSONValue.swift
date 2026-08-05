@@ -49,11 +49,11 @@ extension CYJSONValue: Codable {
     }
 }
 
-extension CYJSONValue: ExpressibleByStringLiteral  { public init(stringLiteral value: String)  { self = .string(value) } }
-extension CYJSONValue: ExpressibleByIntegerLiteral { public init(integerLiteral value: Int)    { self = .int(value) } }
-extension CYJSONValue: ExpressibleByFloatLiteral   { public init(floatLiteral value: Double)   { self = .double(value) } }
-extension CYJSONValue: ExpressibleByBooleanLiteral { public init(booleanLiteral value: Bool)   { self = .bool(value) } }
-extension CYJSONValue: ExpressibleByNilLiteral     { public init(nilLiteral: ())               { self = .null } }
+extension CYJSONValue: ExpressibleByStringLiteral { public init(stringLiteral value: String) { self = .string(value) } }
+extension CYJSONValue: ExpressibleByIntegerLiteral { public init(integerLiteral value: Int) { self = .int(value) } }
+extension CYJSONValue: ExpressibleByFloatLiteral { public init(floatLiteral value: Double) { self = .double(value) } }
+extension CYJSONValue: ExpressibleByBooleanLiteral { public init(booleanLiteral value: Bool) { self = .bool(value) } }
+extension CYJSONValue: ExpressibleByNilLiteral { public init(nilLiteral: ()) { self = .null } }
 
 extension CYJSONValue {
     public var jsonObject: Any {

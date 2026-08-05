@@ -269,18 +269,18 @@ final class AppCoreTests: XCTestCase {
     // MARK: - CYAPIResponse Tests
     
     func testAPIResponseDecodeSuccess() throws {
-        let json = """
+        let json = Data("""
         {"code": 0, "data": {"id": 1, "name": "John", "email": "john@example.com", "role": "user"}, "message": "ok"}
-        """.data(using: .utf8)!
+        """.utf8)
         let response = try JSONDecoder().decode(CYAPIResponse<User>.self, from: json)
         XCTAssertTrue(response.isSuccess)
         XCTAssertTrue(response.data?.name == "John")
     }
     
     func testAPIResponseDecodeBusinessError() throws {
-        let json = """
+        let json = Data("""
         {"code": 10001, "data": null, "message": "token expired"}
-        """.data(using: .utf8)!
+        """.utf8)
         let response = try JSONDecoder().decode(CYAPIResponse<User>.self, from: json)
         XCTAssertFalse(response.isSuccess)
         XCTAssertNil(response.data)
@@ -323,7 +323,10 @@ final class AppCoreTests: XCTestCase {
         XCTAssertTrue(CYAppTab.profile.icon == "person")
         XCTAssertTrue(CYAppTab.allCases.count == 3)
     }
-    
+}
+
+extension AppCoreTests {
+
     // MARK: - CYAppTheme Tests
     
     func testAppThemeIsDarkMode() {
@@ -519,7 +522,7 @@ final class AppCoreTests: XCTestCase {
     func testFormValidatorValidateAll() {
         let validator = CYFormValidator([
             .init(key: "email", field: CYFormField(name: "邮箱").required().email()),
-            .init(key: "password", field: CYFormField(name: "密码").required().minLength(8)),
+            .init(key: "password", field: CYFormField(name: "密码").required().minLength(8))
         ])
         let validValues = ["email": "test@example.com", "password": "12345678"]
         let results = validator.validateAll(validValues)
@@ -534,7 +537,7 @@ final class AppCoreTests: XCTestCase {
     func testFormValidatorIsAllValid() {
         let validator = CYFormValidator([
             .init(key: "email", field: CYFormField(name: "邮箱").required().email()),
-            .init(key: "password", field: CYFormField(name: "密码").required().minLength(8)),
+            .init(key: "password", field: CYFormField(name: "密码").required().minLength(8))
         ])
         XCTAssertTrue(validator.isAllValid(["email": "a@b.com", "password": "12345678"]))
         XCTAssertFalse(validator.isAllValid(["email": "", "password": "12345678"]))
@@ -544,7 +547,7 @@ final class AppCoreTests: XCTestCase {
     func testFormValidatorFirstError() {
         let validator = CYFormValidator([
             .init(key: "email", field: CYFormField(name: "邮箱").required()),
-            .init(key: "password", field: CYFormField(name: "密码").required()),
+            .init(key: "password", field: CYFormField(name: "密码").required())
         ])
         let error = validator.firstError(["email": "", "password": ""])
         XCTAssertNotNil(error)

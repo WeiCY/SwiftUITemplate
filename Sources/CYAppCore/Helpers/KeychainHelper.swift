@@ -25,7 +25,7 @@ public final class CYKeychainHelper: @unchecked Sendable {
             kSecValueData: data,
             kSecClass: kSecClassGenericPassword,
             kSecAttrService: service,
-            kSecAttrAccount: account,
+            kSecAttrAccount: account
         ] as CFDictionary
         
         // 先删除已有项
@@ -47,7 +47,7 @@ public final class CYKeychainHelper: @unchecked Sendable {
             kSecAttrService: service,
             kSecAttrAccount: account,
             kSecClass: kSecClassGenericPassword,
-            kSecReturnData: true,
+            kSecReturnData: true
         ] as CFDictionary
         
         var result: AnyObject?
@@ -61,7 +61,7 @@ public final class CYKeychainHelper: @unchecked Sendable {
         let query = [
             kSecAttrService: service,
             kSecAttrAccount: account,
-            kSecClass: kSecClassGenericPassword,
+            kSecClass: kSecClassGenericPassword
         ] as CFDictionary
         
         SecItemDelete(query)

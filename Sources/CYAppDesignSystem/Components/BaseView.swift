@@ -169,6 +169,7 @@ public struct CYBaseView<Content: View>: View {
 }
 
 #Preview("Loading - Shared Custom") {
+    // swiftlint:disable:next redundant_discardable_let
     let _ = CYFeedbackConfiguration.configure(
         loadingStyle: CYLoadingStyle(
             maskBackgroundColor: .indigo,

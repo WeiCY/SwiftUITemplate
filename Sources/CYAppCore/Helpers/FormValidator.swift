@@ -106,10 +106,8 @@ public struct CYFormField: Sendable {
     /// - Parameter value: 当前字段值
     /// - Returns: 第一条失败的错误信息，全部通过返回 nil
     public func validate(_ value: String) -> String? {
-        for rule in rules {
-            if !rule.validate(value) {
-                return rule.message
-            }
+        for rule in rules where !rule.validate(value) {
+            return rule.message
         }
         return nil
     }

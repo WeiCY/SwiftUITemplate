@@ -23,15 +23,21 @@ import Foundation
 ///     CYDeepLinkHandler.shared.handle(url: url)
 /// }
 /// ```
-@MainActor
-public final class CYDeepLinkHandler {
+    private struct HandlerEntry {
+        let scheme: String?
+        let host: String?
+        let handler: (URL) -> Void
+    }
+
+    @MainActor
+    public final class CYDeepLinkHandler {
     
     public static let shared = CYDeepLinkHandler()
     
     /// 最后一次处理的 URL（用于调试）
     public var lastHandledURL: URL?
     
-    private var handlers: [(scheme: String?, host: String?, handler: (URL) -> Void)] = []
+    private var handlers: [HandlerEntry] = []
     
     private init() {}
     
@@ -41,7 +47,7 @@ public final class CYDeepLinkHandler {
     ///   - host: URL Host（如 "product"），nil 匹配所有 host
     ///   - handler: 处理闭包
     public func register(scheme: String? = nil, host: String? = nil, handler: @escaping (URL) -> Void) {
-        handlers.append((scheme: scheme, host: host, handler: handler))
+        handlers.append(HandlerEntry(scheme: scheme, host: host, handler: handler))
     }
     
     /// 处理收到的 URL

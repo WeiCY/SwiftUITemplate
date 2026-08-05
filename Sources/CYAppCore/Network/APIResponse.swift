@@ -67,7 +67,7 @@ public struct CYAPIResponse<T: Decodable>: Decodable, Sendable where T: Sendable
                 throw DecodingError.typeMismatch(
                     Int.self,
                     .init(codingPath: [CodingKeys.code],
-                           debugDescription: "CYAPIResponse.code 类型错误，期望 Int")
+                          debugDescription: "CYAPIResponse.code 类型错误，期望 Int")
                 )
             }
         } else {

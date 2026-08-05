@@ -60,7 +60,7 @@ public struct CYPersistenceController: @unchecked Sendable {
         let samples = [
             CYBookmarkItem(title: "Apple Developer", url: "https://developer.apple.com", note: "苹果开发者官网"),
             CYBookmarkItem(title: "SwiftUI Tutorials", url: "https://developer.apple.com/tutorials/swiftui", isFavorite: true),
-            CYBookmarkItem(title: "Swift.org", url: "https://swift.org", note: "Swift 语言官网"),
+            CYBookmarkItem(title: "Swift.org", url: "https://swift.org", note: "Swift 语言官网")
         ]
         
         for sample in samples {

@@ -121,31 +121,46 @@ final class HighPriorityTests: XCTestCase {
 
     func testBusinessCodePolicyClassifyDefault() {
         let p = CYBusinessCodePolicy.default
-        if case .success = p.classify(0, message: nil) {} else { XCTFail("0 应为成功") }
-        if case .success = p.classify(200, message: nil) {} else { XCTFail("200 应为成功") }
-        if case .tokenExpired(let c, _) = p.classify(10001, message: "x") { XCTAssertEqual(c, 10001) }
-        else { XCTFail("10001 应为 tokenExpired") }
-        if case .needReLogin(let c, _) = p.classify(10003, message: "y") { XCTAssertEqual(c, 10003) }
-        else { XCTFail("10003 应为 needReLogin") }
-        if case .businessError(_, _, let display) = p.classify(500, message: nil) {
-            XCTAssertEqual(display, .toast)
-        } else { XCTFail("普通错误默认应为 toast") }
+        switch p.classify(0, message: nil) {
+        case .success: break
+        default: XCTFail("0 应为成功")
+        }
+        switch p.classify(200, message: nil) {
+        case .success: break
+        default: XCTFail("200 应为成功")
+        }
+        switch p.classify(10001, message: "x") {
+        case .tokenExpired(let c, _): XCTAssertEqual(c, 10001)
+        default: XCTFail("10001 应为 tokenExpired")
+        }
+        switch p.classify(10003, message: "y") {
+        case .needReLogin(let c, _): XCTAssertEqual(c, 10003)
+        default: XCTFail("10003 应为 needReLogin")
+        }
+        switch p.classify(500, message: nil) {
+        case .businessError(_, _, let display): XCTAssertEqual(display, .toast)
+        default: XCTFail("普通错误默认应为 toast")
+        }
     }
 
     func testBusinessCodePolicyCustomAlertAndSilent() {
         var p = CYBusinessCodePolicy.default
         p.alertCodes = [50000]
         p.silentCodes = [90001]
-        if case .businessError(_, _, let d) = p.classify(50000, message: nil) { XCTAssertEqual(d, .alert) }
-        else { XCTFail("50000 应 alert") }
-        if case .businessError(_, _, let d) = p.classify(90001, message: nil) { XCTAssertEqual(d, .silent) }
-        else { XCTFail("90001 应 silent") }
+        switch p.classify(50000, message: nil) {
+        case .businessError(_, _, let d): XCTAssertEqual(d, .alert)
+        default: XCTFail("50000 应 alert")
+        }
+        switch p.classify(90001, message: nil) {
+        case .businessError(_, _, let d): XCTAssertEqual(d, .silent)
+        default: XCTFail("90001 应 silent")
+        }
         XCTAssertEqual(p.display(for: 50000), .alert)
         XCTAssertEqual(p.display(for: 90001), .silent)
     }
 
     func testAPIResponseBusinessResultFromJSON() {
-        let json = #"{"code":10001,"message":"expired"}"#.data(using: .utf8)!
+        let json = Data(#"{"code":10001,"message":"expired"}"#.utf8)
         let resp = try? JSONDecoder().decode(CYAPIResponse<Int>.self, from: json)
         XCTAssertNotNil(resp)
         if let resp {
