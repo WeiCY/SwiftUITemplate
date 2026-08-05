@@ -17,7 +17,7 @@ extension Container {
     /// 网络客户端
     public var networkClient: Factory<CYNetworkClientProtocol> {
         self {
-            preconditionFailure("请先在 App 启动时调用 CYAppConfiguration.configure(_:)")
+            preconditionFailure("请先在 App 启动时通过 DI 注册 networkClient")
         }
     }
     
@@ -48,7 +48,9 @@ extension Container {
     
     /// 图片加载器
     public var imageLoader: Factory<CYImageLoaderProtocol> {
-        self { CYKingfisherImageLoader.shared }
+        self {
+            preconditionFailure("请导入 CYAppImage 并在 App 启动时注册 imageLoader")
+        }
     }
     
     /// 权限管理器

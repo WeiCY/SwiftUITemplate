@@ -1,5 +1,6 @@
 import Foundation
 import FactoryKit
+import CYAppCore
 
 /// 由宿主 App 在启动时注入的全局配置。
 ///

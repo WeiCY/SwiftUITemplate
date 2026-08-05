@@ -14,7 +14,9 @@ https://github.com/your-org/CYSwiftTemplate
 
 | 库名 | 用途 | 何时引入 |
 |---|---|---|
-| `CYAppCore` | 网络、缓存、DI、管理器、权限 | **必选** |
+| `CYAppCore` | 协议、扩展、日志、DI、管理器、权限 | **必选** |
+| `CYAppNetwork` | Alamofire 网络实现（可选） | 需要 HTTP 请求时引入 |
+| `CYAppImage` | Kingfisher 图片加载（可选） | 需要远程图片时引入 |
 | `CYFeedbackStyle` | Toast/Loading 样式定义 | 有 UI 反馈时引入 |
 | `CYAppDesignSystem` | 颜色、字体、间距、基础组件 | 有 UI 时引入 |
 | `CYAppUI` | 路由、AppState、Toast 视图、Loading 视图、引导页 | 有 UI 时引入 |
@@ -27,6 +29,7 @@ https://github.com/your-org/CYSwiftTemplate
 ```swift
 import SwiftUI
 import CYAppCore
+import CYAppNetwork
 import CYFeedbackStyle
 import CYAppUI
 
@@ -835,20 +838,23 @@ CYSwiftTemplate/
 ├── .github/workflows/
 │   └── ci.yml                     # CI（build + test + lint）
 ├── Sources/
-│   ├── CYAppCore/                   # Layer 0: 纯逻辑层（无 SwiftUI）
-│   │   ├── Base/                  #   AppError, AppTab, AppTheme, BaseViewModel, PaginatedListViewModel
-│   │   ├── Network/               #   NetworkClient, APIResponse, BusinessCode, 拦截器, 请求去重
-│   │   ├── Configuration/         #   AppConfiguration, AppEnvironment
-│   │   ├── DI/                    #   DI 三件套 (Protocol + Factory + Facade)
+│   ├── CYAppCore/                   # Layer 0: 纯逻辑（协议 + 工具），仅依赖 Factory
+│   │   ├── Network/               #   CYEndpoint, CYNetworkClientProtocol, APIResponse, BusinessCode
+│   │   ├── Configuration/         #   AppEnvironment
+│   │   ├── DI/                    #   DIContainerProtocol, FactoryContainer, AppContainer
 │   │   ├── Services/              #   AuthService, AnalyticsService, UserSession
-│   │   ├── Cache/                 #   CacheManager (Actor隔离, TTL支持)
-│   │   ├── Persistence/           #   SwiftData 持久化
+│   │   ├── Image/                 #   CYImageLoaderProtocol, ImageLoaderError
+│   │   ├── Cache/                 #   CacheManager
 │   │   ├── Permissions/           #   相机/相册/定位/通知权限
 │   │   ├── Managers/              #   Toast/Loading/Alert 管理器 (协议 + DI)
-│   │   ├── Mock/                  #   MockNetworkClient, MockAuthService 等（5 个 Mock 类）
-│   │   ├── Logger/                #   多级日志
-│   │   └── Extensions/            #   10 个扩展文件
-│   ├── CYFeedbackStyle/            # Layer 0 UI: Toast/Loading 样式定义
+│   │   ├── Mock/                  #   Mock 5 件套
+│   │   └── ...
+│   ├── CYAppNetwork/                # Layer 0: 网络实现（+Alamofire），可选
+│   │   ├── NetworkClient.swift    #   Alamofire 桥接实现
+│   │   └── AppConfiguration.swift #   启动配置（注册 networkClient）
+│   ├── CYAppImage/                  # Layer 0: 图片实现（+Kingfisher），可选
+│   │   └── ImageLoader.swift      #   Kingfisher 桥接实现
+│   ├── CYFeedbackStyle/            # Layer 0 UI: 样式定义
 │   │   └── FeedbackConfiguration  #   CYToastStyle, CYLoadingStyle, CYFeedbackConfiguration
 │   ├── CYAppDesignSystem/          # Layer 1: SwiftUI 设计系统
 │   │   ├── Theme/                 #   AppColors, AppFonts, AppDimens, Color扩展

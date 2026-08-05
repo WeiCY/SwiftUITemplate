@@ -1,5 +1,6 @@
 import Foundation
 import Alamofire
+import CYAppCore
 
 // MARK: - CYHTTPMethod Alamofire 桥接（内部）
 
@@ -470,5 +471,29 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
         }
 
         return .underlying(afError)
+    }
+}
+
+// MARK: - 请求去重集成
+
+extension CYNetworkClient {
+    /// 带去重的网络请求
+    public func requestWithDeduplication<T: Decodable & Sendable>(
+        _ endpoint: CYEndpoint,
+        deduplicator: CYRequestDeduplicator
+    ) async throws -> T {
+        try await deduplicator.execute(key: endpoint.deduplicationKey) {
+            try await self.request(endpoint)
+        }
+    }
+
+    /// 带去重的原始请求
+    public func requestRawWithDeduplication<T: Decodable & Sendable>(
+        _ endpoint: CYEndpoint,
+        deduplicator: CYRequestDeduplicator
+    ) async throws -> CYAPIResponse<T> {
+        try await deduplicator.execute(key: endpoint.deduplicationKey) {
+            try await self.requestRaw(endpoint)
+        }
     }
 }

@@ -137,39 +137,3 @@ extension CYEndpoint {
         return components.joined(separator: ":")
     }
 }
-
-// MARK: - NetworkClient 扩展（集成去重）
-
-extension CYNetworkClient {
-    /// 带去重的网络请求
-    ///
-    /// 自动使用 `endpoint.deduplicationKey` 作为去重键。
-    /// 适用于幂等的 GET 请求，POST/PUT/DELETE 请求慎用。
-    ///
-    /// 示例：
-    /// ```swift
-    /// // 用户多次点击，只发起一次请求
-    /// let user: User = try await networkClient.requestWithDeduplication(
-    ///     UserEndpoint.profile,
-    ///     deduplicator: appContainer.requestDeduplicator
-    /// )
-    /// ```
-    public func requestWithDeduplication<T: Decodable & Sendable>(
-        _ endpoint: CYEndpoint,
-        deduplicator: CYRequestDeduplicator
-    ) async throws -> T {
-        try await deduplicator.execute(key: endpoint.deduplicationKey) {
-            try await self.request(endpoint)
-        }
-    }
-    
-    /// 带去重的原始请求
-    public func requestRawWithDeduplication<T: Decodable & Sendable>(
-        _ endpoint: CYEndpoint,
-        deduplicator: CYRequestDeduplicator
-    ) async throws -> CYAPIResponse<T> {
-        try await deduplicator.execute(key: endpoint.deduplicationKey) {
-            try await self.requestRaw(endpoint)
-        }
-    }
-}

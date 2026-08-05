@@ -56,7 +56,7 @@ extension CYJSONValue: ExpressibleByBooleanLiteral { public init(booleanLiteral 
 extension CYJSONValue: ExpressibleByNilLiteral     { public init(nilLiteral: ())               { self = .null } }
 
 extension CYJSONValue {
-    var jsonObject: Any {
+    public var jsonObject: Any {
         switch self {
         case .string(let v): return v
         case .int(let v):    return v

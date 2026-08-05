@@ -1,61 +1,46 @@
 # CYAppCore
 
-纯逻辑层框架，无 SwiftUI 依赖。提供网络请求、缓存、DI、权限管理、日志等基础设施能力。
+纯逻辑层框架，仅依赖 Foundation + Factory。提供协议抽象、工具类、DI 基础设施。
+
+> **按需加载设计**：CYAppCore 不包含网络和图片实现。需要 HTTP 请求请引入 ``CYAppNetwork``，需要远程图片加载请引入 ``CYAppImage``。
 
 ## 概述
 
-CYAppCore 是 CYSwiftTemplate 的核心模块，遵循 **协议驱动 + DI 注入** 的设计原则。所有主要组件均通过协议暴露，消费项目可通过 Factory DI 容器替换任意实现。
+CYAppCore 是 CYSwiftTemplate 的核心骨架，遵循 **协议驱动 + DI 注入** 的设计原则。
+网络实现（Alamofire）和图片加载（Kingfisher）已拆分为独立可选 target：
+- ``CYAppNetwork``：`CYNetworkClient` Alamofire 实现
+- ``CYAppImage``：`CYKingfisherImageLoader` Kingfisher 实现
 
 ### 架构分层
 
 ```
-CYAppCore (Layer 0)
-├── Network     网络层（Alamofire 桥接）
-├── Services    认证 / 分析 / 用户会话
-├── Cache       内存 + 磁盘缓存（Actor 隔离）
-├── DI          依赖注入（Protocol → Facade → Factory）
-├── Managers    Toast / Loading / Alert 管理器
-├── Permissions 相机 / 相册 / 定位 / 通知
-├── Logger      多级结构化日志
-├── Helpers     工具类（Keychain / 生物识别 / 表单验证等）
-└── Extensions  10 类 Foundation 扩展
+CYAppCore (仅 Foundation + Factory)
+├── Network      网络协议层（CYEndpoint, CYNetworkClientProtocol, APIResponse）
+├── Services     认证 / 分析 / 用户会话
+├── DI           依赖注入（Protocol → Factory）
+├── Image        图片加载协议（CYImageLoaderProtocol）
+├── Cache        Actor 隔离缓存
+├── Managers     Toast / Loading / Alert
+├── Permissions  权限管理
+├── Logger       多级日志
+└── Extensions   10 类 Foundation 扩展
 ```
-
-### 核心能力
-
-| 模块 | 职责 | 关键类型 |
-|------|------|---------|
-| Network | RESTful API 请求、业务码处理、Token 刷新、请求去重 | ``CYNetworkClient``, ``CYAPIResponse``, ``CYNetworkError`` |
-| Services | 认证流程、用户会话管理、分析上报 | ``CYAuthService``, ``CYUserSession``, ``CYAnalyticsService`` |
-| Cache | 内存 + 磁盘缓存，支持 TTL 和命名空间 | ``CYCacheManager`` |
-| DI | 协议驱动的依赖注入（Protocol → Facade → Factory） | ``CYAppContainer``, ``DIContainerProtocol`` |
-| Managers | Toast / Loading / Alert 全局管理器 | ``CYToastManager``, ``CYLoadingManager``, ``CYAlertManager`` |
-| Permissions | 统一权限请求（相机、相册、定位、通知） | ``CYPermissionManager`` |
 
 ### 接入示例
 
 ```swift
 import CYAppCore
 
-@main
-struct MyApp: App {
-    init() {
-        CYAppConfiguration.configure(
-            environment: .production,
-            baseURL: "https://api.example.com"
-        )
-        CYBusinessCodePolicy.configure {
-            $0.successCodes = [0, 200]
-        }
-    }
-}
+// 仅使用协议 + 工具，无需 Alamofire/Kingfisher
+let cache = CYCacheManager.shared
+let logger = CYLogger.shared
+CYToastManager.shared.show("操作成功", type: .success)
 ```
 
 ## Topics
 
-### 网络请求
+### 网络协议
 
-- ``CYNetworkClient``
 - ``CYNetworkClientProtocol``
 - ``CYEndpoint``
 - ``CYHTTPMethod``

@@ -14,6 +14,8 @@ let package = Package(
         .library(name: "CYAppDesignSystem", targets: ["CYAppDesignSystem"]),
         .library(name: "CYAppUI", targets: ["CYAppUI"]),
         .library(name: "CYAppPersistence", targets: ["CYAppPersistence"]),
+        .library(name: "CYAppNetwork", targets: ["CYAppNetwork"]),
+        .library(name: "CYAppImage", targets: ["CYAppImage"]),
     ],
     dependencies: [
         .package(url: "https://github.com/Alamofire/Alamofire.git", from: "5.12.0"),
@@ -21,16 +23,32 @@ let package = Package(
         .package(url: "https://github.com/hmlongco/Factory.git", from: "3.3.2"),
     ],
     targets: [
-        // Layer 0: Foundation 纯逻辑，无 SwiftUI
+        // Layer 0: 纯逻辑层，零第三方重依赖（仅 Factory DI）
         .target(
             name: "CYAppCore",
             dependencies: [
-                .product(name: "Alamofire", package: "Alamofire"),
-                .product(name: "Kingfisher", package: "Kingfisher"),
                 .product(name: "FactoryKit", package: "Factory"),
             ],
             path: "Sources/CYAppCore",
             resources: [.process("Resources")]
+        ),
+        // Layer 0: 网络实现层（Alamofire 封装）
+        .target(
+            name: "CYAppNetwork",
+            dependencies: [
+                "CYAppCore",
+                .product(name: "Alamofire", package: "Alamofire"),
+            ],
+            path: "Sources/CYAppNetwork"
+        ),
+        // Layer 0: 图片加载实现层（Kingfisher 封装）
+        .target(
+            name: "CYAppImage",
+            dependencies: [
+                "CYAppCore",
+                .product(name: "Kingfisher", package: "Kingfisher"),
+            ],
+            path: "Sources/CYAppImage"
         ),
         // Layer 0 UI: 共享反馈样式，不依赖业务模块
         .target(
@@ -78,7 +96,7 @@ let package = Package(
         // 可运行 Demo（业务接入参考）
         .executableTarget(
             name: "ExampleApp",
-            dependencies: ["CYAppCore", "CYFeedbackStyle", "CYAppDesignSystem", "CYAppUI"],
+            dependencies: ["CYAppCore", "CYAppNetwork", "CYAppImage", "CYFeedbackStyle", "CYAppDesignSystem", "CYAppUI"],
             path: "ExampleApp/Sources"
         ),
     ],
