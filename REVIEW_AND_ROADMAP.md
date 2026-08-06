@@ -2,7 +2,7 @@
 
 > 评审日期：2026-08-06  
 > 评审范围：Package.swift、CYAppCore、CYAppNetwork、CYAppImage、CYAppDesignSystem（含新增组件）、CYAppUI、CYAppPersistence、CYAppCoreTests、ExampleApp、.swiftlint.yml、CI  
-> 当前状态：`swift build` 通过，`swift test` 93 个测试全部通过
+> 当前状态：`swift build` 通过，`swift test` 98 个测试全部通过
 
 ---
 
@@ -31,30 +31,32 @@
 3. 修复 `AppStorageHelper.clearAll()` 无法清理跨进程/历史数据。
 4. 修复 `BiometricAuth` 的 `localizedFallbackTitle` 语义错误。
 5. 修复 `ExampleApp` 未注册 `imageLoader` 导致的崩溃。
+6. 修复 `CYNetworkClient` 401/Token 刷新失败时的无限重试循环：最多只刷新一次，刷新失败或重放后仍 401 直接抛出错误。
 
 ### DI 按需注册优化
-6. 新增 `CYDefaultImageLoader`（基于 `URLSession`），默认注册到 DI；导入 `CYAppImage` 后可被 Kingfisher 实现覆盖。
+7. 新增 `CYDefaultImageLoader`（基于 `URLSession`），默认注册到 DI；导入 `CYAppImage` 后可被 Kingfisher 实现覆盖。
 
 ### 中低风险修复
-7. `LoadingManager` 增加引用计数，避免并发请求提前关闭。
-8. `AlertManager` 增加弹窗队列，避免连续调用覆盖。
-9. `BaseView` 错误视图支持 `CYErrorStyle` 配置和自定义 `errorView` 插槽。
-10. `OnboardingView` 支持外部注入 `pages`。
-11. `CYPersistenceController` 支持通过 `containerBuilder` 闭包自定义 `ModelContainer`。
-12. `EmptyStateView` 增加图标颜色/尺寸/操作按钮配置。
-13. `RemoteImageView` 增加 `maxRetries`、`retryDelay`、`errorRetryTitle` 配置。
-14. `CYPermissionType` 从 `enum` 改为 `struct`，支持业务扩展。
-15. `NotificationPermission` 支持自定义 `UNAuthorizationOptions`。
-16. 本地化 `AlertManager` 的确认/成功/错误/警告标题。
+8. `LoadingManager` 增加引用计数，避免并发请求提前关闭。
+9. `AlertManager` 增加弹窗队列，避免连续调用覆盖。
+10. `BaseView` 错误视图支持 `CYErrorStyle` 配置和自定义 `errorView` 插槽。
+11. `OnboardingView` 支持外部注入 `pages`。
+12. `CYPersistenceController` 支持通过 `containerBuilder` 闭包自定义 `ModelContainer`。
+13. `EmptyStateView` 增加图标颜色/尺寸/操作按钮配置。
+14. `RemoteImageView` 增加 `maxRetries`、`retryDelay`、`errorRetryTitle` 配置。
+15. `CYPermissionType` 从 `enum` 改为 `struct`，支持业务扩展。
+16. `NotificationPermission` 支持自定义 `UNAuthorizationOptions`。
+17. 本地化 `AlertManager` 的确认/成功/错误/警告标题。
 
 ### 组件库补充
-17. 新增 `InputComponents.swift`：`CYTextField`、`CYSearchBar`、`CYVerificationCodeInput`。
-18. 新增 `ListComponents.swift`：`CYListRow`、`CYSectionHeader`。
-19. 新增 `OverlayComponents.swift`：`.cyBottomSheet`、`.snackBar`、`CYSnackBarManager`。
-20. 新增 `BadgeAndTag.swift`：`CYBadge`、`CYTag`、`CYTagGroup`。
+18. 新增 `InputComponents.swift`：`CYTextField`、`CYSearchBar`、`CYVerificationCodeInput`。
+19. 新增 `ListComponents.swift`：`CYListRow`、`CYSectionHeader`。
+20. 新增 `OverlayComponents.swift`：`.cyBottomSheet`、`.snackBar`、`CYSnackBarManager`。
+21. 新增 `BadgeAndTag.swift`：`CYBadge`、`CYTag`、`CYTagGroup`。
 
 ### 测试
-21. 新增 `Toast` 队列上限测试、`AlertManager` 队列测试。当前共 **93 个测试，0 失败**。
+22. 新增 `CYAppNetworkTests` 测试目标，覆盖 `CYNetworkClient` 401 刷新/重试/不重试/不循环等 5 个用例。
+23. 新增 `Toast` 队列上限测试、`AlertManager` 队列测试。当前共 **98 个测试，0 失败**。
 
 ---
 
@@ -62,10 +64,10 @@
 
 ### 高严重度（建议立即修复）
 
-#### 1. 401 / Token 刷新失败时可能无限重试
+#### 1. 401 / Token 刷新失败时可能无限重试 ✅ 已修复
 - **位置**：`Sources/CYAppNetwork/Network/NetworkClient.swift` ~92–118
-- **问题**：`performRequest` 捕获 `requiresTokenRefresh` 后，无论刷新是否成功都会重放原请求；若 refreshToken 无效会再次 401，再次触发刷新。
-- **建议**：增加“本次请求已刷新”标志；刷新失败或重放后仍 401 时直接抛出错误，不再循环。
+- **修复**：将 `performRequest` 改为最多只触发一次刷新；刷新失败（`coordinator.refreshIfNeeded()` 返回 `nil`）直接抛出原错误；重放后仍 401 不再二次刷新。
+- **测试**：新增 `CYAppNetworkTests/NetworkClientTests.swift`，覆盖刷新成功重试、无协调器、刷新失败、重放仍 401 不循环、业务错误不触发刷新 5 个场景。
 
 #### 2. `CYAppState` 可观察性缺陷
 - **位置**：`Sources/CYAppUI/AppState.swift` ~75–91、101–110
@@ -200,9 +202,10 @@
 当前代码已经：
 - 修复了多个高风险的可见性 bug；
 - 补齐了 DI 按需注册和组件库；
-- 通过 `swift build` 和 `swift test`（93 个测试）。
+- 通过 `swift build` 和 `swift test`（98 个测试）。
+- 已修复 401/Token 刷新无限重试问题，并新增 `CYAppNetworkTests` 覆盖。
 
-但仍存在 **401 无限重试、AppState 可观察性、上传 API 不一致、核心层硬编码中文** 等高风险问题。如果主分支要求“可用即合”，本次修改可以上传；如果主分支要求“生产可用”，建议先完成 Phase 1 的阻塞项后再合并。
+仍存在 **AppState 可观察性、上传 API 不一致、核心层硬编码中文** 等高风险问题。如果主分支要求“可用即合”，本次修改可以上传；如果主分支要求“生产可用”，建议先完成 Phase 1 的阻塞项后再合并。
 
 ---
 
@@ -214,8 +217,11 @@
 - `Sources/CYAppDesignSystem/Components/ListComponents.swift`
 - `Sources/CYAppDesignSystem/Components/OverlayComponents.swift`
 - `Sources/CYAppDesignSystem/Components/BadgeAndTag.swift`
+- `Sources/CYAppNetworkTests/NetworkClientTests.swift`
 
 ### 修改文件
+- `Package.swift`
+- `Sources/CYAppNetwork/Network/NetworkClient.swift`
 - `ExampleApp/Sources/ExampleApp.swift`
 - `Sources/CYAppCore/DI/FactoryContainer.swift`
 - `Sources/CYAppCore/Helpers/AppStorageHelper.swift`

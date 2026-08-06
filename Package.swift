@@ -93,6 +93,11 @@ let package = Package(
             dependencies: ["CYAppUI", "CYAppCore", "CYFeedbackStyle"],
             path: "Sources/CYAppUITests"
         ),
+        .testTarget(
+            name: "CYAppNetworkTests",
+            dependencies: ["CYAppNetwork", "CYAppCore"],
+            path: "Sources/CYAppNetworkTests"
+        ),
         // 可运行 Demo（业务接入参考）
         .executableTarget(
             name: "ExampleApp",

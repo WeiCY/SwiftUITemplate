@@ -91,8 +91,16 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
 
     /// 统一封装「401 自动刷新 + 重放」逻辑。
     /// `build` 内应完整包含 构建请求 → 拦截器 → 发送 → 解码。
-    private func performRequest<T: Decodable>(
-        _ build: @escaping () async throws -> T
+    /// 最多只会触发一次 Token 刷新；刷新失败或重放后仍 401 时直接抛出错误，不会循环。
+    func performRequest<T: Decodable>(
+        _ build: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        try await _performRequest(build, hasRefreshed: false)
+    }
+
+    func _performRequest<T: Decodable>(
+        _ build: @escaping @Sendable () async throws -> T,
+        hasRefreshed: Bool
     ) async throws -> T {
         do {
             return try await build()
@@ -104,16 +112,18 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
                 requiresRefresh = false
             }
 
-            guard requiresRefresh else { throw error }
+            // 已经刷新过，或不需要刷新，直接抛出错误
+            guard !hasRefreshed, requiresRefresh else { throw error }
 
             let coordinator = stateLock.withLock { tokenRefreshCoordinator }
             guard let coordinator else { throw error }
 
-            // 刷新失败（无 refreshToken 或刷新接口报错）则抛出原错误
-            _ = await coordinator.refreshIfNeeded()
+            // 刷新失败（无 refreshToken 或刷新接口报错）则抛出原错误，不再重试
+            let refreshedToken = await coordinator.refreshIfNeeded()
+            guard refreshedToken != nil else { throw error }
 
             // 重放原请求：请求拦截器会重新注入最新 Token
-            return try await build()
+            return try await _performRequest(build, hasRefreshed: true)
         }
     }
 
