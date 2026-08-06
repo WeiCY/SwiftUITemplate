@@ -37,6 +37,12 @@ public final class MockLoadingManager: CYLoadingManagerProtocol, @unchecked Send
         message = nil
     }
 
+    public func hideAll() {
+        hideCallCount += 1
+        isLoading = false
+        message = nil
+    }
+
     public func reset() {
         isLoading = false
         message = nil

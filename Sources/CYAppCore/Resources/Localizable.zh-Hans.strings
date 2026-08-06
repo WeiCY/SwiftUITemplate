@@ -1,5 +1,6 @@
 "error_generic" = "出错了";
 "action_retry" = "重试";
+"action_confirm" = "确认";
 "loading" = "加载中...";
 "pagination_end" = "— 已加载全部 —";
 "empty_title" = "暂无数据";
@@ -14,3 +15,8 @@
 "camera_unavailable_title" = "无法拍照";
 "camera_unavailable_message" = "当前设备没有可用的相机";
 "image_load_failed" = "图片加载失败";
+"image_retry" = "重试";
+"ok" = "好的";
+"success_title" = "成功";
+"error_title" = "错误";
+"warning_title" = "警告";

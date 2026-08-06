@@ -1,6 +1,7 @@
 import SwiftUI
 import CYAppCore
 import CYAppNetwork
+import CYAppImage
 import CYFeedbackStyle
 import CYAppDesignSystem
 import CYAppUI
@@ -17,6 +18,8 @@ struct DemoApp: App {
             defaultHeaders: ["X-App-Platform": "iOS"],
             timeoutInterval: 30
         )
+
+        CYAppImageConfig.configure()
 
         CYFeedbackConfiguration.configure(
             toastStyle: CYToastStyle(position: .center),

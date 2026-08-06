@@ -51,11 +51,13 @@ public struct SkeletonRow: View {
     }
     
     public var body: some View {
-        RoundedRectangle(cornerRadius: 6)
-            .fill(CYAppColor.tertiaryBackground)
-            .frame(width: nil, height: height)
-            .frame(maxWidth: .infinity)
-            .shimmer()
+        GeometryReader { geometry in
+            RoundedRectangle(cornerRadius: 6)
+                .fill(CYAppColor.tertiaryBackground)
+                .frame(width: geometry.size.width * widthRatio, height: height)
+                .shimmer()
+        }
+        .frame(height: height)
     }
 }
 

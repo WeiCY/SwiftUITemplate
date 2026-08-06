@@ -1,5 +1,6 @@
 "error_generic" = "Something went wrong";
 "action_retry" = "Retry";
+"action_confirm" = "Confirm";
 "loading" = "Loading...";
 "pagination_end" = "— End —";
 "empty_title" = "No data";
@@ -14,3 +15,8 @@
 "camera_unavailable_title" = "Cannot take photo";
 "camera_unavailable_message" = "This device has no available camera";
 "image_load_failed" = "Image failed to load";
+"image_retry" = "Retry";
+"ok" = "OK";
+"success_title" = "Success";
+"error_title" = "Error";
+"warning_title" = "Warning";

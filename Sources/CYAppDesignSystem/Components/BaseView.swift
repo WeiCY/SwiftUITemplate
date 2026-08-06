@@ -5,43 +5,57 @@ import CYFeedbackStyle
 // MARK: - 通用状态容器视图
 
 /// 通用状态容器视图，统一处理 Loading / Error / Content 三种状态。
-public struct CYBaseView<Content: View>: View {
+///
+/// 错误视图支持两种方式：
+/// 1. 使用全局 `CYFeedbackConfiguration.shared.errorStyle` 默认样式；
+/// 2. 通过 `errorView` 插槽传入自定义视图。
+public struct CYBaseView<Content: View, ErrorView: View>: View {
     let isLoading: Bool
     let error: CYAppError?
     let loadingMessage: String?
     let onRetry: (() -> Void)?
     let content: Content
+    let errorViewBuilder: (CYAppError, (() -> Void)?) -> ErrorView
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var feedbackConfiguration = CYFeedbackConfiguration.shared
     @State private var pulseScale: CGFloat = 0.9
 
+    /// 使用默认错误样式的初始化。
     public init(
         isLoading: Bool = false,
         error: CYAppError? = nil,
+        loadingMessage: String? = nil,
         onRetry: (() -> Void)? = nil,
         @ViewBuilder content: () -> Content
-    ) {
-        self.isLoading = isLoading
-        self.error = error
-        self.loadingMessage = nil
-        self.onRetry = onRetry
-        self.content = content()
+    ) where ErrorView == CYDefaultErrorView {
+        self.init(
+            isLoading: isLoading,
+            error: error,
+            loadingMessage: loadingMessage,
+            onRetry: onRetry,
+            content: content,
+            errorView: { error, onRetry in
+                CYDefaultErrorView(error: error, onRetry: onRetry)
+            }
+        )
     }
 
-    /// 支持局部 Loading 文案的兼容扩展初始化器。
+    /// 使用自定义错误视图插槽的初始化。
     public init(
         isLoading: Bool = false,
         error: CYAppError? = nil,
-        loadingMessage: String?,
+        loadingMessage: String? = nil,
         onRetry: (() -> Void)? = nil,
-        @ViewBuilder content: () -> Content
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder errorView: @escaping (CYAppError, (() -> Void)?) -> ErrorView
     ) {
         self.isLoading = isLoading
         self.error = error
         self.loadingMessage = loadingMessage
         self.onRetry = onRetry
         self.content = content()
+        self.errorViewBuilder = errorView
     }
 
     public var body: some View {
@@ -53,49 +67,14 @@ public struct CYBaseView<Content: View>: View {
                 .blur(radius: isLoading ? style.contentBlurRadius : 0)
 
             if let error {
-                errorView(error)
+                errorViewBuilder(error, onRetry)
+                    .padding(style.card.insets)
             }
 
             if isLoading {
                 loadingOverlay(style: style)
             }
         }
-    }
-
-    @ViewBuilder
-    private func errorView(_ error: CYAppError) -> some View {
-        VStack(spacing: CYAppDimens.marginM) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 50))
-                .foregroundColor(CYAppColor.error)
-
-            Text("error_generic".cyLocalized)
-                .font(CYAppFont.h3)
-                .foregroundColor(CYAppColor.textPrimary)
-
-            Text(error.message)
-                .font(CYAppFont.bodyMedium)
-                .foregroundColor(CYAppColor.textSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-
-            if let onRetry {
-                Button(action: onRetry) {
-                    Text("action_retry".cyLocalized)
-                        .font(CYAppFont.button)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, CYAppDimens.marginL)
-                        .padding(.vertical, CYAppDimens.marginS)
-                        .background(CYAppColor.accent)
-                        .cornerRadius(CYAppDimens.radiusM)
-                }
-            }
-        }
-        .padding()
-        .background(CYAppColor.background)
-        .cornerRadius(CYAppDimens.radiusL)
-        .shadow(radius: 10)
-        .padding()
     }
 
     private func loadingOverlay(style: CYLoadingStyle) -> some View {
@@ -162,6 +141,58 @@ public struct CYBaseView<Content: View>: View {
     }
 }
 
+// MARK: - 默认错误视图
+
+/// 使用 `CYErrorStyle` 渲染的默认错误视图。
+public struct CYDefaultErrorView: View {
+    let error: CYAppError
+    let onRetry: (() -> Void)?
+
+    @State private var style = CYFeedbackConfiguration.shared.errorStyle
+
+    public init(error: CYAppError, onRetry: (() -> Void)?) {
+        self.error = error
+        self.onRetry = onRetry
+    }
+
+    public var body: some View {
+        VStack(spacing: style.padding / 2) {
+            Image(systemName: style.icon)
+                .font(.system(size: style.iconSize))
+                .foregroundStyle(style.iconColor)
+
+            Text(style.title.cyLocalized)
+                .font(style.titleFont)
+                .foregroundStyle(style.titleColor)
+
+            Text(error.message)
+                .font(style.messageFont)
+                .foregroundStyle(style.messageColor)
+                .multilineTextAlignment(.center)
+
+            if let onRetry {
+                Button(action: onRetry) {
+                    Text(style.retryTitle.cyLocalized)
+                        .font(style.retryFont)
+                        .foregroundStyle(style.retryForegroundColor)
+                        .padding(style.retryPadding)
+                        .background(style.retryBackgroundColor)
+                        .cornerRadius(style.retryCornerRadius)
+                }
+            }
+        }
+        .padding(style.padding)
+        .background(style.backgroundColor)
+        .cornerRadius(style.cornerRadius)
+        .shadow(
+            color: style.shadow.color,
+            radius: style.shadow.radius,
+            x: style.shadow.x,
+            y: style.shadow.y
+        )
+    }
+}
+
 #Preview("Loading - Shared Default") {
     CYBaseView(isLoading: true, error: nil, loadingMessage: "Loading") {
         Text("Content")
@@ -189,6 +220,27 @@ public struct CYBaseView<Content: View>: View {
 #Preview("Error with Retry") {
     CYBaseView(isLoading: false, error: .network("Network connection lost"), onRetry: {}) {
         Text("Content")
+    }
+}
+
+#Preview("Custom Error View") {
+    CYBaseView(
+        isLoading: false,
+        error: .business(code: 500, message: "服务器繁忙"),
+        onRetry: {}
+    ) {
+        Text("Content")
+    } errorView: { error, _ in
+        VStack(spacing: 12) {
+            Image(systemName: "xmark.octagon.fill")
+                .font(.largeTitle)
+                .foregroundStyle(.orange)
+            Text(error.message)
+                .font(.headline)
+        }
+        .padding(40)
+        .background(.regularMaterial)
+        .cornerRadius(16)
     }
 }
 

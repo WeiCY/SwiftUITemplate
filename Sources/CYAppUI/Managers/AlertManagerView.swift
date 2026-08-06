@@ -15,8 +15,8 @@ public struct CYAlertManagerModifier<Manager: CYAlertManagerProtocol & Observabl
             .alert(alertManager.title, isPresented: $alertManager.isPresented) {
                 switch alertManager.alertType {
                 case .info, .success, .warning, .error:
-                    Button("好的", role: .cancel) { }
-                    
+                    Button("ok".cyLocalized, role: .cancel) { }
+
                 case .confirmation(let action, let confirmTitle, let isDestructive):
                     Button(confirmTitle, role: isDestructive ? .destructive : .none) {
                         action()
@@ -26,6 +26,13 @@ public struct CYAlertManagerModifier<Manager: CYAlertManagerProtocol & Observabl
             } message: {
                 if let message = alertManager.message {
                     Text(message)
+                }
+            }
+            .onChange(of: alertManager.isPresented) { wasPresented, isPresented in
+                // SwiftUI 通过绑定关闭弹窗时不会主动调用 manager.dismiss()，
+                // 这里在状态从 true 变为 false 时推进队列。
+                if wasPresented && !isPresented {
+                    alertManager.dismiss()
                 }
             }
     }

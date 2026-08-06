@@ -12,6 +12,7 @@ public protocol CYAlertManagerProtocol: AnyObject, Sendable {
     func showAlert(title: String, message: String?, type: CYAlertManager.AlertType)
     func showConfirmation(title: String, message: String?, confirmTitle: String, confirmStyle isDestructive: Bool, onConfirm: @escaping @Sendable () -> Void)
     func dismiss()
+    func dismissAll()
 }
 
 /// 统一弹窗/确认对话框管理器
@@ -50,6 +51,12 @@ public final class CYAlertManager: CYAlertManagerProtocol, @unchecked Sendable {
     public var message: String?
     public var alertType: AlertType = .info
     
+    /// 弹窗队列，避免连续调用互相覆盖。
+    private var queue: [AlertItem] = []
+    
+    /// 当前队列中待展示弹窗数量（不包含正在展示）。
+    public var queueCount: Int { queue.count }
+    
     // MARK: - Types
     
     public enum AlertType: Sendable {
@@ -62,6 +69,30 @@ public final class CYAlertManager: CYAlertManagerProtocol, @unchecked Sendable {
     
     public nonisolated init() {}
     
+    // MARK: - Queue
+    
+    private struct AlertItem {
+        let title: String
+        let message: String?
+        let type: AlertType
+    }
+    
+    private func enqueue(title: String, message: String?, type: AlertType) {
+        queue.append(AlertItem(title: title, message: message, type: type))
+        if !isPresented {
+            presentNext()
+        }
+    }
+    
+    private func presentNext() {
+        guard let item = queue.first else { return }
+        queue.removeFirst()
+        self.title = item.title
+        self.message = item.message
+        self.alertType = item.type
+        self.isPresented = true
+    }
+    
     // MARK: - Show Alert
     
     /// 显示简单提示弹窗
@@ -70,25 +101,22 @@ public final class CYAlertManager: CYAlertManagerProtocol, @unchecked Sendable {
         message: String? = nil,
         type: AlertType = .info
     ) {
-        self.title = title
-        self.message = message
-        self.alertType = type
-        self.isPresented = true
+        enqueue(title: title, message: message, type: type)
     }
     
     /// 显示成功提示
     public func showSuccess(_ message: String) {
-        showAlert(title: "成功", message: message, type: .success)
+        showAlert(title: "success_title".cyLocalized, message: message, type: .success)
     }
-    
+
     /// 显示错误提示
     public func showError(_ message: String) {
-        showAlert(title: "错误", message: message, type: .error)
+        showAlert(title: "error_title".cyLocalized, message: message, type: .error)
     }
-    
+
     /// 显示警告提示
     public func showWarning(_ message: String) {
-        showAlert(title: "警告", message: message, type: .warning)
+        showAlert(title: "warning_title".cyLocalized, message: message, type: .warning)
     }
     
     // MARK: - Show Confirmation
@@ -97,19 +125,31 @@ public final class CYAlertManager: CYAlertManagerProtocol, @unchecked Sendable {
     public func showConfirmation(
         title: String,
         message: String? = nil,
-        confirmTitle: String = "确认",
+        confirmTitle: String = "action_confirm".cyLocalized,
         confirmStyle isDestructive: Bool = false,
         onConfirm: @escaping @Sendable () -> Void
     ) {
-        self.title = title
-        self.message = message
-        self.alertType = .confirmation(confirmAction: onConfirm, confirmTitle: confirmTitle, isDestructive: isDestructive)
-        self.isPresented = true
+        let type: AlertType = .confirmation(
+            confirmAction: onConfirm,
+            confirmTitle: confirmTitle,
+            isDestructive: isDestructive
+        )
+        enqueue(title: title, message: message, type: type)
     }
     
     // MARK: - Dismiss
     
     public func dismiss() {
+        isPresented = false
+        // 留出 SwiftUI Alert 转场时间，再展示队列中的下一条。
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.presentNext()
+        }
+    }
+    
+    /// 清空弹窗队列并立即关闭当前弹窗。
+    public func dismissAll() {
+        queue.removeAll()
         isPresented = false
     }
 }

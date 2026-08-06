@@ -4,9 +4,13 @@ import UserNotifications
 /// 通知权限请求器
 /// 桥接 UserNotifications 框架权限 API
 public struct CYNotificationPermission: CYPermissionRequester, Sendable {
-    
-    public init() {}
-    
+
+    let options: UNAuthorizationOptions
+
+    public init(options: UNAuthorizationOptions = [.alert, .badge, .sound]) {
+        self.options = options
+    }
+
     public var status: CYPermissionStatus {
         get async {
             let settings = await UNUserNotificationCenter.current().notificationSettings()
@@ -18,11 +22,11 @@ public struct CYNotificationPermission: CYPermissionRequester, Sendable {
             }
         }
     }
-    
+
     public func request() async -> CYPermissionStatus {
         do {
             let granted = try await UNUserNotificationCenter.current()
-                .requestAuthorization(options: [.alert, .badge, .sound])
+                .requestAuthorization(options: options)
             return granted ? .authorized : .denied
         } catch {
             return .denied

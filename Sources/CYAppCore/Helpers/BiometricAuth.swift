@@ -89,7 +89,8 @@ public final class CYBiometricAuth {
     @discardableResult
     public static func authenticate(reason: String) async throws -> Bool {
         let context = LAContext()
-        context.localizedCancelTitle = "使用密码"
+        // 设置密码回退按钮的标题；localizedCancelTitle 是「取消」按钮，不能写成「使用密码」。
+        context.localizedFallbackTitle = "使用密码"
         
         var error: NSError?
         guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {

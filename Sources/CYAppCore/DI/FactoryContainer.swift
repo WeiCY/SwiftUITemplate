@@ -46,11 +46,11 @@ extension Container {
         self { CYAnalyticsService() }
     }
     
-    /// 图片加载器
+    /// 图片加载器。
+    /// 默认提供基于 `URLSession` 的轻量实现，无需强制导入 `CYAppImage`。
+    /// 若需 Kingfisher 的高级能力，调用 `CYAppImageConfig.configure()` 覆盖即可。
     public var imageLoader: Factory<CYImageLoaderProtocol> {
-        self {
-            preconditionFailure("请导入 CYAppImage 并在 App 启动时注册 imageLoader")
-        }
+        self { CYDefaultImageLoader.shared }
     }
     
     /// 权限管理器

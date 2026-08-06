@@ -41,6 +41,9 @@ public final class CYToastManager: CYToastManagerProtocol, @unchecked Sendable {
 
     public var queueMode: CYToastQueueMode = .replace
 
+    /// 队列模式下最多保留的待展示消息数，超出时会丢弃最旧消息。默认 10。
+    public var maxQueueSize: Int = 10
+
     @ObservationIgnored
     private var dismissTask: Task<Void, Never>?
     @ObservationIgnored
@@ -64,6 +67,9 @@ public final class CYToastManager: CYToastManagerProtocol, @unchecked Sendable {
         )
 
         if queueMode == .queue, isPresented {
+            if queue.count >= maxQueueSize {
+                queue.removeFirst()
+            }
             queue.append(request)
             queueCount = queue.count
         } else {

@@ -11,23 +11,31 @@ public struct CYRemoteImageView: View {
     let placeholder: Image?
     let contentMode: SwiftUI.ContentMode
     let imageLoader: CYImageLoaderProtocol
-    
+    let maxRetries: Int
+    let retryDelay: TimeInterval
+    let errorRetryTitle: String
+
     @State private var loadedImage: UIImage?
     @State private var isLoading = false
     @State private var error: Error?
     @State private var retryCount = 0
-    private let maxRetries = 3
-    
+
     public init(
         url: URL?,
         placeholder: Image? = nil,
         contentMode: SwiftUI.ContentMode = .fill,
-        imageLoader: CYImageLoaderProtocol = CYAppContainer.shared.imageLoader
+        imageLoader: CYImageLoaderProtocol = CYAppContainer.shared.imageLoader,
+        maxRetries: Int = 3,
+        retryDelay: TimeInterval = 0.5,
+        errorRetryTitle: String = "image_retry"
     ) {
         self.url = url
         self.placeholder = placeholder
         self.contentMode = contentMode
         self.imageLoader = imageLoader
+        self.maxRetries = maxRetries
+        self.retryDelay = retryDelay
+        self.errorRetryTitle = errorRetryTitle
     }
     
     public var body: some View {
@@ -44,7 +52,7 @@ public struct CYRemoteImageView: View {
                     Text("image_load_failed".cyLocalized)
                         .font(CYAppFont.caption)
                         .foregroundStyle(CYAppColor.textSecondary)
-                    Button("重试") {
+                    Button(errorRetryTitle.cyLocalized) {
                         Task { await loadImage() }
                     }
                     .font(CYAppFont.caption)
@@ -95,7 +103,8 @@ public struct CYRemoteImageView: View {
                 attempt += 1
                 if attempt <= maxRetries {
                     do {
-                        try await Task.sleep(for: .seconds(min(Double(attempt), 3)))
+                        let delay = retryDelay * TimeInterval(attempt)
+                        try await Task.sleep(for: .seconds(delay))
                     } catch {
                         return
                     }

@@ -8,12 +8,19 @@ public enum CYPermissionStatus: String, Sendable {
     case restricted     // 受限（家长控制等）
 }
 
-/// 权限类型枚举
-public enum CYPermissionType: String, CaseIterable, Sendable {
-    case camera
-    case photoLibrary
-    case notification
-    case location
+/// 权限类型标识。
+/// 使用 struct 而非 enum，业务模块可以通过 extension 新增自定义权限类型，而不需要修改模板源码。
+public struct CYPermissionType: RawRepresentable, Hashable, Sendable {
+    public let rawValue: String
+
+    public init(rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    public static let camera = CYPermissionType(rawValue: "camera")
+    public static let photoLibrary = CYPermissionType(rawValue: "photoLibrary")
+    public static let notification = CYPermissionType(rawValue: "notification")
+    public static let location = CYPermissionType(rawValue: "location")
 }
 
 /// 权限请求器协议

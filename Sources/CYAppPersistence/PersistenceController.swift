@@ -76,13 +76,17 @@ public struct CYPersistenceController: @unchecked Sendable {
     
     /// 创建持久化控制器
     /// - Parameter inMemory: true 为内存模式（Preview/测试），false 为磁盘模式（生产）
-    public init(inMemory: Bool = false) {
-        do {
-            let configuration = ModelConfiguration(isStoredInMemoryOnly: inMemory)
-            container = try ModelContainer(
+    public init(
+        inMemory: Bool = false,
+        containerBuilder: @escaping (_ inMemory: Bool) throws -> ModelContainer = { inMemory in
+            try ModelContainer(
                 for: CYBookmarkItem.self, CYTag.self,
-                configurations: configuration
+                configurations: ModelConfiguration(isStoredInMemoryOnly: inMemory)
             )
+        }
+    ) {
+        do {
+            container = try containerBuilder(inMemory)
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }

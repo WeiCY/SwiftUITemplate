@@ -36,11 +36,12 @@ public struct CYAppColor {
     
     // MARK: - 品牌色
     
-    /// 主色调
-    public static let primary = Color.primary
-    /// 副色调
+    /// 主色调（品牌色）。
+    /// 使用固定的 `.indigo` 而非 `Color.primary`，避免在深色模式下与白色文字混用导致不可见。
+    public static let primary = Color.indigo
+    /// 副色调（系统自适应辅助色，用于次要文字/边框）
     public static let secondary = Color.secondary
-    /// 强调色
+    /// 强调色（跟随 App 全局 AccentColor）
     public static let accent = Color.accentColor
     
     // MARK: - 背景色

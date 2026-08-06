@@ -47,28 +47,52 @@ public struct EmptyStateView: View {
     public let title: String
     public let message: String
     public let image: String
-    
-    public init(title: String, message: String, image: String) {
+    public let iconSize: CGFloat
+    public let iconColor: Color
+    public let actionTitle: String?
+    public let action: (() -> Void)?
+
+    public init(
+        title: String,
+        message: String,
+        image: String,
+        iconSize: CGFloat = 60,
+        iconColor: Color = CYAppColor.textTertiary,
+        actionTitle: String? = nil,
+        action: (() -> Void)? = nil
+    ) {
         self.title = title
         self.message = message
         self.image = image
+        self.iconSize = iconSize
+        self.iconColor = iconColor
+        self.actionTitle = actionTitle
+        self.action = action
     }
     
     public var body: some View {
         VStack(spacing: CYAppDimens.marginM) {
             Image(systemName: image)
-                .font(.system(size: 60))
-                .foregroundColor(.gray)
+                .font(.system(size: iconSize))
+                .foregroundColor(iconColor)
             
             Text(title)
                 .font(CYAppFont.h3)
-                .bold()
                 .foregroundColor(CYAppColor.textPrimary)
             
             Text(message)
                 .font(CYAppFont.bodyMedium)
                 .multilineTextAlignment(.center)
                 .foregroundColor(CYAppColor.textSecondary)
+
+            if let actionTitle, let action {
+                Button(action: action) {
+                    Text(actionTitle)
+                        .font(CYAppFont.button)
+                        .foregroundColor(CYAppColor.primary)
+                }
+                .padding(.top, CYAppDimens.marginS)
+            }
         }
         .padding(CYAppDimens.marginXL)
     }

@@ -8,10 +8,18 @@ public struct CYOnboardingView: View {
     @Binding var hasCompleted: Bool
     @State private var currentPage = 0
     
-    private let pages = CYOnboardingPage.allPages
+    private let pages: [CYOnboardingPage]
     
-    public init(hasCompleted: Binding<Bool>) {
+    /// 创建引导页视图。
+    /// - Parameters:
+    ///   - hasCompleted: 是否已完成引导的绑定。
+    ///   - pages: 引导页数据，默认使用 `CYOnboardingPage.allPages`。
+    public init(
+        hasCompleted: Binding<Bool>,
+        pages: [CYOnboardingPage] = CYOnboardingPage.allPages
+    ) {
         self._hasCompleted = hasCompleted
+        self.pages = pages
     }
 
     public var body: some View {

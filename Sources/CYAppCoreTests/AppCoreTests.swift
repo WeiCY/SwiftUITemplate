@@ -103,6 +103,41 @@ final class AppCoreTests: XCTestCase {
         XCTAssertNil(manager.message)
     }
 
+    @MainActor
+    func testToastQueueLimitDropsOldest() {
+        let manager = CYToastManager()
+        manager.queueMode = .queue
+        manager.maxQueueSize = 1
+        manager.show("First", duration: 10)
+        manager.show("Second", duration: 10)
+        manager.show("Third", duration: 10)
+
+        XCTAssertEqual(manager.message, "First")
+        XCTAssertEqual(manager.queueCount, 1)
+
+        manager.dismiss()
+        XCTAssertEqual(manager.message, "Third")
+        XCTAssertEqual(manager.queueCount, 0)
+    }
+
+    // MARK: - CYAlertManager Tests
+
+    @MainActor
+    func testAlertManagerQueuesAlerts() async {
+        let manager = CYAlertManager()
+        manager.showAlert(title: "First", message: "Message 1")
+        manager.showAlert(title: "Second", message: "Message 2")
+
+        XCTAssertEqual(manager.title, "First")
+        XCTAssertEqual(manager.queueCount, 1)
+
+        manager.dismiss()
+        XCTAssertFalse(manager.isPresented)
+        try? await Task.sleep(for: .milliseconds(400))
+        XCTAssertEqual(manager.title, "Second")
+        XCTAssertEqual(manager.queueCount, 0)
+    }
+
     // MARK: - CYLoadingManager Tests
 
     @MainActor

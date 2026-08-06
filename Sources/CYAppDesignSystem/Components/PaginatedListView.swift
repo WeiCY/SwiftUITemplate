@@ -44,18 +44,20 @@ import CYAppCore
 ///   直接在 `body` 中读取其属性以确保观察订阅生效（不使用 `let` 快照，
 ///   否则数据更新后列表不会刷新）。
 public struct CYPaginatedListView<Item: Identifiable & Sendable, Row: View, Empty: View>: View {
-    
+
     @Bindable var viewModel: CYPaginatedListViewModel<Item>
     let emptyView: () -> Empty
     let onRefresh: () async -> Void
     let onLoadMore: () async -> Void
     let rowContent: (Item) -> Row
-    
+    let preloadThreshold: Int
+
     public init(
         viewModel: CYPaginatedListViewModel<Item>,
         @ViewBuilder emptyView: @escaping () -> Empty,
         onRefresh: @escaping () async -> Void,
         onLoadMore: @escaping () async -> Void,
+        preloadThreshold: Int = 3,
         @ViewBuilder rowContent: @escaping (Item) -> Row
     ) {
         self._viewModel = Bindable(viewModel)
@@ -63,6 +65,7 @@ public struct CYPaginatedListView<Item: Identifiable & Sendable, Row: View, Empt
         self.onRefresh = onRefresh
         self.onLoadMore = onLoadMore
         self.rowContent = rowContent
+        self.preloadThreshold = max(1, preloadThreshold)
     }
     
     public var body: some View {
@@ -77,14 +80,13 @@ public struct CYPaginatedListView<Item: Identifiable & Sendable, Row: View, Empt
     
     private var listContent: some View {
         List {
-            ForEach(viewModel.items) { item in
+            ForEach(Array(viewModel.items.enumerated()), id: \.element.id) { index, item in
                 rowContent(item)
                     .onAppear {
-                        // 最后一个 item 出现时触发加载更多
-                        if let lastId = viewModel.items.last?.id, item.id == lastId {
-                            if viewModel.hasMore && !viewModel.isLoadingMore {
-                                Task { await onLoadMore() }
-                            }
+                        // 距离末尾 preloadThreshold 行时提前触发加载更多
+                        let thresholdIndex = max(0, viewModel.items.count - preloadThreshold)
+                        if index >= thresholdIndex, viewModel.hasMore, !viewModel.isLoadingMore, !viewModel.isLoading {
+                            Task { await onLoadMore() }
                         }
                     }
             }
