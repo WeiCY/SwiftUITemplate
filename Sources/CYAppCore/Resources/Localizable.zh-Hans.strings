@@ -11,6 +11,7 @@
 "onboarding_next" = "下一页";
 "source_picker_title" = "选择来源";
 "album" = "相册";
+"camera" = "拍照";
 "cancel" = "取消";
 "camera_unavailable_title" = "无法拍照";
 "camera_unavailable_message" = "当前设备没有可用的相机";

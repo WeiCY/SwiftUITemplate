@@ -125,7 +125,7 @@ public struct CYMediaPicker<Label: View>: View {
         .confirmationDialog("source_picker_title".cyLocalized, isPresented: $showSourceSheet) {
             Button("album".cyLocalized) { photoItems = [] ; triggerAlbumPicker = true }
             if CYCameraView.isCameraAvailable {
-                Button("拍照") { showCamera = true }
+                Button("camera".cyLocalized) { showCamera = true }
             }
             Button("cancel".cyLocalized, role: .cancel) {}
         }
