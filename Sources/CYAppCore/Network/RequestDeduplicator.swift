@@ -119,7 +119,6 @@ extension CYEndpoint {
     public var deduplicationKey: String {
         var components: [String] = [method.rawValue, path]
         
-        // 添加 query 参数
         if let queryItems = queryItems, !queryItems.isEmpty {
             let queryString = queryItems
                 .sorted { $0.name < $1.name }
@@ -128,10 +127,11 @@ extension CYEndpoint {
             components.append(queryString)
         }
         
-        // 添加 body 参数（如果有）
-        if let body = body {
-            let bodyString = body.keys.sorted().map { "\($0)=\(body[$0] ?? "")" }.joined(separator: "&")
-            components.append(bodyString)
+        if let body = body, !body.isEmpty {
+            let sortedBody = body.keys.sorted().map { key in
+                "\(key)=\(body[key]?.stableDescription ?? "")"
+            }.joined(separator: "&")
+            components.append(sortedBody)
         }
         
         return components.joined(separator: ":")

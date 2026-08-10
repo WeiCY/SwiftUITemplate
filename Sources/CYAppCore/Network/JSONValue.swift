@@ -72,4 +72,18 @@ extension CYJSONValue {
         if case .string(let v) = self { return v }
         return nil
     }
+
+    public var stableDescription: String {
+        switch self {
+        case .string(let v): return "\"\(v)\""
+        case .int(let v): return "\(v)"
+        case .double(let v): return "\(v)"
+        case .bool(let v): return "\(v)"
+        case .null: return "null"
+        case .array(let v): return "[\(v.map { $0.stableDescription }.joined(separator: ","))]"
+        case .object(let v):
+            let sorted = v.keys.sorted().map { "\"\($0)\":\(v[$0]?.stableDescription ?? "null")" }
+            return "{\(sorted.joined(separator: ","))}"
+        }
+    }
 }

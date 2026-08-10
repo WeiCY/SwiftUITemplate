@@ -211,7 +211,7 @@ public struct CYCameraView: UIViewControllerRepresentable {
                 message: "camera_unavailable_message".cyLocalized,
                 preferredStyle: .alert
             )
-            alert.addAction(UIAlertAction(title: "确定", style: .default))
+            alert.addAction(UIAlertAction(title: "confirm".cyLocalized, style: .default))
             return alert
         }
         let picker = UIImagePickerController()

@@ -61,37 +61,39 @@ public final class CYThrottler: @unchecked Sendable {
     private let interval: TimeInterval
     private var lastExecution: Date?
     private let queue: DispatchQueue
+    private var trailingWorkItem: DispatchWorkItem?
     
-    /// - 参数：
-    ///   - interval: 最小执行间隔（秒）
-    ///   - queue: 执行队列（默认主线程）
     public init(interval: TimeInterval, queue: DispatchQueue = .main) {
         self.interval = interval
         self.queue = queue
     }
     
-    /// 执行节流操作
-    /// - Parameter trailing: 为 true 时在间隔结束时也执行一次（默认 false）
     public func throttle(trailing: Bool = false, action: @escaping @Sendable () -> Void) {
         let now = Date()
         
         if let last = lastExecution, now.timeIntervalSince(last) < interval {
             if trailing {
+                trailingWorkItem?.cancel()
                 let remaining = interval - now.timeIntervalSince(last)
-                queue.asyncAfter(deadline: .now() + remaining) { [weak self] in
+                let item = DispatchWorkItem { [weak self] in
                     self?.lastExecution = Date()
                     action()
                 }
+                trailingWorkItem = item
+                queue.asyncAfter(deadline: .now() + remaining, execute: item)
             }
             return
         }
         
+        trailingWorkItem?.cancel()
+        trailingWorkItem = nil
         lastExecution = now
         queue.async(execute: action)
     }
     
-    /// 重置节流计时器
     public func reset() {
         lastExecution = nil
+        trailingWorkItem?.cancel()
+        trailingWorkItem = nil
     }
 }

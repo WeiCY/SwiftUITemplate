@@ -16,15 +16,29 @@ import Foundation
 
 extension Date {
     
+    // MARK: - Formatter Cache
+    
+    private nonisolated(unsafe) static var formatterCache: [String: DateFormatter] = [:]
+    private static let cacheLock = NSLock()
+    
+    private static func cachedFormatter(for format: String, locale: Locale) -> DateFormatter {
+        let key = "\(format)_\(locale.identifier)"
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        if let cached = formatterCache[key] { return cached }
+        let formatter = DateFormatter()
+        formatter.dateFormat = format
+        formatter.locale = locale
+        formatterCache[key] = formatter
+        return formatter
+    }
+    
     // MARK: - 格式化
     
     /// 格式化日期为字符串
     /// - Parameter format: 日期格式（默认 "yyyy-MM-dd"）
     public func toString(format: String = "yyyy-MM-dd") -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = format
-        formatter.locale = Locale.current
-        return formatter.string(from: self)
+        return Self.cachedFormatter(for: format, locale: .current).string(from: self)
     }
     
     /// 返回相对时间描述（如 "2小时前"）

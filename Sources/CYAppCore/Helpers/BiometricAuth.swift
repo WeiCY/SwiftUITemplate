@@ -25,7 +25,7 @@ public final class CYBiometricAuth {
         
         public var displayName: String {
             switch self {
-            case .none: return "无"
+            case .none: return "biometric_type_none".cyLocalized
             case .touchID: return "Touch ID"
             case .faceID: return "Face ID"
             case .opticID: return "Optic ID"
@@ -45,15 +45,15 @@ public final class CYBiometricAuth {
         public var errorDescription: String? {
             switch self {
             case .notAvailable:
-                return "此设备不支持生物识别认证"
+                return "biometric_not_available".cyLocalized
             case .notEnrolled:
-                return "未录入生物识别数据，请在设置中配置 Face ID 或 Touch ID"
+                return "biometric_not_enrolled".cyLocalized
             case .lockout:
-                return "生物识别认证已锁定，请使用密码解锁"
+                return "biometric_lockout".cyLocalized
             case .cancelled:
-                return "认证已取消"
+                return "biometric_cancelled".cyLocalized
             case .failed:
-                return "认证失败"
+                return "biometric_failed".cyLocalized
             case .unknown(let error):
                 return error.localizedDescription
             }
@@ -90,7 +90,7 @@ public final class CYBiometricAuth {
     public static func authenticate(reason: String) async throws -> Bool {
         let context = LAContext()
         // 设置密码回退按钮的标题；localizedCancelTitle 是「取消」按钮，不能写成「使用密码」。
-        context.localizedFallbackTitle = "使用密码"
+        context.localizedFallbackTitle = "biometric_fallback_password".cyLocalized
         
         var error: NSError?
         guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {

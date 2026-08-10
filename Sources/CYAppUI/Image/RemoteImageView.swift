@@ -18,7 +18,6 @@ public struct CYRemoteImageView: View {
     @State private var loadedImage: UIImage?
     @State private var isLoading = false
     @State private var error: Error?
-    @State private var retryCount = 0
 
     public init(
         url: URL?,
@@ -95,7 +94,7 @@ public struct CYRemoteImageView: View {
                 throw NSError(
                     domain: "CYRemoteImageView",
                     code: -1,
-                    userInfo: [NSLocalizedDescriptionKey: "图片数据解析失败"]
+                    userInfo: [NSLocalizedDescriptionKey: "image_decode_failed".cyLocalized]
                 )
             } catch {
                 if Task.isCancelled { return }

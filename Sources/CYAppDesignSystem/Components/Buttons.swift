@@ -63,6 +63,7 @@ public struct PrimaryButton: View {
             .foregroundColor(.white.opacity(isDisabled && !isLoading ? 0.6 : 1))
             .cornerRadius(CYAppDimens.radiusM)
         }
+        .buttonStyle(CYScaledButtonStyle())
         .disabled(isInactive)
     }
 }
@@ -91,5 +92,6 @@ public struct SecondaryButton: View {
                         .stroke(CYAppColor.secondary, lineWidth: CYAppDimens.borderWidth)
                 )
         }
+        .buttonStyle(CYScaledButtonStyle())
     }
 }

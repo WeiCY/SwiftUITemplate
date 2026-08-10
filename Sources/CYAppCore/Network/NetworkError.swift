@@ -61,13 +61,13 @@ public enum CYNetworkError: Error, LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case .invalidURL:
-            return "请求地址无效"
+            return "network_invalid_url".cyLocalized
         case .timeout:
-            return "请求超时，请检查网络后重试"
+            return "network_timeout".cyLocalized
         case .noConnection:
-            return "网络连接失败，请检查网络设置"
+            return "network_no_connection".cyLocalized
         case .httpError(let statusCode, _):
-            return "服务器错误 (HTTP \(statusCode))"
+            return String(format: "network_http_error".cyLocalized, statusCode)
         case .businessError(_, let message):
             return message
         case .tokenExpired(_, let message):
@@ -75,13 +75,13 @@ public enum CYNetworkError: Error, LocalizedError, Sendable {
         case .needReLogin(_, let message):
             return message
         case .decodingFailed(let error):
-            return "数据解析失败: \(error.localizedDescription)"
+            return "\("network_decoding_failed".cyLocalized): \(error.localizedDescription)"
         case .encodingFailed(let error):
-            return "请求体编码失败: \(error.localizedDescription)"
+            return "\("network_encoding_failed".cyLocalized): \(error.localizedDescription)"
         case .underlying(let error):
-            return "网络错误: \(error.localizedDescription)"
+            return "\("network_underlying_error".cyLocalized): \(error.localizedDescription)"
         case .unknown:
-            return "未知错误"
+            return "network_unknown_error".cyLocalized
         }
     }
     

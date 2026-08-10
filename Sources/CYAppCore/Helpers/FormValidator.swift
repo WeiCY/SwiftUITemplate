@@ -130,42 +130,42 @@ public struct CYFormField: Sendable {
     
     /// 不能为空
     public func required(message: String? = nil) -> CYFormField {
-        rule(message ?? "\(name)不能为空") { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        rule(message ?? String(format: "validation_required".cyLocalized, name)) { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
     
     /// 最小长度
     public func minLength(_ length: Int, message: String? = nil) -> CYFormField {
-        rule(message ?? "\(name)至少\(length)个字符") { $0.count >= length }
+        rule(message ?? String(format: "validation_min_length".cyLocalized, name, length)) { $0.count >= length }
     }
     
     /// 最大长度
     public func maxLength(_ length: Int, message: String? = nil) -> CYFormField {
-        rule(message ?? "\(name)最多\(length)个字符") { $0.count <= length }
+        rule(message ?? String(format: "validation_max_length".cyLocalized, name, length)) { $0.count <= length }
     }
     
     /// 邮箱格式
     public func email(message: String? = nil) -> CYFormField {
-        rule(message ?? "邮箱格式不正确") { $0.isValidEmail }
+        rule(message ?? "validation_email".cyLocalized) { $0.isValidEmail }
     }
     
     /// 手机号格式
     public func phone(message: String? = nil) -> CYFormField {
-        rule(message ?? "手机号格式不正确") { $0.isValidPhoneNumber }
+        rule(message ?? "validation_phone".cyLocalized) { $0.isValidPhoneNumber }
     }
     
     /// 必须包含数字
     public func containsDigit(message: String? = nil) -> CYFormField {
-        rule(message ?? "\(name)必须包含数字") { $0.contains(where: { $0.isNumber }) }
+        rule(message ?? String(format: "validation_contains_digit".cyLocalized, name)) { $0.contains(where: { $0.isNumber }) }
     }
     
     /// 必须包含字母
     public func containsLetter(message: String? = nil) -> CYFormField {
-        rule(message ?? "\(name)必须包含字母") { $0.contains(where: { $0.isLetter }) }
+        rule(message ?? String(format: "validation_contains_letter".cyLocalized, name)) { $0.contains(where: { $0.isLetter }) }
     }
     
     /// 必须包含大写字母
     public func containsUppercase(message: String? = nil) -> CYFormField {
-        rule(message ?? "\(name)必须包含大写字母") { $0.contains(where: { $0.isUppercase }) }
+        rule(message ?? String(format: "validation_contains_uppercase".cyLocalized, name)) { $0.contains(where: { $0.isUppercase }) }
     }
     
     /// 正则匹配
@@ -175,7 +175,7 @@ public struct CYFormField: Sendable {
     
     /// 与另一个字段值一致（确认密码场景）
     public func match(_ other: String, message: String? = nil) -> CYFormField {
-        rule(message ?? "两次输入不一致") { $0 == other }
+        rule(message ?? "validation_match".cyLocalized) { $0 == other }
     }
 }
 

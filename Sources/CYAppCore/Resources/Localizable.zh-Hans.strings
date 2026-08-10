@@ -17,7 +17,48 @@
 "camera_unavailable_message" = "当前设备没有可用的相机";
 "image_load_failed" = "图片加载失败";
 "image_retry" = "重试";
+"image_decode_failed" = "图片数据解析失败";
 "ok" = "好的";
+"confirm" = "确定";
 "success_title" = "成功";
 "error_title" = "错误";
 "warning_title" = "警告";
+
+/* Network Errors */
+"network_invalid_url" = "请求地址无效";
+"network_timeout" = "请求超时，请检查网络后重试";
+"network_no_connection" = "网络连接失败，请检查网络设置";
+"network_http_error" = "服务器错误 (HTTP %d)";
+"network_decoding_failed" = "数据解析失败";
+"network_encoding_failed" = "请求体编码失败";
+"network_underlying_error" = "网络错误";
+"network_unknown_error" = "未知错误";
+"auth_token_expired" = "登录已过期，请重新登录";
+"auth_need_relogin" = "登录已失效，请重新登录";
+"business_error" = "业务错误";
+
+/* Biometric Auth */
+"biometric_type_none" = "无";
+"biometric_not_available" = "此设备不支持生物识别认证";
+"biometric_not_enrolled" = "未录入生物识别数据，请在设置中配置 Face ID 或 Touch ID";
+"biometric_lockout" = "生物识别认证已锁定，请使用密码解锁";
+"biometric_cancelled" = "认证已取消";
+"biometric_failed" = "认证失败";
+"biometric_fallback_password" = "使用密码";
+
+/* Form Validation */
+"validation_required" = "%@不能为空";
+"validation_min_length" = "%1$@至少%2$d个字符";
+"validation_max_length" = "%1$@最多%2$d个字符";
+"validation_email" = "邮箱格式不正确";
+"validation_phone" = "手机号格式不正确";
+"validation_contains_digit" = "%@必须包含数字";
+"validation_contains_letter" = "%@必须包含字母";
+"validation_contains_uppercase" = "%@必须包含大写字母";
+"validation_match" = "两次输入不一致";
+
+/* Network Monitor */
+"connection_wifi" = "WiFi";
+"connection_cellular" = "蜂窝数据";
+"connection_wired" = "有线网络";
+"connection_unknown" = "未知";

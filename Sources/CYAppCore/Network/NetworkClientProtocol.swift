@@ -112,7 +112,14 @@ public protocol CYNetworkClientProtocol: Sendable {
     func post<B: Encodable & Sendable, T: Decodable & Sendable>(_ endpoint: CYEndpoint, body: B) async throws -> T
     
     /// 上传数据
-    func upload<T: Decodable & Sendable>(_ endpoint: CYEndpoint, data: Data, mimeType: String) async throws -> T
+    func upload<T: Decodable & Sendable>(
+        _ endpoint: CYEndpoint,
+        data: Data,
+        mimeType: String,
+        fileName: String,
+        paramName: String,
+        additionalParams: [String: String]?
+    ) async throws -> T
     
     /// 下载文件到指定路径
     func download(_ endpoint: CYEndpoint, to fileURL: URL) async throws -> URL

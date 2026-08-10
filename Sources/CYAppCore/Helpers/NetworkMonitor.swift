@@ -58,10 +58,10 @@ public final class CYNetworkMonitor: @unchecked Sendable {
 
         public var displayName: String {
             switch self {
-            case .wifi: return "WiFi"
-            case .cellular: return "蜂窝数据"
-            case .wiredEthernet: return "有线网络"
-            case .unknown: return "未知"
+            case .wifi: return "connection_wifi".cyLocalized
+            case .cellular: return "connection_cellular".cyLocalized
+            case .wiredEthernet: return "connection_wired".cyLocalized
+            case .unknown: return "connection_unknown".cyLocalized
             }
         }
     }

@@ -306,10 +306,10 @@ let imageData = image.jpegData(compressionQuality: 0.8) ?? Data()
 let avatar: Avatar = try await networkClient.upload(
     UserEndpoint.uploadAvatar,
     data: imageData,
-    fileName: "avatar.jpg",
     mimeType: "image/jpeg",
+    fileName: "avatar.jpg",
     paramName: "file",
-    additionalParams: ["user_id": .string("123")]
+    additionalParams: ["user_id": "123"]
 )
 ```
 
@@ -833,7 +833,7 @@ Container.shared.loadingManager.register { MockLoadingManager() }
 
 ```
 CYSwiftTemplate/
-├── Package.swift                  # SPM 配置（4 个 library + 1 个 executable）
+├── Package.swift                  # SPM 配置（7 个 library + 1 个 executable）
 ├── .swiftlint.yml                 # 代码风格配置
 ├── .github/workflows/
 │   └── ci.yml                     # CI（build + test + lint）
@@ -870,7 +870,8 @@ CYSwiftTemplate/
 │   │   ├── BookmarkRepository.swift # Repository 实现
 │   │   ├── PersistenceController.swift # ModelContainer 管理
 │   │   └── RepositoryProtocol.swift  # CRUD 协议
-│   ├── CYAppCoreTests/             # Core 层单元测试 (50+ 用例)
+│   ├── CYAppCoreTests/             # Core 层单元测试 (70+ 用例)
+│   ├── CYAppNetworkTests/          # 网络层测试 (401 刷新/重试 5 用例)
 │   ├── CYAppUITests/               # UI 层测试 (Router + AppState + Feedback)
 │   ├── CYAppDesignSystemTests/     # 设计系统测试
 │   └── CYFeedbackStyleTests/       # 反馈样式测试

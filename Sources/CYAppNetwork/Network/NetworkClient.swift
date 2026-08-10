@@ -237,16 +237,30 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
     ///     mimeType: "image/jpeg"
     /// )
     /// ```
-    public func upload<T: Decodable & Sendable>(_ endpoint: CYEndpoint, data: Data, mimeType: String) async throws -> T {
+    public func upload<T: Decodable & Sendable>(
+        _ endpoint: CYEndpoint,
+        data: Data,
+        mimeType: String,
+        fileName: String = "upload",
+        paramName: String = "file",
+        additionalParams: [String: String]? = nil
+    ) async throws -> T {
         try await performRequest {
             var urlRequest = try self.buildURLRequest(for: endpoint)
             await self.applyRequestInterceptors(to: &urlRequest)
 
             let uploadTask = AF.upload(multipartFormData: { formData in
-                formData.append(data, withName: "file", fileName: "upload", mimeType: mimeType)
+                formData.append(data, withName: paramName, fileName: fileName, mimeType: mimeType)
                 if let body = endpoint.body {
                     for (key, value) in body {
                         if let string = value.stringValue, let d = string.data(using: .utf8) {
+                            formData.append(d, withName: key)
+                        }
+                    }
+                }
+                if let additionalParams {
+                    for (key, value) in additionalParams {
+                        if let d = value.data(using: .utf8) {
                             formData.append(d, withName: key)
                         }
                     }
@@ -436,13 +450,13 @@ private extension CYNetworkClient {
             return data
 
         case .tokenExpired(let code, let message):
-            throw CYNetworkError.tokenExpired(code: code, message: message ?? "登录已过期，请重新登录")
+            throw CYNetworkError.tokenExpired(code: code, message: message ?? "auth_token_expired".cyLocalized)
 
         case .needReLogin(let code, let message):
-            throw CYNetworkError.needReLogin(code: code, message: message ?? "登录已失效，请重新登录")
+            throw CYNetworkError.needReLogin(code: code, message: message ?? "auth_need_relogin".cyLocalized)
 
         case .businessError(let code, let message, _):
-            throw CYNetworkError.businessError(code: code, message: message ?? "业务错误")
+            throw CYNetworkError.businessError(code: code, message: message ?? "business_error".cyLocalized)
         }
     }
 

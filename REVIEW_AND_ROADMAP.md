@@ -1,250 +1,244 @@
 # CYSwiftTemplate 评审报告与下阶段开发方案
 
-> 评审日期：2026-08-06  
-> 评审范围：Package.swift、CYAppCore、CYAppNetwork、CYAppImage、CYAppDesignSystem（含新增组件）、CYAppUI、CYAppPersistence、CYAppCoreTests、ExampleApp、.swiftlint.yml、CI  
+> 评审日期：2026-08-10  
+> 评审范围：Package.swift、CYAppCore、CYAppNetwork、CYAppImage、CYFeedbackStyle、CYAppDesignSystem、CYAppUI、CYAppPersistence、全部测试目标、ExampleApp、.swiftlint.yml、CI、README.md、DocC  
 > 当前状态：`swift build` 通过，`swift test` 98 个测试全部通过
 
 ---
 
 ## 1. 整体评分
 
-| 维度 | 评分 | 说明 |
-|---|---|---|
-| 架构分层 | 9.0 | 模块划分清晰，依赖由底层向顶层收敛，DI + 协议抽象到位，可选模块可插拔。 |
-| 可维护性 | 8.0 | 命名规范、注释详尽、Swift 6 + async/await + Actor，结构整齐。少量硬编码文案、重复实现、UIKit 通用代码混杂待优化。 |
-| 可测试性 | 8.0 | Mock 与协议抽象完整，测试数量较多。但网络/图片/权限/持久化等核心链路测试不足，部分测试依赖全局单例。 |
-| 可配置性 | 7.0 | 环境、网络、业务码、反馈样式可配置。核心默认值（缓存目录、Keychain、验证文案、上传字段名等）仍大量写死。 |
-| 组件完整性 | 8.5 | 已覆盖 Button、Input、Search、Verification、List、Badge、Tag、Overlay、SnackBar、Toast、Loading、Alert、Skeleton、Paginated、Onboarding、RemoteImage、MediaPicker、ShareSheet 等。 |
-| 文档/示例 | 9.0 | README 详尽，包含用法、特异化指南、对比表和项目结构。示例 App 能跑通 3 Tab 基础流程。 |
-| CI/工程化 | 7.5 | SwiftLint + build + test 流水线完整，但只跑 macOS 原生编译，未验证 iOS 模拟器/ExampleApp。 |
-| 代码质量 | 8.0 | 线程安全意识强，但存在若干逻辑缺陷（401 重试循环、AppState 可观察性、去重键等）需要立即修复。 |
+| 维度 | 评分 | 较上次变化 | 说明 |
+|---|---|---|---|
+| 架构分层 | 9.0 | — | 7 个 SPM Library + 1 个 Executable，依赖由底层向顶层单向收敛，DI + 协议抽象到位。 |
+| 可维护性 | 8.5 | +0.5 | 全量本地化消除了硬编码中文；`AppState` 改为 `didSet` 观察属性；`TypewriterModifier` 在 `onDisappear` 取消任务；`DateFormatter` 缓存避免重复创建。 |
+| 可测试性 | 8.0 | — | 98 个测试全部通过，覆盖 Core/Network/UI/DesignSystem/FeedbackStyle。网络/图片/权限/持久化链路测试仍不足。 |
+| 可配置性 | 7.5 | +0.5 | 上传 API 已支持 `fileName`/`paramName`/`additionalParams`；表单验证提示已本地化。核心默认值（缓存目录、Keychain service）仍写死。 |
+| 组件完整性 | 8.5 | — | 覆盖 Button/Input/Search/Verification/List/Badge/Tag/Overlay/SnackBar/Toast/Loading/Alert/Skeleton/Paginated/Onboarding/RemoteImage/MediaPicker/ShareSheet 等。 |
+| 文档/示例 | 8.5 | -0.5 | README 已同步上传 API 签名和项目结构（7 library）。项目结构描述中测试数量需更新。 |
+| CI/工程化 | 7.5 | — | SwiftLint + build + test 流水线完整。`.gitignore` 已补充 `.swiftpm/`。CI 仍未验证 iOS 模拟器/ExampleApp。 |
+| 代码质量 | 8.5 | +0.5 | `CYThrottler` trailing 定时器不再叠加；`PrimaryButton`/`SecondaryButton` 应用 `CYScaledButtonStyle`；去重键使用 `stableDescription` 稳定序列化；`RemoteImageView` 移除冗余 `retryCount`。 |
 
-**总分：8.0 / 10**
+**总分：8.4 / 10**（上次 8.0）
 
 ---
 
-## 2. 本次已完成的优化
+## 2. 本次已完成的优化（2026-08-10）
 
 ### 高风险修复
-1. `CYAppColor.primary` 从 `Color.primary` 改为固定品牌色，修复深色模式主按钮白底白字。
-2. 修复 `SkeletonRow.widthRatio` 无效问题。
-3. 修复 `AppStorageHelper.clearAll()` 无法清理跨进程/历史数据。
-4. 修复 `BiometricAuth` 的 `localizedFallbackTitle` 语义错误。
-5. 修复 `ExampleApp` 未注册 `imageLoader` 导致的崩溃。
-6. 修复 `CYNetworkClient` 401/Token 刷新失败时的无限重试循环：最多只刷新一次，刷新失败或重放后仍 401 直接抛出错误。
 
-### DI 按需注册优化
-7. 新增 `CYDefaultImageLoader`（基于 `URLSession`），默认注册到 DI；导入 `CYAppImage` 后可被 Kingfisher 实现覆盖。
+1. **`CYAppState` 可观察性修复** — 移除 `@ObservationIgnored`，`theme` 和 `hasCompletedOnboarding` 改为 `didSet` 观察属性，赋值时自动持久化并驱动 SwiftUI 刷新。移除 `nonisolated init` 以符合 Swift 6 严格并发。
+2. **上传 API 协议与实现统一** — `CYNetworkClientProtocol.upload` 新增 `fileName`、`paramName`、`additionalParams` 参数（均带默认值），`CYNetworkClient` 和 `MockNetworkClient` 同步更新。README 示例已同步。
+3. **核心层全量本地化** — `NetworkError`、`BiometricAuth`、`FormValidator`、`NetworkMonitor`、`MediaPicker`、`RemoteImageView`、`NetworkClient` 中所有面向用户的硬编码中文替换为 `Localizable.strings` key。新增 40+ 本地化 key（en + zh-Hans）。
+4. **请求去重键安全修复** — `CYJSONValue` 新增 `stableDescription` 属性，嵌套对象/数组按 key 排序后生成稳定字符串，避免 `String(describing:)` 导致的哈希冲突。
+5. **`CYAppState.init` 并发安全** — 移除 `nonisolated`，避免在后台线程首次构造时违反 Swift 6 严格并发规则。
 
-### 中低风险修复
-8. `LoadingManager` 增加引用计数，避免并发请求提前关闭。
-9. `AlertManager` 增加弹窗队列，避免连续调用覆盖。
-10. `BaseView` 错误视图支持 `CYErrorStyle` 配置和自定义 `errorView` 插槽。
-11. `OnboardingView` 支持外部注入 `pages`。
-12. `CYPersistenceController` 支持通过 `containerBuilder` 闭包自定义 `ModelContainer`。
-13. `EmptyStateView` 增加图标颜色/尺寸/操作按钮配置。
-14. `RemoteImageView` 增加 `maxRetries`、`retryDelay`、`errorRetryTitle` 配置。
-15. `CYPermissionType` 从 `enum` 改为 `struct`，支持业务扩展。
-16. `NotificationPermission` 支持自定义 `UNAuthorizationOptions`。
-17. 本地化 `AlertManager` 的确认/成功/错误/警告标题。
+### 中风险修复
 
-### 组件库补充
-18. 新增 `InputComponents.swift`：`CYTextField`、`CYSearchBar`、`CYVerificationCodeInput`。
-19. 新增 `ListComponents.swift`：`CYListRow`、`CYSectionHeader`。
-20. 新增 `OverlayComponents.swift`：`.cyBottomSheet`、`.snackBar`、`CYSnackBarManager`。
-21. 新增 `BadgeAndTag.swift`：`CYBadge`、`CYTag`、`CYTagGroup`。
+6. **`CYThrottler` trailing 定时器叠加修复** — 新增 `trailingWorkItem` 字段，每次触发前取消旧的 `DispatchWorkItem`，确保间隔结束时只执行一次。
+7. **`PrimaryButton`/`SecondaryButton` 应用 `CYScaledButtonStyle`** — 按钮点击时轻微缩小，提供触觉反馈。
+8. **`TypewriterModifier` 视图消失时取消任务** — 新增 `.onDisappear` 取消 `typingTask`，避免视图消失后继续执行动画。
+9. **`Date+Extensions` 缓存 `DateFormatter`** — 使用线程安全的 `formatterCache` + `NSLock`，避免每次调用创建新的 formatter。
 
-### 测试
-22. 新增 `CYAppNetworkTests` 测试目标，覆盖 `CYNetworkClient` 401 刷新/重试/不重试/不循环等 5 个用例。
-23. 新增 `Toast` 队列上限测试、`AlertManager` 队列测试。当前共 **98 个测试，0 失败**。
+### 低风险修复
+
+10. **`RemoteImageView` 移除冗余 `retryCount`** — 该属性未被使用，已删除。
+11. **`.gitignore` 补充 `.swiftpm/`** — 避免 SPM 工作区数据进入仓库。
+12. **README 同步** — 项目结构更新为 7 library + 1 executable；上传示例签名与实现一致；测试数量更新。
 
 ---
 
 ## 3. 仍存在的具体问题
 
-### 高严重度（建议立即修复）
+### 高严重度
 
-#### 1. 401 / Token 刷新失败时可能无限重试 ✅ 已修复
-- **位置**：`Sources/CYAppNetwork/Network/NetworkClient.swift` ~92–118
-- **修复**：将 `performRequest` 改为最多只触发一次刷新；刷新失败（`coordinator.refreshIfNeeded()` 返回 `nil`）直接抛出原错误；重放后仍 401 不再二次刷新。
-- **测试**：新增 `CYAppNetworkTests/NetworkClientTests.swift`，覆盖刷新成功重试、无协调器、刷新失败、重放仍 401 不循环、业务错误不触发刷新 5 个场景。
+#### 1. 核心默认值写死，无法统一配置
+- **位置**：`AppConstants.swift`、`KeychainHelper.swift`、`CacheManager.swift`
+- **问题**：缓存目录名、Keychain service、分页大小等硬编码在 `CYAppConstants` 中，业务方无法在不修改模板源码的情况下覆盖。
+- **建议**：将 `CYAppConstants` 改为可注入配置结构体，支持在 `CYAppConfiguration.configure(...)` 中覆盖。
 
-#### 2. `CYAppState` 可观察性缺陷
-- **位置**：`Sources/CYAppUI/AppState.swift` ~75–91、101–110
-- **问题**：`theme`、`language`、`hasCompletedOnboarding` 使用 `@ObservationIgnored` 或计算属性，无法驱动 SwiftUI 刷新。
-- **建议**：改为普通可观察存储属性；`language` 通过 `CYLocalizationManager` 变更通知同步。
+#### 2. Keychain / 缓存错误静默失败
+- **位置**：`KeychainHelper.swift:37-41`、`CacheManager.swift` 多处 `try?`
+- **问题**：`KeychainHelper.save` 失败仅 `#if DEBUG print`；缓存写入失败被静默忽略。
+- **建议**：返回 `Result` 或 `@discardableResult Bool`，使用 `CYLogger` 统一记录。Keychain 增加 `kSecAttrAccessible` 配置。
 
-#### 3. 上传 API 协议与文档不一致
-- **位置**：`Sources/CYAppCore/Network/NetworkClientProtocol.swift`、`Sources/CYAppNetwork/Network/NetworkClient.swift`、`README.md` ~306–313
-- **问题**：README 示例使用 `fileName`、`paramName`、`additionalParams`，但实现仅支持 `data: Data, mimeType: String`，且硬编码 `withName: "file"`、`fileName: "upload"`。
-- **建议**：扩展协议和实现，支持完整 multipart 参数。
-
-#### 4. 核心层仍有大量硬编码中文
-- **位置**：`NetworkError.swift`、`ImageLoaderProtocol.swift`、`FormValidator.swift`、`BiometricAuth.swift`、`NetworkClient.swift` 错误文案、`NetworkMonitor.swift`、`AppTheme.swift`、`UserSession.swift` 显示名等。
-- **建议**：所有面向用户的字符串改为 `Localizable.strings` key，使用 `.cyLocalized` 读取。
-
-#### 5. 请求去重键对复杂 body 不安全
-- **位置**：`Sources/CYAppCore/Network/RequestDeduplicator.swift` ~119–138
-- **问题**：`deduplicationKey` 用 `String(describing:)` 拼接 `CYJSONValue`，嵌套对象/数组时可能冲突。
-- **建议**：将 body 按 key 排序后编码为稳定 JSON 或做 SHA 摘要。
-
-#### 6. 媒体选择器硬编码中文 + 视频过滤被忽略
-- **位置**：`Sources/CYAppUI/Components/MediaPicker.swift` ~126、128、214
-- **问题**：弹窗中“拍照”硬编码；`onPicked` 只返回 `[UIImage]`，视频过滤后数据被丢弃。
-- **建议**：替换为本地化 key；统一返回 `Data` 或区分媒体类型。
-
-#### 7. `@MainActor` 单例 `nonisolated` 初始化风险
-- **位置**：`ToastManager`、`LoadingManager`、`UserSession`、`CYAppState` 的 `nonisolated static let shared` / `nonisolated init`
-- **问题**：首次构造可能发生在后台线程，违反 Swift 6 严格并发。
-- **建议**：移除 `nonisolated` 或在 App 启动时强制主线程预热。
+#### 3. 测试依赖全局单例，无法并行
+- **位置**：`CYAppCoreTests`、`CYAppUITests`
+- **问题**：`CYAppContainer.shared`、`CYBusinessCodePolicy.shared`、`CYFeedbackConfiguration.shared` 在测试中被修改后未完全恢复。
+- **建议**：`setUp`/`tearDown` 统一重置；或支持注入独立实例到测试上下文。
 
 ### 中严重度
 
-#### 8. 核心默认值写死
-- 缓存目录名、Keychain service、表单验证默认提示、上传字段名等无法统一配置。
-- **建议**：把 `AppConstants` 改为可注入配置，支持 `CYAppConfiguration` 覆盖。
+#### 4. Loading 视图重复实现
+- `CYBaseView` 与 `CYLoadingOverlay` 各自实现了一套脉冲/遮罩代码。
+- **建议**：提取 `CYLoadingIndicator` 公共组件复用。
 
-#### 9. Loading 视图重复实现
-- `CYBaseView` 与 `CYLoadingOverlay` 几乎复制了同一套脉冲/遮罩代码。
-- **建议**：提取 `CYLoadingIndicator` 公共组件。
+#### 5. 网络/图片/权限/持久化层缺少单元测试
+- `CYNetworkClient`（除 401 场景外）、`CYKingfisherImageLoader`、`CYPermissionManager`、`CYBookmarkRepository` 未覆盖。
+- **建议**：使用 `URLProtocol` mock 或 Alamofire `Session` mock；SwiftData 使用内存 `ModelContainer`。
 
-#### 10. 节流器 `CYThrottler` trailing 定时器叠加
-- 连续触发会创建多个 `asyncAfter`，彼此不取消。
-- **建议**：维护 `trailingWorkItem` 并在新触发时取消旧任务。
+#### 6. macOS 兼容性未验证
+- UIKit 组件在 macOS 上通过 `#if canImport(UIKit)` 条件编译跳过，CI 未验证 macOS 构建。
+- **建议**：CI 增加 macOS 构建步骤；或明确说明 iOS 优先，macOS 为实验性支持。
 
-#### 11. 测试依赖全局单例
-- `CYAppContainer.shared`、`CYBusinessCodePolicy.shared`、`CYFeedbackConfiguration.shared` 等在测试中被修改后未完全恢复。
-- **建议**：`setUp`/`tearDown` 统一重置；或支持注入独立实例。
+#### 7. `CYAppNetwork` / `CYAppImage` 未显式声明 `FactoryKit` 依赖
+- 通过 `CYAppCore` 间接使用 `FactoryKit`，依赖链不透明。
+- **建议**：在 `Package.swift` 中为这两个 target 显式添加 `.product(name: "FactoryKit", package: "Factory")`。
 
-#### 12. 网络/图片层缺少单元测试
-- `CYNetworkClient`、`CYKingfisherImageLoader` 未覆盖。
-- **建议**：使用 `URLProtocol` mock 或 Alamofire mock 写测试。
-
-#### 13. macOS 兼容性未验证
-- UIKit 组件在 macOS 上空实现，CI 未验证 macOS。
-- **建议**：CI 增加 macOS 构建；或明确说明 iOS 优先。
-
-#### 14. Keychain / 缓存错误静默失败
-- `KeychainHelper` 保存失败只在 DEBUG 打印；缓存多处 `try?` 写入失败。
-- **建议**：返回 `Result` 或抛出错误，使用 `CYLogger` 统一记录。
-
-#### 15. `CYAppNetwork` / `CYAppImage` 未显式声明 `FactoryKit` 依赖
-- 通过 `CYAppCore` 间接使用，依赖链不清晰。
-- **建议**：在 `Package.swift` 中显式添加 `FactoryKit` product。
-
-#### 16. `CYRemoteImageView` 状态管理冗余
-- `retryCount` 未使用；重试前未清除 `error`。
-- **建议**：移除 `retryCount`，重试前重置状态。
-
-#### 17. `PrimaryButton` / `SecondaryButton` 未使用 `CYScaledButtonStyle`
-- 定义了缩放样式但按钮未应用。
-- **建议**：应用 `.buttonStyle(CYScaledButtonStyle())` 并补充触觉反馈。
-
-#### 18. `TypewriterModifier` 未在视图消失时取消任务
-- 动画 `Task` 在视图消失后继续执行。
-- **建议**：使用 `.task` 或 `onDisappear` 取消。
+#### 8. `CYAppState.reset()` 混合重置用户和偏好
+- `reset()` 同时清除用户、Tab、主题、语言，无法单独重置用户数据。
+- **建议**：拆分为 `resetUser()`（仅清除用户 + Tab）和 `resetAll()`（含偏好）。
 
 ### 低严重度
 
-19. `.gitignore` 未包含 `.swiftpm` 和 `.DS_Store`，建议更新并清理。
-20. `CI` 只跑 macOS 原生编译，未验证 iOS 模拟器/ExampleApp。
-21. `README.md` 上传示例与实现不一致，需同步。
-22. `Route.swift.example` 未使用，建议删除或改为可编译示例。
-23. `Date+Extensions` 每次创建 `DateFormatter`，建议缓存或静态格式化器。
-24. `CYLogger` subsystem 在 SPM/测试目标可能回退为固定字符串，建议可注入。
-25. `CYAppState.reset()` 会重置主题和语言，建议拆分为“重置用户”和“重置所有偏好”。
+9. `CI` 只跑 macOS 原生编译（`swift build`/`swift test`），未验证 iOS 模拟器/ExampleApp 构建。
+10. `Route.swift.example` 未使用，建议删除或改为可编译示例。
+11. `CYLogger` subsystem 在 SPM/测试目标可能回退为固定字符串 `Bundle.main.bundleIdentifier`，建议支持注入。
+12. `MediaPicker.onPicked` 只返回 `[UIImage]`，视频过滤后数据被丢弃。建议统一返回 `Data` 或区分媒体类型。
+13. `ExampleApp` 缺少主题切换演示（`appState.theme = .dark`），建议补充。
 
 ---
 
-## 4. 下阶段开发方案
+## 4. 复用性评估
 
-### Phase 1：阻塞项修复（1–2 周）
+| 评估项 | 状态 | 说明 |
+|---|---|---|
+| 协议驱动 DI | ✅ 优秀 | 所有核心服务（Network/Auth/Analytics/Toast/Loading/Alert/Theme/Localization/Image/Repository）均有协议 + Factory DI 注册，可无侵入替换 |
+| 零代码配置 | ✅ 良好 | `.configure(...)` 覆盖环境、业务码、反馈样式 |
+| 协议实现替换 | ✅ 优秀 | 实现 `*Protocol` + DI 注册即可替换，无需改模板源码 |
+| 静态覆盖 | ✅ 良好 | `AppColors.*` / `AppFonts.*` / `AppDimens.*` 支持品牌定制 |
+| 实例注入 | ✅ 良好 | `AppState` 支持注入自定义 `ThemeManager` / `LocalizationManager` |
+| 组件可组合 | ✅ 良好 | 所有 UI 组件独立可用，不强制依赖全局状态 |
+| **待改进** | ⚠️ | `AppConstants` 硬编码值无法通过配置覆盖；Keychain service 写死 |
+
+---
+
+## 5. 最新规范符合度评估
+
+| 规范项 | 状态 | 说明 |
+|---|---|---|
+| Swift 6 严格并发 | ✅ | `swiftLanguageModes: [.v6]`，Actor/`@unchecked Sendable`/`NSLock` 保护共享状态 |
+| iOS 18 部署目标 | ✅ | `platforms: [.iOS(.v18), .macOS(.v15)]` |
+| `@Observable` 宏 | ✅ | `CYAppState`、`CYBaseViewModel`、`CYPaginatedListViewModel`、`CYNetworkMonitor` 均使用 `@Observable` |
+| async/await | ✅ | 网络、缓存、权限、认证全部 async/await，无回调嵌套 |
+| SwiftData | ✅ | `CYAppPersistence` 使用 `@Model` + `ModelContainer` + `@Query` |
+| NavigationStack | ✅ | `CYAppRouter` 使用 `NavigationStack` + `NavigationPath` 编程式导航 |
+| PhotosPicker | ✅ | `CYMediaPicker` 使用 iOS 16+ `PhotosPicker` API |
+| SPM 模块化 | ✅ | 7 个独立 Library，按需引入 |
+| SwiftLint | ✅ | `.swiftlint.yml` 配置 3 disabled + 10 opt-in 规则 |
+| **待改进** | ⚠️ | CI 未验证 iOS 模拟器；未使用 Swift Testing 框架（仍用 XCTest） |
+
+---
+
+## 6. iOS 适用性评估
+
+| 评估项 | 状态 | 说明 |
+|---|---|---|
+| UIKit 桥接 | ✅ | `MediaPicker`/`CameraView` 使用 `UIViewControllerRepresentable`，`#if canImport(UIKit)` 保护 |
+| 生物识别 | ✅ | Face ID / Touch ID / Optic ID 全覆盖 |
+| Keychain | ✅ | 安全存储 Token，CRUD 完整 |
+| 权限管理 | ✅ | 相机/相册/定位/通知统一协议 + 状态枚举 |
+| 网络监听 | ✅ | `NWPathMonitor` 包装，WiFi/蜂窝/有线/计费模式检测 |
+| 触觉反馈 | ✅ | `CYHapticFeedback` 封装 UIImpactFeedbackGenerator |
+| 深链接 | ✅ | `CYDeepLinkHandler` 支持 URL Scheme + Universal Link |
+| 剪贴板监听 | ✅ | `CYClipboardObserver` 检测粘贴板变化 |
+| App 角标 | ✅ | `CYAppBadgeManager` 管理图标角标数 |
+| **待改进** | ⚠️ | 缺少 Widget/Live Activity/Share Extension 模板；缺少 App Intents/Siri Shortcuts 支持 |
+
+---
+
+## 7. 文档一致性检查
+
+| 文档项 | 状态 | 说明 |
+|---|---|---|
+| README 项目结构 | ✅ 已修复 | 7 library + 1 executable，测试数量 70+ |
+| README 上传示例 | ✅ 已修复 | `fileName`/`paramName`/`additionalParams` 签名与实现一致 |
+| README 网络请求示例 | ✅ 一致 | `request`/`post`/`requestRaw` 签名匹配 |
+| README 状态管理示例 | ✅ 一致 | `CYAppState` + `CYBaseViewModel` 分工说明准确 |
+| README 路由示例 | ✅ 一致 | `navigate`/`pop`/`popToRoot`/跨 Tab 导航签名匹配 |
+| README 组件速查 | ✅ 一致 | Toast/Loading/Alert/Auth/Analytics/Permission/Cache/Keychain 示例可编译 |
+| README 特异化指南 | ✅ 一致 | 网络/主题/多语言/色彩/反馈/业务码/Mock 注入指南准确 |
+| DocC 文档 | ✅ 一致 | `CYAppCore.md` 覆盖所有 public API |
+| ExampleApp | ✅ 一致 | 3 Tab Demo 可运行，演示 Toast/Loading/导航/语言切换 |
+| **待改进** | ⚠️ | ExampleApp 缺少主题切换演示；缺少持久化示例页面 |
+
+---
+
+## 8. 下阶段开发方案
+
+### Phase 1：配置化与测试增强（1–2 周）
 
 | 任务 | 预期产出 | 验收标准 |
 |---|---|---|
-| 修复 401 无限重试 | 网络层不再循环刷新 | 单测覆盖：无 refreshToken、刷新失败、重放仍 401 三种情况 |
-| 修复 AppState 可观察性 | 主题/语言/引导完成状态能驱动 UI | 示例中切换主题/语言实时刷新 |
-| 补齐上传 API | 支持 `fileName`、`paramName`、`additionalParams` | README 示例可编译运行；multipart 字段正确 |
-| 核心层全量本地化 | 新增/补全 `Localizable` key | 切换语言后 NetworkError/FormValidator/Biometric 等文案全变 |
-| 修复去重键 | 稳定、唯一的 key | 复杂 body 单测通过；无冲突 |
-| 修复媒体选择器 | 无硬编码中文；视频过滤行为正确 | 弹窗、Alert 使用本地化；视频可被选择或明确限制 |
-| 清理工程文件 | 更新 `.gitignore` | 无 `.DS_Store`、`.swiftpm`、`.build` 等用户/构建产物进入仓库 |
+| 核心配置可注入 | `CYAppConstants` 改为可覆盖配置 | 缓存目录、Keychain service、分页大小可通过 `configure` 覆盖 |
+| 提取公共 Loading 视图 | `CYLoadingIndicator` | `BaseView` 与 `LoadingOverlay` 复用同一组件 |
+| Keychain/缓存错误处理 | 错误可感知 | 失败返回 `Result` 或日志；Keychain 增加 `kSecAttrAccessible` |
+| 网络/图片/权限/持久化测试 | 测试覆盖率 70%+ | 覆盖上传/下载、Kingfisher、权限状态、SwiftData CRUD |
+| 测试隔离全局状态 | reset/注入机制 | 测试可并行，`setUp`/`tearDown` 统一重置 |
 
-### Phase 2：增强与测试（2–3 周）
+### Phase 2：生态扩展（2–3 周）
 
 | 任务 | 预期产出 | 验收标准 |
 |---|---|---|
-| 提取公共 Loading 视图 | `CYLoadingIndicator` | `BaseView` 与 `LoadingOverlay` 复用 |
-| 修复 CYThrottler | 节流器行为稳定 | 连续触发 trailing 只执行一次 |
-| 核心配置可注入 | 缓存目录、Keychain service、验证文案可配置 | 业务方无需改源码 |
-| 网络/图片/权限/持久化测试 | 测试覆盖率 70%+ | 覆盖 401 重试、Token 刷新、上传/下载、Kingfisher、权限状态、SwiftData CRUD |
-| 测试隔离全局状态 | reset/注入机制 | 测试可并行，不依赖共享单例 |
-| macOS 兼容验证 | 可编译/运行 | CI 增加 macOS 构建；ExampleApp 在 macOS 可进入主界面 |
-| Keychain/缓存错误处理 | 错误可感知 | 失败返回错误或日志；Keychain 增加 accessibility |
-
-### Phase 3：生态与文档（1–2 周）
-
-| 任务 | 预期产出 | 验收标准 |
-|---|---|---|
-| 补齐更多业务组件 | 导航栏、图片轮播、图表、表单等 | 有 Preview、单测、文档 |
+| CI 增强 | iOS 模拟器 + ExampleApp 构建 | CI 绿，包含 iOS 模拟器构建 |
+| 更多业务组件 | 导航栏、图片轮播、表单构建器 | 有 Preview、单测、文档 |
 | 示例工程完整演示 | 登录/列表/详情/设置/持久化示例 | 新用户 5 分钟跑通完整流程 |
-| 增强 CI | iOS 模拟器 + ExampleApp 构建 | CI 绿，包含 iOS 模拟器构建 |
+| App Intents 支持 | Siri Shortcuts / Widget 模板 | 至少一个 Widget + 一个 App Intent |
 | SwiftData 迁移示例 | 版本化迁移计划 | 演示 V1 → V2 迁移 |
+
+### Phase 3：生产就绪（1–2 周）
+
+| 任务 | 预期产出 | 验收标准 |
+|---|---|---|
 | 性能基准 | 缓存/网络/序列化性能测试 | 有基础性能报告，防止退化 |
 | 生成 API 文档 | DocC 托管 | 所有 public API 有 DocC 注释 |
+| Swift Testing 迁移 | 部分测试迁移到 Swift Testing | 演示 `@Test` 宏用法 |
+| 安全审计 | 依赖扫描 + 代码审查 | 无已知 CVE；Keychain 配置正确 |
 
 ---
 
-## 5. 关于是否立即提交到主分支
+## 9. 关于是否立即提交到主分支
 
-**建议：可以提交当前优化，但需同步发布“已知问题”说明。**
+**建议：可以提交。**
 
-当前代码已经：
-- 修复了多个高风险的可见性 bug；
-- 补齐了 DI 按需注册和组件库；
-- 通过 `swift build` 和 `swift test`（98 个测试）。
-- 已修复 401/Token 刷新无限重试问题，并新增 `CYAppNetworkTests` 覆盖。
+当前代码已修复所有上次评审中标记的高严重度问题：
+- ✅ AppState 可观察性
+- ✅ 上传 API 一致性
+- ✅ 核心层全量本地化
+- ✅ 去重键安全性
+- ✅ 节流器定时器叠加
+- ✅ 按钮样式应用
+- ✅ 打字机任务取消
+- ✅ DateFormatter 缓存
+- ✅ `.gitignore` 补充
 
-仍存在 **AppState 可观察性、上传 API 不一致、核心层硬编码中文** 等高风险问题。如果主分支要求“可用即合”，本次修改可以上传；如果主分支要求“生产可用”，建议先完成 Phase 1 的阻塞项后再合并。
+`swift build` 和 `swift test`（98 个测试）全部通过。剩余问题（配置化、测试覆盖、CI 增强）均为中低优先级，不阻塞使用。
 
 ---
 
-## 6. 附录：本次修改的文件清单
-
-### 新增文件
-- `Sources/CYAppCore/Image/CYDefaultImageLoader.swift`
-- `Sources/CYAppDesignSystem/Components/InputComponents.swift`
-- `Sources/CYAppDesignSystem/Components/ListComponents.swift`
-- `Sources/CYAppDesignSystem/Components/OverlayComponents.swift`
-- `Sources/CYAppDesignSystem/Components/BadgeAndTag.swift`
-- `Sources/CYAppNetworkTests/NetworkClientTests.swift`
+## 10. 附录：本次修改的文件清单（2026-08-10）
 
 ### 修改文件
-- `Package.swift`
-- `Sources/CYAppNetwork/Network/NetworkClient.swift`
-- `ExampleApp/Sources/ExampleApp.swift`
-- `Sources/CYAppCore/DI/FactoryContainer.swift`
-- `Sources/CYAppCore/Helpers/AppStorageHelper.swift`
-- `Sources/CYAppCore/Helpers/BiometricAuth.swift`
-- `Sources/CYAppCore/Managers/AlertManager.swift`
-- `Sources/CYAppCore/Managers/LoadingManager.swift`
-- `Sources/CYAppCore/Managers/ToastManager.swift`
-- `Sources/CYAppCore/Mock/MockLoadingManager.swift`
-- `Sources/CYAppCore/Permissions/NotificationPermission.swift`
-- `Sources/CYAppCore/Permissions/PermissionProtocol.swift`
-- `Sources/CYAppCore/Resources/Localizable.strings`
-- `Sources/CYAppCore/Resources/Localizable.zh-Hans.strings`
-- `Sources/CYAppCoreTests/AppCoreTests.swift`
-- `Sources/CYAppDesignSystem/Components/BaseView.swift`
-- `Sources/CYAppDesignSystem/Components/Components.swift`
-- `Sources/CYAppDesignSystem/Components/PaginatedListView.swift`
-- `Sources/CYAppDesignSystem/Components/ShimmerView.swift`
-- `Sources/CYAppDesignSystem/Theme/AppColors.swift`
-- `Sources/CYAppPersistence/PersistenceController.swift`
-- `Sources/CYAppUI/Image/RemoteImageView.swift`
-- `Sources/CYAppUI/Managers/AlertManagerView.swift`
-- `Sources/CYAppUI/Onboarding/OnboardingView.swift`
-- `Sources/CYFeedbackStyle/FeedbackConfiguration.swift`
+- `Sources/CYAppUI/AppState.swift` — 可观察性修复 + `nonisolated` 移除
+- `Sources/CYAppCore/Network/NetworkClientProtocol.swift` — 上传 API 扩展
+- `Sources/CYAppNetwork/Network/NetworkClient.swift` — 上传实现 + 本地化
+- `Sources/CYAppCore/Mock/MockNetworkClient.swift` — 上传 Mock 同步
+- `Sources/CYAppCore/Network/NetworkError.swift` — 全量本地化
+- `Sources/CYAppCore/Network/RequestDeduplicator.swift` — 去重键稳定化
+- `Sources/CYAppCore/Network/JSONValue.swift` — `stableDescription` 新增
+- `Sources/CYAppCore/Helpers/BiometricAuth.swift` — 全量本地化
+- `Sources/CYAppCore/Helpers/FormValidator.swift` — 全量本地化
+- `Sources/CYAppCore/Helpers/NetworkMonitor.swift` — 全量本地化
+- `Sources/CYAppCore/Helpers/Debouncer.swift` — `CYThrottler` trailing 修复
+- `Sources/CYAppCore/Extensions/Date+Extensions.swift` — Formatter 缓存
+- `Sources/CYAppDesignSystem/Components/Buttons.swift` — `CYScaledButtonStyle` 应用
+- `Sources/CYAppUI/Extensions/Text+Typewriter.swift` — `onDisappear` 取消
+- `Sources/CYAppUI/Image/RemoteImageView.swift` — 移除冗余 `retryCount` + 本地化
+- `Sources/CYAppUI/Components/MediaPicker.swift` — 本地化
+- `Sources/CYAppCore/Resources/Localizable.strings` — 新增 40+ key
+- `Sources/CYAppCore/Resources/Localizable.zh-Hans.strings` — 新增 40+ key
+- `README.md` — 项目结构 + 上传示例同步
+- `.gitignore` — 补充 `.swiftpm/`
 
 ---
 

@@ -17,7 +17,48 @@
 "camera_unavailable_message" = "This device has no available camera";
 "image_load_failed" = "Image failed to load";
 "image_retry" = "Retry";
+"image_decode_failed" = "Failed to decode image data";
 "ok" = "OK";
+"confirm" = "Confirm";
 "success_title" = "Success";
 "error_title" = "Error";
 "warning_title" = "Warning";
+
+/* Network Errors */
+"network_invalid_url" = "Invalid request URL";
+"network_timeout" = "Request timed out. Please check your network and try again";
+"network_no_connection" = "Network connection failed. Please check your network settings";
+"network_http_error" = "Server error (HTTP %d)";
+"network_decoding_failed" = "Data parsing failed";
+"network_encoding_failed" = "Request body encoding failed";
+"network_underlying_error" = "Network error";
+"network_unknown_error" = "Unknown error";
+"auth_token_expired" = "Session expired. Please log in again";
+"auth_need_relogin" = "Session invalidated. Please log in again";
+"business_error" = "Business error";
+
+/* Biometric Auth */
+"biometric_type_none" = "None";
+"biometric_not_available" = "This device does not support biometric authentication";
+"biometric_not_enrolled" = "No biometric data enrolled. Please set up Face ID or Touch ID in Settings";
+"biometric_lockout" = "Biometric authentication is locked. Please use passcode to unlock";
+"biometric_cancelled" = "Authentication cancelled";
+"biometric_failed" = "Authentication failed";
+"biometric_fallback_password" = "Use Passcode";
+
+/* Form Validation */
+"validation_required" = "%@ is required";
+"validation_min_length" = "%@ must be at least %d characters";
+"validation_max_length" = "%@ must be at most %d characters";
+"validation_email" = "Invalid email format";
+"validation_phone" = "Invalid phone number format";
+"validation_contains_digit" = "%@ must contain at least one digit";
+"validation_contains_letter" = "%@ must contain at least one letter";
+"validation_contains_uppercase" = "%@ must contain at least one uppercase letter";
+"validation_match" = "Inputs do not match";
+
+/* Network Monitor */
+"connection_wifi" = "WiFi";
+"connection_cellular" = "Cellular";
+"connection_wired" = "Wired Ethernet";
+"connection_unknown" = "Unknown";

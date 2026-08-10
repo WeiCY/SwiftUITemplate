@@ -72,15 +72,8 @@ public final class CYAppState {
     ///
     /// 通过 `CYThemeManager.savedTheme()` 在 init 时自动恢复。
     /// 如需立即应用到 UIKit 层，请调用 `CYThemeManager.saveAndApply(appState.theme)`。
-    @ObservationIgnored
-    private var _theme: CYAppTheme
-    
     public var theme: CYAppTheme {
-        get { _theme }
-        set {
-            _theme = newValue
-            themeManager.save(newValue)
-        }
+        didSet { themeManager.save(theme) }
     }
     
     // MARK: - 多语言
@@ -98,15 +91,8 @@ public final class CYAppState {
     // MARK: - 引导页
     
     /// 是否已完成新手引导（自动同步 UserDefaults）
-    @ObservationIgnored
-    private var _hasCompletedOnboarding: Bool
-    
     public var hasCompletedOnboarding: Bool {
-        get { _hasCompletedOnboarding }
-        set {
-            _hasCompletedOnboarding = newValue
-            UserDefaults.standard.set(newValue, forKey: CYAppConstants.keyOnboardingShown)
-        }
+        didSet { UserDefaults.standard.set(hasCompletedOnboarding, forKey: CYAppConstants.keyOnboardingShown) }
     }
     
     // MARK: - 初始化
@@ -116,14 +102,14 @@ public final class CYAppState {
     /// - Parameters:
     ///   - themeManager: 主题管理器，默认 `CYThemeManager.shared`
     ///   - localizationManager: 多语言管理器，默认 `CYLocalizationManager.shared`
-    public nonisolated init(
+    public init(
         themeManager: CYThemeManaging = CYThemeManager.shared,
         localizationManager: CYLocalizationManaging = CYLocalizationManager.shared
     ) {
         self.themeManager = themeManager
         self.localizationManager = localizationManager
-        self._hasCompletedOnboarding = UserDefaults.standard.bool(forKey: CYAppConstants.keyOnboardingShown)
-        self._theme = themeManager.savedTheme()
+        self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: CYAppConstants.keyOnboardingShown)
+        self.theme = themeManager.savedTheme()
         localizationManager.restore()
     }
     
@@ -144,8 +130,7 @@ public final class CYAppState {
     public func reset() {
         self.user = nil
         self.selectedTab = .home
-        self._theme = .system
-        themeManager.save(.system)
+        self.theme = .system
         localizationManager.resetToSystem()
     }
 }

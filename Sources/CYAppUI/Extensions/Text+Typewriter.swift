@@ -14,7 +14,6 @@ public struct TypewriterModifier: ViewModifier {
     
     public func body(content: Content) -> some View {
         ZStack {
-            // 保留原始 content 于视图树中（仅隐藏），避免丢弃调用方传入的视图
             content.hidden()
             Text(currentText)
         }
@@ -31,6 +30,10 @@ public struct TypewriterModifier: ViewModifier {
                 hasStarted = true
                 startTypewriter()
             }
+        }
+        .onDisappear {
+            typingTask?.cancel()
+            typingTask = nil
         }
     }
     
