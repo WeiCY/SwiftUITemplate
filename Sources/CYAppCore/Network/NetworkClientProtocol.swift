@@ -99,6 +99,28 @@ public extension CYEndpoint {
 /// // 模式 2：获取完整 CYAPIResponse
 /// let response: CYAPIResponse<User> = try await networkClient.requestRaw(UserEndpoint.profile)
 /// ```
+public struct CYUploadConfig: Sendable {
+    public let data: Data
+    public let mimeType: String
+    public var fileName: String
+    public var paramName: String
+    public var additionalParams: [String: String]?
+
+    public init(
+        data: Data,
+        mimeType: String,
+        fileName: String = "upload",
+        paramName: String = "file",
+        additionalParams: [String: String]? = nil
+    ) {
+        self.data = data
+        self.mimeType = mimeType
+        self.fileName = fileName
+        self.paramName = paramName
+        self.additionalParams = additionalParams
+    }
+}
+
 public protocol CYNetworkClientProtocol: Sendable {
     
     /// 发起请求并自动解包 CYAPIResponse.data
@@ -112,14 +134,7 @@ public protocol CYNetworkClientProtocol: Sendable {
     func post<B: Encodable & Sendable, T: Decodable & Sendable>(_ endpoint: CYEndpoint, body: B) async throws -> T
     
     /// 上传数据
-    func upload<T: Decodable & Sendable>(
-        _ endpoint: CYEndpoint,
-        data: Data,
-        mimeType: String,
-        fileName: String,
-        paramName: String,
-        additionalParams: [String: String]?
-    ) async throws -> T
+    func upload<T: Decodable & Sendable>(_ endpoint: CYEndpoint, config: CYUploadConfig) async throws -> T
     
     /// 下载文件到指定路径
     func download(_ endpoint: CYEndpoint, to fileURL: URL) async throws -> URL

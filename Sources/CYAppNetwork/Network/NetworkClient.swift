@@ -233,24 +233,19 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
     /// ```swift
     /// let avatar: Avatar = try await networkClient.upload(
     ///     UserEndpoint.uploadAvatar,
-    ///     data: imageData,
-    ///     mimeType: "image/jpeg"
+    ///     config: CYUploadConfig(data: imageData, mimeType: "image/jpeg")
     /// )
     /// ```
     public func upload<T: Decodable & Sendable>(
         _ endpoint: CYEndpoint,
-        data: Data,
-        mimeType: String,
-        fileName: String = "upload",
-        paramName: String = "file",
-        additionalParams: [String: String]? = nil
+        config: CYUploadConfig
     ) async throws -> T {
         try await performRequest {
             var urlRequest = try self.buildURLRequest(for: endpoint)
             await self.applyRequestInterceptors(to: &urlRequest)
 
             let uploadTask = AF.upload(multipartFormData: { formData in
-                formData.append(data, withName: paramName, fileName: fileName, mimeType: mimeType)
+                formData.append(config.data, withName: config.paramName, fileName: config.fileName, mimeType: config.mimeType)
                 if let body = endpoint.body {
                     for (key, value) in body {
                         if let string = value.stringValue, let d = string.data(using: .utf8) {
@@ -258,7 +253,7 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
                         }
                     }
                 }
-                if let additionalParams {
+                if let additionalParams = config.additionalParams {
                     for (key, value) in additionalParams {
                         if let d = value.data(using: .utf8) {
                             formData.append(d, withName: key)

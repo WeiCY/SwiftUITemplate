@@ -62,11 +62,7 @@ public final class MockNetworkClient: CYNetworkClientProtocol, @unchecked Sendab
 
     public func upload<T: Decodable & Sendable>(
         _ endpoint: CYEndpoint,
-        data: Data,
-        mimeType: String,
-        fileName: String = "upload",
-        paramName: String = "file",
-        additionalParams: [String: String]? = nil
+        config: CYUploadConfig
     ) async throws -> T {
         try await request(endpoint)
     }
