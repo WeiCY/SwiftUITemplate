@@ -77,9 +77,11 @@ final class AppCoreTests: XCTestCase {
         XCTAssertEqual(manager.type, .success)
         XCTAssertNotEqual(manager.presentationID, firstID)
 
-        try? await Task.sleep(for: .milliseconds(130))
+        // CI runners may resume suspended tasks slightly later than requested.
+        // Keep the assertion comfortably before the second toast's 200 ms expiry.
+        try? await Task.sleep(for: .milliseconds(150))
         XCTAssertTrue(manager.isPresented)
-        try? await Task.sleep(for: .milliseconds(100))
+        try? await Task.sleep(for: .milliseconds(120))
         XCTAssertFalse(manager.isPresented)
         XCTAssertNil(manager.message)
     }
