@@ -44,6 +44,7 @@ public final class MockToastManager: CYToastManagerProtocol, @unchecked Sendable
         presentationID = UUID()
     }
 
+
     public func dismiss() {
         dismissCallCount += 1
         isPresented = false

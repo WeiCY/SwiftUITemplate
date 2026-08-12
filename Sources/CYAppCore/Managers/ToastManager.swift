@@ -27,6 +27,11 @@ public enum CYToastQueueMode: Sendable {
 }
 
 /// 管理全局 Toast 的展示、队列和自动消失。
+///
+/// 带有操作按钮（`action`）的 Toast 不会自动消失，需要用户主动交互：
+/// - 点击操作按钮（`performAction()`）
+/// - 点击关闭按钮或 Toast 本体（`dismiss()`）
+/// - 点击空白区域（需 `tapOutsideToDismiss` 样式开启）
 @Observable
 @MainActor
 public final class CYToastManager: CYToastManagerProtocol, @unchecked Sendable {
@@ -38,6 +43,10 @@ public final class CYToastManager: CYToastManagerProtocol, @unchecked Sendable {
     /// 每次展示都会变化，供 SwiftUI 重播转场动画。
     public private(set) var presentationID = UUID()
     public private(set) var queueCount = 0
+    /// 当前 Toast 的操作按钮标题；为 `nil` 表示无操作按钮。
+    public private(set) var actionTitle: String?
+    /// 当前 Toast 是否带有操作按钮。
+    public var hasAction: Bool { actionTitle != nil }
 
     public var queueMode: CYToastQueueMode = .replace
 
@@ -48,14 +57,26 @@ public final class CYToastManager: CYToastManagerProtocol, @unchecked Sendable {
     private var dismissTask: Task<Void, Never>?
     @ObservationIgnored
     private var queue: [ToastRequest] = []
+    @ObservationIgnored
+    private var action: (@MainActor () -> Void)?
 
     public nonisolated init() {}
 
     /// 显示 Toast。空白消息会被忽略，时长最短为 0.1 秒。
+    ///
+    /// - Parameters:
+    ///   - message: Toast 文案。
+    ///   - type: Toast 类型，默认 `.info`。
+    ///   - duration: 自动消失时长（秒）。当 `action` 不为 `nil` 时此值无效——
+    ///     带操作的 Toast 会持续展示直到用户交互。
+    ///   - actionTitle: 操作按钮标题（如"重试"）。传入非 `nil` 值后 Toast 不会自动消失。
+    ///   - action: 操作按钮回调，在主线程执行。调用 `performAction()` 时触发并自动关闭 Toast。
     public func show(
         _ message: String,
         type: CYToastType = .info,
-        duration: TimeInterval = 2.0
+        duration: TimeInterval = 2.0,
+        actionTitle: String? = nil,
+        action: (@MainActor () -> Void)? = nil
     ) {
         let message = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !message.isEmpty else { return }
@@ -63,7 +84,9 @@ public final class CYToastManager: CYToastManagerProtocol, @unchecked Sendable {
         let request = ToastRequest(
             message: message,
             type: type,
-            duration: max(duration, 0.1)
+            duration: max(duration, 0.1),
+            actionTitle: actionTitle,
+            action: action
         )
 
         if queueMode == .queue, isPresented {
@@ -90,14 +113,28 @@ public final class CYToastManager: CYToastManagerProtocol, @unchecked Sendable {
         queueCount = 0
         isPresented = false
         message = nil
+        actionTitle = nil
+        action = nil
+    }
+
+    /// 触发当前 Toast 的操作按钮回调，然后关闭 Toast。
+    public func performAction() {
+        let captured = action
+        finishCurrent()
+        captured?()
     }
 
     private func present(_ request: ToastRequest) {
         dismissTask?.cancel()
         message = request.message
         type = request.type
+        actionTitle = request.actionTitle
+        action = request.action
         presentationID = UUID()
         isPresented = true
+
+        // 带操作的 Toast 不自动消失，等待用户交互
+        guard request.action == nil else { return }
 
         let currentID = presentationID
         dismissTask = Task { [weak self] in
@@ -110,6 +147,8 @@ public final class CYToastManager: CYToastManagerProtocol, @unchecked Sendable {
     private func finishCurrent() {
         isPresented = false
         message = nil
+        actionTitle = nil
+        action = nil
 
         guard queueMode == .queue, !queue.isEmpty else { return }
         let next = queue.removeFirst()
@@ -118,10 +157,12 @@ public final class CYToastManager: CYToastManagerProtocol, @unchecked Sendable {
     }
 }
 
-private struct ToastRequest {
+private struct ToastRequest: Sendable {
     let message: String
     let type: CYToastType
     let duration: TimeInterval
+    let actionTitle: String?
+    let action: (@MainActor () -> Void)?
 }
 
 /// Toast 消息类型。
@@ -137,6 +178,17 @@ public enum CYToastType: Sendable {
         case .success: return "checkmark.circle"
         case .error: return "xmark.circle"
         case .warning: return "exclamationmark.triangle"
+        }
+    }
+
+    /// 该类型 Toast 的建议默认展示时长（秒）。
+    /// 错误类提示需要更多阅读时间，因此默认更长。
+    public var defaultDuration: TimeInterval {
+        switch self {
+        case .info: 2.0
+        case .success: 2.0
+        case .error: 3.0
+        case .warning: 2.5
         }
     }
 }

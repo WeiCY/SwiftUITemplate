@@ -147,16 +147,27 @@ public struct CYBaseView<Content: View, ErrorView: View>: View {
 public struct CYDefaultErrorView: View {
     let error: CYAppError
     let onRetry: (() -> Void)?
+    let onDismiss: (() -> Void)?
 
     @State private var style = CYFeedbackConfiguration.shared.errorStyle
 
-    public init(error: CYAppError, onRetry: (() -> Void)?) {
+    public init(error: CYAppError, onRetry: (() -> Void)?, onDismiss: (() -> Void)? = nil) {
         self.error = error
         self.onRetry = onRetry
+        self.onDismiss = onDismiss
     }
 
     public var body: some View {
         VStack(spacing: style.padding / 2) {
+            if let onDismiss {
+                HStack {
+                    Spacer()
+                    Button(action: onDismiss) {
+                        Image(systemName: "xmark")
+                    }
+                    .accessibilityLabel("Dismiss")
+                }
+            }
             Image(systemName: style.icon)
                 .font(.system(size: style.iconSize))
                 .foregroundStyle(style.iconColor)

@@ -38,20 +38,16 @@ private struct CYToastModifier: ViewModifier {
             .overlay(alignment: style.position.alignment) {
                 if manager.isPresented, let message = manager.message {
                     CYToastView(message: message, type: manager.type, style: style)
-                        .offset(y: style.position.verticalOffset(style.verticalOffset))
-                        .id(manager.presentationID)
-                        .onTapGesture {
-                            if style.tapToDismiss {
-                                manager.dismiss()
+                            .offset(y: style.position.verticalOffset(style.verticalOffset))
+                            .id(manager.presentationID)
+                            .onTapGesture {
+                                if style.tapToDismiss { manager.dismiss() }
                             }
-                        }
-                        .transition(reduceMotion ? .opacity : .asymmetric(
-                            insertion: style.insertionTransition,
-                            removal: style.removalTransition
-                        ))
-                        .accessibilityAction(named: "Dismiss") {
-                            manager.dismiss()
-                        }
+                            .transition(reduceMotion ? .opacity : .asymmetric(
+                                insertion: style.insertionTransition,
+                                removal: style.removalTransition
+                            ))
+                            .accessibilityAction(named: "Dismiss") { manager.dismiss() }
                 }
             }
             .animation(
