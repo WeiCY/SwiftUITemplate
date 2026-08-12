@@ -43,11 +43,6 @@ public final class CYToastManager: CYToastManagerProtocol, @unchecked Sendable {
     /// 每次展示都会变化，供 SwiftUI 重播转场动画。
     public private(set) var presentationID = UUID()
     public private(set) var queueCount = 0
-    /// 当前 Toast 的操作按钮标题；为 `nil` 表示无操作按钮。
-    public private(set) var actionTitle: String?
-    /// 当前 Toast 是否带有操作按钮。
-    public var hasAction: Bool { actionTitle != nil }
-
     public var queueMode: CYToastQueueMode = .replace
 
     /// 队列模式下最多保留的待展示消息数，超出时会丢弃最旧消息。默认 10。
@@ -57,8 +52,6 @@ public final class CYToastManager: CYToastManagerProtocol, @unchecked Sendable {
     private var dismissTask: Task<Void, Never>?
     @ObservationIgnored
     private var queue: [ToastRequest] = []
-    @ObservationIgnored
-    private var action: (@MainActor () -> Void)?
 
     public nonisolated init() {}
 
@@ -66,17 +59,12 @@ public final class CYToastManager: CYToastManagerProtocol, @unchecked Sendable {
     ///
     /// - Parameters:
     ///   - message: Toast 文案。
-    ///   - type: Toast 类型，默认 `.info`。
-    ///   - duration: 自动消失时长（秒）。当 `action` 不为 `nil` 时此值无效——
-    ///     带操作的 Toast 会持续展示直到用户交互。
-    ///   - actionTitle: 操作按钮标题（如"重试"）。传入非 `nil` 值后 Toast 不会自动消失。
-    ///   - action: 操作按钮回调，在主线程执行。调用 `performAction()` 时触发并自动关闭 Toast。
+    ///   - type: Toast 类型。
+    ///   - duration: 自动消失时长（秒）。
     public func show(
         _ message: String,
         type: CYToastType = .info,
-        duration: TimeInterval = 2.0,
-        actionTitle: String? = nil,
-        action: (@MainActor () -> Void)? = nil
+        duration: TimeInterval = 2.0
     ) {
         let message = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !message.isEmpty else { return }
@@ -84,9 +72,7 @@ public final class CYToastManager: CYToastManagerProtocol, @unchecked Sendable {
         let request = ToastRequest(
             message: message,
             type: type,
-            duration: max(duration, 0.1),
-            actionTitle: actionTitle,
-            action: action
+            duration: max(duration, 0.1)
         )
 
         if queueMode == .queue, isPresented {
@@ -113,28 +99,14 @@ public final class CYToastManager: CYToastManagerProtocol, @unchecked Sendable {
         queueCount = 0
         isPresented = false
         message = nil
-        actionTitle = nil
-        action = nil
-    }
-
-    /// 触发当前 Toast 的操作按钮回调，然后关闭 Toast。
-    public func performAction() {
-        let captured = action
-        finishCurrent()
-        captured?()
     }
 
     private func present(_ request: ToastRequest) {
         dismissTask?.cancel()
         message = request.message
         type = request.type
-        actionTitle = request.actionTitle
-        action = request.action
         presentationID = UUID()
         isPresented = true
-
-        // 带操作的 Toast 不自动消失，等待用户交互
-        guard request.action == nil else { return }
 
         let currentID = presentationID
         dismissTask = Task { [weak self] in
@@ -147,8 +119,6 @@ public final class CYToastManager: CYToastManagerProtocol, @unchecked Sendable {
     private func finishCurrent() {
         isPresented = false
         message = nil
-        actionTitle = nil
-        action = nil
 
         guard queueMode == .queue, !queue.isEmpty else { return }
         let next = queue.removeFirst()
@@ -161,8 +131,6 @@ private struct ToastRequest: Sendable {
     let message: String
     let type: CYToastType
     let duration: TimeInterval
-    let actionTitle: String?
-    let action: (@MainActor () -> Void)?
 }
 
 /// Toast 消息类型。
