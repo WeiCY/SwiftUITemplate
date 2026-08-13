@@ -150,23 +150,31 @@ public final class CYAuthService: AuthServiceProtocol {
     // MARK: - Private
     
     private func persistToken(_ token: TokenPair) {
-        keychain.save(token.accessToken, service: KeychainKey.service, account: KeychainKey.accessToken)
-        keychain.save(token.refreshToken, service: KeychainKey.service, account: KeychainKey.refreshToken)
+        logKeychainFailure(keychain.save(token.accessToken, service: KeychainKey.service, account: KeychainKey.accessToken), operation: "save access token")
+        logKeychainFailure(keychain.save(token.refreshToken, service: KeychainKey.service, account: KeychainKey.refreshToken), operation: "save refresh token")
         if let expiresAt = token.expiresAt {
-            keychain.save(ISO8601DateFormatter().string(from: expiresAt), service: KeychainKey.service, account: KeychainKey.expiresAt)
+            logKeychainFailure(keychain.save(ISO8601DateFormatter().string(from: expiresAt), service: KeychainKey.service, account: KeychainKey.expiresAt), operation: "save token expiration")
         }
     }
     
     private func persistUser(_ user: User) {
         if let data = try? JSONEncoder().encode(user) {
-            keychain.save(data, service: KeychainKey.service, account: KeychainKey.userData)
+            logKeychainFailure(keychain.save(data, service: KeychainKey.service, account: KeychainKey.userData), operation: "save user data")
+        } else {
+            CYLogger.auth.error("Failed to encode user data for Keychain persistence")
         }
     }
     
     private func clearPersistedSession() {
-        keychain.delete(service: KeychainKey.service, account: KeychainKey.accessToken)
-        keychain.delete(service: KeychainKey.service, account: KeychainKey.refreshToken)
-        keychain.delete(service: KeychainKey.service, account: KeychainKey.expiresAt)
-        keychain.delete(service: KeychainKey.service, account: KeychainKey.userData)
+        logKeychainFailure(keychain.delete(service: KeychainKey.service, account: KeychainKey.accessToken), operation: "delete access token")
+        logKeychainFailure(keychain.delete(service: KeychainKey.service, account: KeychainKey.refreshToken), operation: "delete refresh token")
+        logKeychainFailure(keychain.delete(service: KeychainKey.service, account: KeychainKey.expiresAt), operation: "delete token expiration")
+        logKeychainFailure(keychain.delete(service: KeychainKey.service, account: KeychainKey.userData), operation: "delete user data")
+    }
+
+    private func logKeychainFailure(_ result: Result<Void, CYKeychainError>, operation: String) {
+        if case .failure(let error) = result {
+            CYLogger.auth.error("Failed to \(operation)", error: error)
+        }
     }
 }

@@ -34,6 +34,18 @@ private struct CacheEntry<T: Codable>: Codable {
     }
 }
 
+public enum CYCacheError: Error, LocalizedError, Sendable {
+    case serialization(Error)
+    case fileSystem(Error)
+
+    public var errorDescription: String? {
+        switch self {
+        case .serialization(let error): "Cache serialization failed: \(error.localizedDescription)"
+        case .fileSystem(let error): "Cache file operation failed: \(error.localizedDescription)"
+        }
+    }
+}
+
 /// 缓存后台 actor，所有磁盘 I/O 在此执行，天然串行且隔离。
 private actor CacheStorage {
     private let memoryCache = NSCache<NSString, NSData>()
@@ -53,17 +65,26 @@ private actor CacheStorage {
         }
     }
 
-    func save<T: Codable>(value: T, forKey key: String, namespace: String?, ttl: TimeInterval?) {
+    func save<T: Codable>(value: T, forKey key: String, namespace: String?, ttl: TimeInterval?) throws {
         let expirationDate = ttl.map { Date().addingTimeInterval($0) }
         let entry = CacheEntry(value: value, expirationDate: expirationDate)
-        guard let data = try? serializer.serialize(entry) else { return }
+        let data: Data
+        do {
+            data = try serializer.serialize(entry)
+        } catch {
+            throw CYCacheError.serialization(error)
+        }
         let safeKey = safeFileName(for: key)
         let fullKey = namespace.map { "\($0)/\(safeKey)" } ?? safeKey
+        let directory = try getDirectory(for: namespace)
+        let fileURL = directory.appendingPathComponent(safeKey)
+        do {
+            try data.write(to: fileURL, options: .atomic)
+        } catch {
+            throw CYCacheError.fileSystem(error)
+        }
         memoryCache.setObject(data as NSData, forKey: fullKey as NSString)
         registerMemoryKey(safeKey, namespace: namespace)
-        let directory = getDirectory(for: namespace)
-        let fileURL = directory.appendingPathComponent(safeKey)
-        try? data.write(to: fileURL)
     }
 
     func load<T: Codable>(forKey key: String, namespace: String?) -> T? {
@@ -74,11 +95,13 @@ private actor CacheStorage {
                 if !entry.isExpired {
                     return entry.value
                 }
-                removeUnsafe(safeKey: safeKey, fullKey: fullKey, namespace: namespace)
+                removeIgnoringErrors(safeKey: safeKey, fullKey: fullKey, namespace: namespace)
                 return nil
             }
         }
-        let directory = getDirectory(for: namespace)
+        guard let directory = try? getDirectory(for: namespace) else {
+            return nil
+        }
         let fileURL = directory.appendingPathComponent(safeKey)
         if let data = try? Data(contentsOf: fileURL) {
             if let entry = try? serializer.deserialize(data, as: CacheEntry<T>.self) {
@@ -87,19 +110,29 @@ private actor CacheStorage {
                     registerMemoryKey(safeKey, namespace: namespace)
                     return entry.value
                 }
-                removeUnsafe(safeKey: safeKey, fullKey: fullKey, namespace: namespace)
+                removeIgnoringErrors(safeKey: safeKey, fullKey: fullKey, namespace: namespace)
                 return nil
             }
         }
         return nil
     }
-    func remove(forKey key: String, namespace: String?) {
+    func remove(forKey key: String, namespace: String?) throws {
         let safeKey = safeFileName(for: key)
         let fullKey = namespace.map { "\($0)/\(safeKey)" } ?? safeKey
-        removeUnsafe(safeKey: safeKey, fullKey: fullKey, namespace: namespace)
+        memoryCache.removeObject(forKey: fullKey as NSString)
+        memoryKeyIndex[namespace ?? ""]?.remove(safeKey)
+        let directory = try getDirectory(for: namespace)
+        let fileURL = directory.appendingPathComponent(safeKey)
+        do {
+            try FileManager.default.removeItem(at: fileURL)
+        } catch CocoaError.fileNoSuchFile {
+            return
+        } catch {
+            throw CYCacheError.fileSystem(error)
+        }
     }
 
-    func clear(namespace: String?) {
+    func clear(namespace: String?) throws {
         if let namespace = namespace {
             let indexKey = namespace
             if let keys = memoryKeyIndex[indexKey] {
@@ -109,23 +142,39 @@ private actor CacheStorage {
                 }
                 memoryKeyIndex[indexKey] = nil
             }
-            let directory = getDirectory(for: namespace)
-            try? FileManager.default.removeItem(at: directory)
+            let directory = try getDirectory(for: namespace)
+            do {
+                try FileManager.default.removeItem(at: directory)
+            } catch CocoaError.fileNoSuchFile {
+                return
+            } catch {
+                throw CYCacheError.fileSystem(error)
+            }
         } else {
             memoryCache.removeAllObjects()
             memoryKeyIndex.removeAll()
-            try? FileManager.default.removeItem(at: baseCacheDirectory)
-            try? FileManager.default.createDirectory(at: baseCacheDirectory, withIntermediateDirectories: true)
+            do {
+                try FileManager.default.removeItem(at: baseCacheDirectory)
+                try FileManager.default.createDirectory(at: baseCacheDirectory, withIntermediateDirectories: true)
+            } catch CocoaError.fileNoSuchFile {
+                try FileManager.default.createDirectory(at: baseCacheDirectory, withIntermediateDirectories: true)
+            } catch {
+                throw CYCacheError.fileSystem(error)
+            }
         }
     }
 
-    private func getDirectory(for namespace: String?) -> URL {
+    private func getDirectory(for namespace: String?) throws -> URL {
         guard let namespace = namespace, !namespace.isEmpty else {
             return baseCacheDirectory
         }
         let namespaceDir = baseCacheDirectory.appendingPathComponent(namespace)
         if !FileManager.default.fileExists(atPath: namespaceDir.path) {
-            try? FileManager.default.createDirectory(at: namespaceDir, withIntermediateDirectories: true)
+            do {
+                try FileManager.default.createDirectory(at: namespaceDir, withIntermediateDirectories: true)
+            } catch {
+                throw CYCacheError.fileSystem(error)
+            }
         }
         return namespaceDir
     }
@@ -139,10 +188,10 @@ private actor CacheStorage {
         memoryKeyIndex[indexKey, default: []].insert(safeKey)
     }
 
-    private func removeUnsafe(safeKey: String, fullKey: String, namespace: String?) {
+    private func removeIgnoringErrors(safeKey: String, fullKey: String, namespace: String?) {
         memoryCache.removeObject(forKey: fullKey as NSString)
         memoryKeyIndex[namespace ?? ""]?.remove(safeKey)
-        let directory = getDirectory(for: namespace)
+        let directory = (try? getDirectory(for: namespace)) ?? baseCacheDirectory
         let fileURL = directory.appendingPathComponent(safeKey)
         try? FileManager.default.removeItem(at: fileURL)
     }
@@ -176,8 +225,19 @@ public final class CYCacheManager: Sendable {
     ///   - key: 缓存键
     ///   - namespace: 可选命名空间（如 "UserProfile"、"Images"）
     ///   - ttl: 过期时间（秒），nil 表示永不过期
-    public func save<T: Codable & Sendable>(value: T, forKey key: String, namespace: String? = nil, ttl: TimeInterval? = nil) async {
-        await storage.save(value: value, forKey: key, namespace: namespace, ttl: ttl)
+    @discardableResult
+    public func save<T: Codable & Sendable>(value: T, forKey key: String, namespace: String? = nil, ttl: TimeInterval? = nil) async -> Result<Void, CYCacheError> {
+        do {
+            try await storage.save(value: value, forKey: key, namespace: namespace, ttl: ttl)
+            return .success(())
+        } catch let error as CYCacheError {
+            CYLogger.cache.error("Failed to save cache entry for key: \(key)", error: error)
+            return .failure(error)
+        } catch {
+            let cacheError = CYCacheError.fileSystem(error)
+            CYLogger.cache.error("Failed to save cache entry for key: \(key)", error: cacheError)
+            return .failure(cacheError)
+        }
     }
 
     /// 从缓存中加载对象
@@ -190,13 +250,31 @@ public final class CYCacheManager: Sendable {
     }
 
     /// 移除指定缓存项
-    public func remove(forKey key: String, namespace: String? = nil) async {
-        await storage.remove(forKey: key, namespace: namespace)
+    @discardableResult
+    public func remove(forKey key: String, namespace: String? = nil) async -> Result<Void, CYCacheError> {
+        do {
+            try await storage.remove(forKey: key, namespace: namespace)
+            return .success(())
+        } catch let error as CYCacheError {
+            CYLogger.cache.error("Failed to remove cache entry for key: \(key)", error: error)
+            return .failure(error)
+        } catch {
+            return .failure(.fileSystem(error))
+        }
     }
 
     /// 清除缓存
     /// - Parameter namespace: 指定命名空间则只清除该命名空间，nil 清除全部
-    public func clear(namespace: String? = nil) async {
-        await storage.clear(namespace: namespace)
+    @discardableResult
+    public func clear(namespace: String? = nil) async -> Result<Void, CYCacheError> {
+        do {
+            try await storage.clear(namespace: namespace)
+            return .success(())
+        } catch let error as CYCacheError {
+            CYLogger.cache.error("Failed to clear cache", error: error)
+            return .failure(error)
+        } catch {
+            return .failure(.fileSystem(error))
+        }
     }
 }

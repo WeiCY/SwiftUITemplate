@@ -1,6 +1,6 @@
 # CYAppCore
 
-纯逻辑层框架，仅依赖 Foundation + Factory。提供协议抽象、工具类、DI 基础设施。
+纯逻辑层框架，仅依赖 Foundation + FactoryKit。提供协议抽象、工具类、DI 基础设施。
 
 > **按需加载设计**：CYAppCore 不包含网络和图片实现。需要 HTTP 请求请引入 ``CYAppNetwork``，需要远程图片加载请引入 ``CYAppImage``。
 
@@ -14,7 +14,7 @@ CYAppCore 是 CYSwiftTemplate 的核心骨架，遵循 **协议驱动 + DI 注�
 ### 架构分层
 
 ```
-CYAppCore (仅 Foundation + Factory)
+CYAppCore (仅 Foundation + FactoryKit)
 ├── Network      网络协议层（CYEndpoint, CYNetworkClientProtocol, APIResponse）
 ├── Services     认证 / 分析 / 用户会话
 ├── DI           依赖注入（Protocol → Factory）
@@ -68,7 +68,6 @@ CYToastManager.shared.show("操作成功", type: .success)
 
 - ``CYAppContainer``
 - ``DIContainerProtocol``
-- ``CYAppConfiguration``
 - ``CYAppEnvironment``
 
 ### 管理器

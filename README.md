@@ -10,7 +10,7 @@
 https://github.com/your-org/CYSwiftTemplate
 ```
 
-按需引入四个库：
+按需引入以下 7 个库：
 
 | 库名 | 用途 | 何时引入 |
 |---|---|---|
@@ -589,17 +589,29 @@ if status == .granted {
 
 ```swift
 let cache = CYCacheManager.shared
-await cache.save(value: token, forKey: "access_token", namespace: "Auth")
+let saveResult = await cache.save(value: token, forKey: "access_token", namespace: "Auth")
+if case .failure(let error) = saveResult { print(error.localizedDescription) }
 let token: String? = await cache.load(forKey: "access_token", namespace: "Auth")
-await cache.remove(forKey: "access_token", namespace: "Auth")
+let removeResult = await cache.remove(forKey: "access_token", namespace: "Auth")
 ```
 
 ### Keychain 安全存储
 
 ```swift
-CYKeychainHelper.standard.save(refreshToken, service: "com.app.auth", account: "refresh_token")
-let token = CYKeychainHelper.standard.readString(service: "com.app.auth", account: "refresh_token")
-CYKeychainHelper.standard.delete(service: "com.app.auth", account: "refresh_token")
+let result = CYKeychainHelper.standard.save(
+    refreshToken,
+    service: "com.app.auth",
+    account: "refresh_token",
+    accessibility: .afterFirstUnlock
+)
+if case .failure(let error) = result {
+    // 上报、重试或提示用户
+    print(error.localizedDescription)
+}
+let token = try? CYKeychainHelper.standard
+    .readStringResult(service: "com.app.auth", account: "refresh_token")
+    .get()
+let deleteResult = CYKeychainHelper.standard.delete(service: "com.app.auth", account: "refresh_token")
 ```
 
 ### 反馈样式自定义
@@ -838,7 +850,7 @@ CYSwiftTemplate/
 ├── .github/workflows/
 │   └── ci.yml                     # CI（build + test + lint）
 ├── Sources/
-│   ├── CYAppCore/                   # Layer 0: 纯逻辑（协议 + 工具），仅依赖 Factory
+│   ├── CYAppCore/                   # Layer 0: 纯逻辑（协议 + 工具），依赖 Foundation + FactoryKit
 │   │   ├── Network/               #   CYEndpoint, CYNetworkClientProtocol, APIResponse, BusinessCode
 │   │   ├── Configuration/         #   AppEnvironment
 │   │   ├── DI/                    #   DIContainerProtocol, FactoryContainer, AppContainer
@@ -870,8 +882,9 @@ CYSwiftTemplate/
 │   │   ├── BookmarkRepository.swift # Repository 实现
 │   │   ├── PersistenceController.swift # ModelContainer 管理
 │   │   └── RepositoryProtocol.swift  # CRUD 协议
-│   ├── CYAppCoreTests/             # Core 层单元测试 (70+ 用例)
-│   ├── CYAppNetworkTests/          # 网络层测试 (401 刷新/重试 5 用例)
+│   ├── CYAppCoreTests/             # Core 层单元测试
+│   ├── CYAppNetworkTests/          # 网络层测试（401、拦截器、上传、下载）
+│   ├── CYAppPersistenceTests/      # SwiftData Repository 内存 CRUD 测试
 │   ├── CYAppUITests/               # UI 层测试 (Router + AppState + Feedback)
 │   ├── CYAppDesignSystemTests/     # 设计系统测试
 │   └── CYFeedbackStyleTests/       # 反馈样式测试

@@ -39,6 +39,7 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
     private let baseURL: String
     private let defaultHeaders: [String: String]
     private let timeoutInterval: TimeInterval
+    private let session: Session
 
     /// 可变状态（拦截器数组、刷新协调器）用同一把锁保护，避免数据竞争。
     private let stateLock = NSLock()
@@ -51,11 +52,13 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
         defaultHeaders: [String: String] = [:],
         timeoutInterval: TimeInterval = 30,
         requestInterceptors: [any CYRequestInterceptor] = [],
-        responseInterceptors: [any CYResponseInterceptor] = []
+        responseInterceptors: [any CYResponseInterceptor] = [],
+        session: Session = AF
     ) {
         self.baseURL = baseURL
         self.defaultHeaders = defaultHeaders
         self.timeoutInterval = timeoutInterval
+        self.session = session
         self.requestInterceptors = requestInterceptors
         self.responseInterceptors = responseInterceptors
     }
@@ -170,7 +173,7 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
         var urlRequest = try self.buildURLRequest(for: endpoint)
         await self.applyRequestInterceptors(to: &urlRequest)
 
-        let dataTask = AF.request(urlRequest)
+        let dataTask = session.request(urlRequest)
             .validate(statusCode: 200..<300)
             .serializingDecodable(CYAPIResponse<T>.self, decoder: self.makeDecoder(for: endpoint))
 
@@ -207,7 +210,7 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
             var urlRequest = try self.buildURLRequest(for: endpoint, encodableBody: body)
             await self.applyRequestInterceptors(to: &urlRequest)
 
-            let dataTask = AF.request(urlRequest)
+            let dataTask = self.session.request(urlRequest)
                 .validate(statusCode: 200..<300)
                 .serializingDecodable(CYAPIResponse<T>.self, decoder: self.makeDecoder(for: endpoint))
 
@@ -244,7 +247,7 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
             var urlRequest = try self.buildURLRequest(for: endpoint)
             await self.applyRequestInterceptors(to: &urlRequest)
 
-            let uploadTask = AF.upload(multipartFormData: { formData in
+            let uploadTask = self.session.upload(multipartFormData: { formData in
                 formData.append(config.data, withName: config.paramName, fileName: config.fileName, mimeType: config.mimeType)
                 if let body = endpoint.body {
                     for (key, value) in body {
@@ -297,7 +300,7 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
             }
 
             return try await withCheckedThrowingContinuation { continuation in
-                AF.download(urlRequest, to: destination)
+                self.session.download(urlRequest, to: destination)
                     .validate(statusCode: 200..<300)
                     .response { response in
                         Task {

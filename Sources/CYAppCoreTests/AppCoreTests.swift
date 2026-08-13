@@ -174,16 +174,20 @@ final class AppCoreTests: XCTestCase {
     func testCacheManagerSaveAndLoad() async {
         let cache = CYCacheManager.shared
         let testValue = "hello_cache"
-        await cache.save(value: testValue, forKey: "test_key", namespace: "UnitTest")
+        let result = await cache.save(value: testValue, forKey: "test_key", namespace: "UnitTest")
+        XCTAssertNoThrow(try result.get())
         let loaded: String? = await cache.load(forKey: "test_key", namespace: "UnitTest")
         XCTAssertTrue(loaded == testValue)
-        await cache.clear(namespace: "UnitTest")
+        let clearResult = await cache.clear(namespace: "UnitTest")
+        XCTAssertNoThrow(try clearResult.get())
     }
     
     func testCacheManagerRemove() async {
         let cache = CYCacheManager.shared
-        await cache.save(value: 42, forKey: "num_key", namespace: "UnitTest")
-        await cache.remove(forKey: "num_key", namespace: "UnitTest")
+        let saveResult = await cache.save(value: 42, forKey: "num_key", namespace: "UnitTest")
+        XCTAssertNoThrow(try saveResult.get())
+        let removeResult = await cache.remove(forKey: "num_key", namespace: "UnitTest")
+        XCTAssertNoThrow(try removeResult.get())
         let loaded: Int? = await cache.load(forKey: "num_key", namespace: "UnitTest")
         XCTAssertNil(loaded)
     }

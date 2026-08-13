@@ -38,6 +38,7 @@ let package = Package(
             dependencies: [
                 "CYAppCore",
                 .product(name: "Alamofire", package: "Alamofire"),
+                .product(name: "FactoryKit", package: "Factory"),
             ],
             path: "Sources/CYAppNetwork"
         ),
@@ -47,6 +48,7 @@ let package = Package(
             dependencies: [
                 "CYAppCore",
                 .product(name: "Kingfisher", package: "Kingfisher"),
+                .product(name: "FactoryKit", package: "Factory"),
             ],
             path: "Sources/CYAppImage"
         ),
@@ -95,8 +97,13 @@ let package = Package(
         ),
         .testTarget(
             name: "CYAppNetworkTests",
-            dependencies: ["CYAppNetwork", "CYAppCore"],
+            dependencies: ["CYAppNetwork", "CYAppCore", .product(name: "Alamofire", package: "Alamofire")],
             path: "Sources/CYAppNetworkTests"
+        ),
+        .testTarget(
+            name: "CYAppPersistenceTests",
+            dependencies: ["CYAppPersistence"],
+            path: "Sources/CYAppPersistenceTests"
         ),
         // 可运行 Demo（业务接入参考）
         .executableTarget(
