@@ -122,14 +122,28 @@ final class AppUITests: XCTestCase {
     }
     
     @MainActor
-    func testAppStateReset() {
+    func testAppStateResetUserPreservesPreferences() {
         let state = CYAppState()
         state.setUser(User(id: 1, name: "Test", email: nil))
         state.selectedTab = .profile
         state.theme = .dark
-        state.reset()
+        state.resetUser()
+        XCTAssertNil(state.user)
+        XCTAssertTrue(state.selectedTab == .home)
+        XCTAssertTrue(state.theme == .dark)
+    }
+
+    @MainActor
+    func testAppStateResetAllClearsPreferences() {
+        let state = CYAppState()
+        state.setUser(User(id: 1, name: "Test", email: nil))
+        state.selectedTab = .profile
+        state.theme = .dark
+        state.hasCompletedOnboarding = true
+        state.resetAll()
         XCTAssertNil(state.user)
         XCTAssertTrue(state.selectedTab == .home)
         XCTAssertTrue(state.theme == .system)
+        XCTAssertFalse(state.hasCompletedOnboarding)
     }
 }

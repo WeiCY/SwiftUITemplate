@@ -53,11 +53,11 @@ private actor CacheStorage {
     private var memoryKeyIndex: [String: Set<String>] = [:]
     private let serializer: CYCacheSerializer
 
-    init(serializer: CYCacheSerializer = CYJSONSerializer()) {
+    init(serializer: CYCacheSerializer = CYJSONSerializer(), directoryName: String) {
         let fm = FileManager.default
         let cachesURL = fm.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? fm.temporaryDirectory
-        self.baseCacheDirectory = cachesURL.appendingPathComponent("AppCache")
+        self.baseCacheDirectory = cachesURL.appendingPathComponent(directoryName)
         self.serializer = serializer
 
         if !fm.fileExists(atPath: baseCacheDirectory.path) {
@@ -215,8 +215,8 @@ public final class CYCacheManager: Sendable {
     /// // 高性能缓存实例（用于列表数据）
     /// let fastCache = CYCacheManager(serializer: CYPropertyListSerializer())
     /// ```
-    public init(serializer: CYCacheSerializer = CYJSONSerializer()) {
-        self.storage = CacheStorage(serializer: serializer)
+    public init(serializer: CYCacheSerializer = CYJSONSerializer(), directoryName: String = CYAppConstants.cacheDirectoryName) {
+        self.storage = CacheStorage(serializer: serializer, directoryName: directoryName)
     }
 
     /// 保存 Codable 对象到缓存

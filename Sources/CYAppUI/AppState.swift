@@ -126,11 +126,23 @@ public final class CYAppState {
         self.selectedTab = .home
     }
     
-    /// 完全重置（换账号场景）
-    public func reset() {
+    /// 重置当前用户会话与导航，保留主题、语言和引导偏好。
+    public func resetUser() {
         self.user = nil
         self.selectedTab = .home
+    }
+
+    /// 重置用户会话及所有应用偏好。
+    public func resetAll() {
+        resetUser()
         self.theme = .system
         localizationManager.resetToSystem()
+        hasCompletedOnboarding = false
+    }
+
+    /// 兼容旧调用；等同于 `resetAll()`。
+    @available(*, deprecated, message: "Use resetUser() to preserve preferences, or resetAll() to clear them.")
+    public func reset() {
+        resetAll()
     }
 }

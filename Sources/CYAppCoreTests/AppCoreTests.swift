@@ -334,6 +334,23 @@ final class AppCoreTests: XCTestCase {
         XCTAssertTrue(CYAppConstants.defaultPageSize > 0)
         XCTAssertTrue(CYAppConstants.animationDuration > 0)
     }
+
+    func testAppConstantsConfiguration() {
+        let original = CYAppConstants.configuration
+        defer { CYAppConstants.configure(original) }
+
+        CYAppConstants.configure(CYAppConfigurationValues(
+            cacheDirectoryName: "UnitTestCache",
+            keychainService: "com.example.tests",
+            defaultPageSize: 50,
+            maxUploadSizeMB: 25
+        ))
+
+        XCTAssertEqual(CYAppConstants.cacheDirectoryName, "UnitTestCache")
+        XCTAssertEqual(CYAppConstants.keychainService, "com.example.tests")
+        XCTAssertEqual(CYAppConstants.defaultPageSize, 50)
+        XCTAssertEqual(CYAppConstants.maxUploadSizeMB, 25)
+    }
     
     // MARK: - CYDIContainer Tests
     

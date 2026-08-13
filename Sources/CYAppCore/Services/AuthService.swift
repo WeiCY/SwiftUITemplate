@@ -54,7 +54,7 @@ public final class CYAuthService: AuthServiceProtocol {
     private let keychain = CYKeychainHelper.standard
     
     private enum KeychainKey {
-        static let service = "com.cyapp.auth"
+        static var service: String { CYAppConstants.keychainService }
         static let accessToken = "access_token"
         static let refreshToken = "refresh_token"
         static let expiresAt = "expires_at"

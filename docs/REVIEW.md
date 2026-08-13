@@ -1,9 +1,11 @@
-# CYSwiftTemplate 项目评测与演进建议
+# 项目评测快照
 
 > 评测日期：2026-08-13
 >
 > 评测范围：`Package.swift`、7 个 Library target、测试、`ExampleApp`、README、DocC、SwiftLint 与 GitHub Actions。
 > 验证结果：`swift build` 通过；`swift test` 通过 **98/98**（macOS 14.0，约 2.0 秒）。工作区在评测开始时无未提交变更。
+
+> **注意**：本文件为静态代码审查快照，仅反映评测时点的状态。后续改进计划请查看 [ROADMAP](./ROADMAP.md)，已发布变更请查看 [CHANGELOG](../CHANGELOG.md)。
 
 ---
 
@@ -11,7 +13,7 @@
 
 项目已经具备作为 iOS SwiftUI 工程模板投入使用的基础：模块边界清晰，核心服务以协议和 Factory DI 暴露，网络、图片和持久化实现可选引入，Swift 6 编译与现有 98 项单元测试均通过。
 
-当前不建议把它定位为“生产就绪的通用基础库”。主要差距不在组件数量，而在依赖声明的正确性、失败可观测性、测试覆盖的均衡性，以及 iOS 端到端 CI 验证。优先完成 P0/P1 后，再扩展组件或迁移测试框架更合适。
+当前不建议把它定位为"生产就绪的通用基础库"。主要差距不在组件数量，而在依赖声明的正确性、失败可观测性、测试覆盖的均衡性，以及 iOS 端到端 CI 验证。优先完成 P0/P1 后，再扩展组件或迁移测试框架更合适。
 
 **综合评分：8.0 / 10**（评分以当前源码与本次验证为准，不与历史版本机械比较。）
 
@@ -76,15 +78,15 @@
 
 #### 5. 文档存在明确的不一致与索引范围错误
 
-- **README**：开头写“按需引入四个库”，表格实际列出 7 个库。
-- **DocC**：`CYAppCore.md` 列出 `CYAppConfiguration`，该类型实际属于 `CYAppNetwork`；并称 Core “仅依赖 Foundation + Factory”，应表述为“Foundation + FactoryKit”。
-- **历史报告**：此前关于“README 已更新测试数量”的表述不准确；README 仍写 Core “70+ 用例”，当前实际是 78 项 Core + HighPriority 测试，虽然不影响接入，但不宜继续作为精确数量宣称。
+- **README**：开头写"按需引入四个库"，表格实际列出 7 个库。
+- **DocC**：`CYAppCore.md` 列出 `CYAppConfiguration`，该类型实际属于 `CYAppNetwork`；并称 Core "仅依赖 Foundation + Factory"，应表述为"Foundation + FactoryKit"。
+- **历史报告**：此前关于"README 已更新测试数量"的表述不准确；README 仍写 Core "70+ 用例"，当前实际是 78 项 Core + HighPriority 测试，虽然不影响接入，但不宜继续作为精确数量宣称。
 - **处理结果**：README 已统一为 7 个库，并更新测试 target 说明；Core DocC 明确 FactoryKit 依赖并移除实际属于 Network target 的 `CYAppConfiguration` 索引。Network/Image/Persistence 独立 DocC 入口仍可作为后续文档完善项。
 
-### P2：下一阶段优化
+### P2：本次已处理（前两项）
 
-1. `CYAppConstants` 都是静态常量，缓存目录、分页默认值与存储命名策略不能从宿主统一覆盖；建议设计不可变的 `CYAppConfigurationValues` 并在启动时注入。
-2. `CYAppState.reset()` 同时改变用户、导航、主题与语言；建议拆成会话重置和偏好重置，降低账号切换时误清偏好的风险。
+1. **核心默认值可配置**：新增 `CYAppConfigurationValues`，可在启动时注入缓存目录、Keychain service、分页、动画、Toast 和上传限制默认值。`CYCacheManager` 与认证服务已读取该配置。
+2. **AppState 重置语义拆分**：新增 `resetUser()`（保留偏好）与 `resetAll()`（清除用户与偏好）；旧 `reset()` 保留为已弃用兼容入口。
 3. `CYAppContainer.shared`、`CYFeedbackConfiguration.shared` 与 `CYBusinessCodePolicy.shared` 等可变单例增加测试顺序/并行风险；建议提供 reset-for-testing 或实例化配置上下文。
 4. `ExampleApp` 已演示 Toast、Loading、路由和语言切换，但没有展示主题切换、图片、持久化、登录与错误重试；应补充可运行的设置/收藏页。
 5. `Route.swift.example` 没有加入可执行 target；应改成实际示例、迁入文档，或删除以避免过期。
@@ -104,37 +106,7 @@
 
 ---
 
-## 5. 推荐路线图
-
-### Phase 1：发布质量修整（约 1 周）
-
-| 任务 | 验收标准 |
-|---|---|
-| 显式声明 FactoryKit 依赖 | Network/Image 不依赖 Core 的传递依赖仍可干净构建。 |
-| 存储错误可观测 | Keychain/缓存失败可被上层处理并结构化记录。 |
-| 消除本项目编译告警 | `AppState` 无 unused-result 告警；评估并记录第三方 Kingfisher 告警。 |
-| 文档校准 | README、DocC、报告中的模块数、依赖与测试统计一致。 |
-
-### Phase 2：可信测试与 CI（约 2–3 周）
-
-| 任务 | 验收标准 |
-|---|---|
-| 扩充 I/O 测试 | 网络上传/下载/超时/拦截器、图片、权限、SwiftData CRUD 均有确定性测试。 |
-| 隔离全局状态 | 测试可重复、可并行，无单例配置泄漏。 |
-| iOS CI | 至少构建 ExampleApp 和主要 targets 到固定 iOS Simulator。 |
-| 固定工具链 | Xcode/SwiftLint 版本明确，可重复执行。 |
-
-### Phase 3：模板体验与生产治理（持续）
-
-| 任务 | 验收标准 |
-|---|---|
-| 完整示例流程 | 登录、列表、详情、设置、图片与持久化均可在 ExampleApp 跑通。 |
-| 性能与安全基线 | 缓存/网络基准、依赖扫描、Keychain 策略与隐私清单形成文档。 |
-| API 文档完善 | 每个公共模块具有自己的 DocC 入口及关键 public API 注释。 |
-
----
-
-## 6. 发布建议
+## 5. 发布建议
 
 **结论：可作为内部模板或 1.0.0 基线使用；不建议在修复 P0 前宣称为通用生产级 SDK。**
 
