@@ -57,6 +57,19 @@
 "validation_contains_uppercase" = "%@必须包含大写字母";
 "validation_match" = "两次输入不一致";
 
+/* Media Picker */
+"media_preview" = "预览";
+"media_done" = "完成";
+"media_done_count" = "完成(%d)";
+"media_select" = "选择";
+"media_no_photos" = "暂无照片";
+"media_all_photos" = "所有照片";
+"media_original" = "原图";
+"media_albums" = "相册";
+"media_photo_permission_title" = "无法访问相册";
+"media_photo_permission_message" = "请在系统设置中允许访问相册，以选择照片";
+"media_go_to_settings" = "去设置";
+
 /* Network Monitor */
 "connection_wifi" = "WiFi";
 "connection_cellular" = "蜂窝数据";

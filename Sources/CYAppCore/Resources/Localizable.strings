@@ -57,6 +57,19 @@
 "validation_contains_uppercase" = "%@ must contain at least one uppercase letter";
 "validation_match" = "Inputs do not match";
 
+/* Media Picker */
+"media_preview" = "Preview";
+"media_done" = "Done";
+"media_done_count" = "Done(%d)";
+"media_select" = "Select";
+"media_no_photos" = "No Photos";
+"media_all_photos" = "All Photos";
+"media_original" = "Original";
+"media_albums" = "Albums";
+"media_photo_permission_title" = "Cannot Access Photos";
+"media_photo_permission_message" = "Please allow photo library access in Settings to select photos";
+"media_go_to_settings" = "Go to Settings";
+
 /* Network Monitor */
 "connection_wifi" = "WiFi";
 "connection_cellular" = "Cellular";

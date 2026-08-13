@@ -1,135 +1,222 @@
 #if canImport(UIKit) && canImport(PhotosUI)
 import SwiftUI
 import PhotosUI
+import Photos
+import CYAppCore
+import CYAppDesignSystem
 
-// MARK: - 媒体选择器（仅 iOS）
+// MARK: - 统一媒体选择器入口
 //
-// 统一封装图片选择（相册）和拍照功能，支持：
-// - 仅相册 / 仅拍照 / 两者皆可
-// - 单选 / 多选 + 数量限制
-// - 图片 / 视频 / 混合
-// - 返回 UIImage 或 Data
+// 两种样式：
 //
-// **注意**：此组件仅支持 iOS/iPadOS，macOS 请使用 NSOpenPanel。
-//
-// ## 相册选图（原生 PhotosPicker）
+// ## .grid（推荐，仿微信）
+// 自定义网格选择器，支持选择状态保留、相册切换、原图选项、全屏预览。
 // ```swift
-// struct ProfileView: View {
-//     @State private var selectedImages: [UIImage] = []
+// @State private var selectedIds: [String] = []
 //
-//     var body: some View {
-//         CYMediaPicker(
-//             source: .album,
-//             maxSelection: 3,
-//             filter: .images
-//         ) { images in
-//             selectedImages = images
-//         } label: {
-//             Label("选择图片", systemImage: "photo.on.rectangle")
-//         }
+// CYMediaPicker(
+//     maxSelection: 9,
+//     allowsCamera: true,
+//     allowsOriginal: true,
+//     preselected: selectedIds    // 保留上次选择
+// ) { items in
+//     selectedIds = items.localIdentifiers  // 存储供下次恢复
+//     Task {
+//         let images = await items.loadImages()
+//         // 使用 images
 //     }
-// }
-// ```
-//
-// ## 拍照
-// ```swift
-// CYMediaPicker(source: .camera) { images in
-//     avatarImage = images.first
-// } label: {
-//     Label("拍照", systemImage: "camera")
-// }
-// ```
-//
-// ## 相册 + 拍照（自动弹出 ActionSheet 让用户选择）
-// ```swift
-// CYMediaPicker(source: .both, maxSelection: 9) { images in
-//     selectedImages = images
 // } label: {
 //     Label("添加图片", systemImage: "plus.circle")
 // }
 // ```
+//
+// ## .system（简单场景）
+// 系统原生 PhotosPicker + UIImagePickerController。
+// 轻量，但无法保留选择状态。
+// ```swift
+// CYMediaPicker(
+//     style: .system,
+//     source: .both,
+//     maxSelection: 3
+// ) { items in
+//     Task {
+//         let images = await items.loadImages()
+//     }
+// } label: {
+//     Label("选择图片", systemImage: "photo.on.rectangle")
+// }
+// ```
 
-// MARK: - 数据源类型
-
-/// 媒体选择来源
-public enum CYMediaSource: Sendable {
-    /// 仅相册
-    case album
-    /// 仅拍照
-    case camera
-    /// 两者皆可（弹出 ActionSheet 让用户选择）
-    case both
-}
-
-/// 媒体类型过滤
-public enum CYMediaFilter: Sendable {
-    /// 仅图片
-    case images
-    /// 仅视频
-    case videos
-    /// 图片和视频
-    case any
-}
-
-// MARK: - MediaPicker 组件
-
-/// 统一的媒体选择器组件
-///
-/// 内部根据 `source` 自动选择 `PhotosPicker`（相册）或 `UIImagePickerController`（拍照）。
-/// 当 `source = .both` 时，点击后弹出 ActionSheet 让用户选择来源。
+/// 统一媒体选择器组件
 public struct CYMediaPicker<Label: View>: View {
-    
+
+    // MARK: - 配置
+
+    let style: CYMediaPickerStyle
     let source: CYMediaSource
     let maxSelection: Int
     let filter: CYMediaFilter
-    let onPicked: ([UIImage]) -> Void
+    let allowsCamera: Bool
+    let allowsOriginal: Bool
+    let preselected: [String]
+    private let selectionIDs: Binding<[String]>?
+    let onPicked: ([CYMediaItem]) -> Void
     let label: () -> Label
-    
+
+    // MARK: - Grid 样式状态
+
+    @State private var showGridPicker = false
+    /// 当前组件生命周期内最后一次确认的相册选择，用于再次打开时回显。
+    @State private var retainedSelectionIDs: [String] = []
+
+    // MARK: - System 样式状态
+
     @State private var showCamera = false
     @State private var showSourceSheet = false
     @State private var photoItems: [PhotosPickerItem] = []
-    
+    @State private var triggerAlbumPicker = false
+
+    // MARK: - 初始化
+
+    /// 网格样式初始化（推荐，仿微信）
     public init(
-        source: CYMediaSource = .both,
+        style: CYMediaPickerStyle = .grid,
         maxSelection: Int = 1,
         filter: CYMediaFilter = .images,
-        onPicked: @escaping ([UIImage]) -> Void,
+        allowsCamera: Bool = true,
+        allowsOriginal: Bool = false,
+        preselected: [String] = [],
+        onPicked: @escaping ([CYMediaItem]) -> Void,
         @ViewBuilder label: @escaping () -> Label
     ) {
-        self.source = source
+        self.style = style
+        self.source = .both
         self.maxSelection = maxSelection
         self.filter = filter
+        self.allowsCamera = allowsCamera
+        self.allowsOriginal = allowsOriginal
+        self.preselected = preselected
+        self.selectionIDs = nil
         self.onPicked = onPicked
         self.label = label
     }
-    
+
+    /// 网格样式初始化（自动保留确认后的多选状态）
+    public init(
+        style: CYMediaPickerStyle = .grid,
+        maxSelection: Int = 1,
+        filter: CYMediaFilter = .images,
+        allowsCamera: Bool = true,
+        allowsOriginal: Bool = false,
+        selectionIDs: Binding<[String]>,
+        onPicked: @escaping ([CYMediaItem]) -> Void,
+        @ViewBuilder label: @escaping () -> Label
+    ) {
+        self.style = style
+        self.source = .both
+        self.maxSelection = maxSelection
+        self.filter = filter
+        self.allowsCamera = allowsCamera
+        self.allowsOriginal = allowsOriginal
+        self.preselected = []
+        self.selectionIDs = selectionIDs
+        self.onPicked = onPicked
+        self.label = label
+    }
+
+    /// 系统样式初始化（source 参数仅 .system 生效）
+    public init(
+        style: CYMediaPickerStyle = .grid,
+        source: CYMediaSource = .both,
+        maxSelection: Int = 1,
+        filter: CYMediaFilter = .images,
+        onPicked: @escaping ([CYMediaItem]) -> Void,
+        @ViewBuilder label: @escaping () -> Label
+    ) {
+        self.style = style
+        self.source = source
+        self.maxSelection = maxSelection
+        self.filter = filter
+        self.allowsCamera = source != .album
+        self.allowsOriginal = false
+        self.preselected = []
+        self.selectionIDs = nil
+        self.onPicked = onPicked
+        self.label = label
+    }
+
     public var body: some View {
+        Group {
+            switch style {
+            case .grid:
+                gridStyleBody
+            case .system:
+                systemStyleBody
+            }
+        }
+    }
+
+    // MARK: - Grid 样式
+
+    private var gridStyleBody: some View {
+        Button { showGridPicker = true } label: { label() }
+            .fullScreenCover(isPresented: $showGridPicker) {
+                CYMediaPickerController(
+                    maxSelection: maxSelection,
+                    allowsCamera: allowsCamera,
+                    allowsOriginal: allowsOriginal,
+                    filter: filter,
+                    preselected: restoredSelectionIDs,
+                    onConfirm: { items in
+                        let identifiers = items.localIdentifiers
+                        retainedSelectionIDs = identifiers
+                        selectionIDs?.wrappedValue = identifiers
+                        onPicked(items)
+                        showGridPicker = false
+                    },
+                    onCancel: {
+                        showGridPicker = false
+                    }
+                )
+            }
+    }
+
+    private var restoredSelectionIDs: [String] {
+        if let selectionIDs {
+            return selectionIDs.wrappedValue
+        }
+        return retainedSelectionIDs.isEmpty ? preselected : retainedSelectionIDs
+    }
+
+    // MARK: - System 样式
+
+    private var systemStyleBody: some View {
         Group {
             switch source {
             case .album:
-                albumPicker
+                systemAlbumButton
             case .camera:
-                cameraButton
+                systemCameraButton
             case .both:
-                bothButton
+                systemBothButton
             }
         }
-        // 拍照 Sheet
         .sheet(isPresented: $showCamera) {
             CYCameraView { image in
-                if let image { onPicked([image]) }
+                showCamera = false
+                if let image {
+                    onPicked([CYMediaItem(image: image)])
+                }
             }
             .ignoresSafeArea()
         }
-        // 选择来源 ActionSheet
         .confirmationDialog("source_picker_title".cyLocalized, isPresented: $showSourceSheet) {
-            Button("album".cyLocalized) { photoItems = [] ; triggerAlbumPicker = true }
+            Button("album".cyLocalized) { photoItems = []; triggerAlbumPicker = true }
             if CYCameraView.isCameraAvailable {
                 Button("camera".cyLocalized) { showCamera = true }
             }
             Button("cancel".cyLocalized, role: .cancel) {}
         }
-        // 相册选择（通过 PhotosPicker 的 programmatic 方式）
         .photosPicker(
             isPresented: $triggerAlbumPicker,
             selection: $photoItems,
@@ -139,11 +226,11 @@ public struct CYMediaPicker<Label: View>: View {
         )
         .onChange(of: photoItems) { _, newItems in
             Task {
-                var images: [UIImage] = []
+                var images: [CYMediaItem] = []
                 for item in newItems {
                     if let data = try? await item.loadTransferable(type: Data.self),
                        let image = UIImage(data: data) {
-                        images.append(image)
+                        images.append(CYMediaItem(image: image))
                     }
                 }
                 if !images.isEmpty {
@@ -152,29 +239,22 @@ public struct CYMediaPicker<Label: View>: View {
             }
         }
     }
-    
-    @State private var triggerAlbumPicker = false
-    
-    // MARK: - 相册选择器
-    
-    private var albumPicker: some View {
-        Button { triggerAlbumPicker = true } label: { label() }
+
+    private var systemAlbumButton: some View {
+        Button { photoItems = []; triggerAlbumPicker = true } label: { label() }
     }
-    
-    // MARK: - 拍照按钮
-    
-    private var cameraButton: some View {
-        Button { showCamera = true } label: { label() }
+
+    private var systemCameraButton: some View {
+        Button {
+            guard CYCameraView.isCameraAvailable else { return }
+            showCamera = true
+        } label: { label() }
     }
-    
-    // MARK: - 两者皆可按钮
-    
-    private var bothButton: some View {
+
+    private var systemBothButton: some View {
         Button { showSourceSheet = true } label: { label() }
     }
-    
-    // MARK: - 过滤器转换
-    
+
     private var photoFilter: PHPickerFilter {
         switch filter {
         case .images: return .images
@@ -191,27 +271,28 @@ public struct CYMediaPicker<Label: View>: View {
 /// 封装系统相机，处理拍照回调和生命周期。
 /// 仅在 iOS 设备上有实际功能，模拟器 / 无相机设备会自动显示提示而非崩溃。
 public struct CYCameraView: UIViewControllerRepresentable {
-    
+
     let onImagePicked: (UIImage?) -> Void
-    
+
     /// 当前设备是否支持相机（模拟器返回 false）
     public static var isCameraAvailable: Bool {
         UIImagePickerController.isSourceTypeAvailable(.camera)
     }
-    
+
     public init(onImagePicked: @escaping (UIImage?) -> Void) {
         self.onImagePicked = onImagePicked
     }
-    
+
     public func makeUIViewController(context: Context) -> UIViewController {
         guard CYCameraView.isCameraAvailable else {
-            // 无可用相机（如模拟器）：返回提示 Alert，避免 sourceType = .camera 崩溃
             let alert = UIAlertController(
                 title: "camera_unavailable_title".cyLocalized,
                 message: "camera_unavailable_message".cyLocalized,
                 preferredStyle: .alert
             )
-            alert.addAction(UIAlertAction(title: "confirm".cyLocalized, style: .default))
+            alert.addAction(UIAlertAction(title: "confirm".cyLocalized, style: .default) { _ in
+                context.coordinator.onImagePicked(nil)
+            })
             return alert
         }
         let picker = UIImagePickerController()
@@ -219,26 +300,29 @@ public struct CYCameraView: UIViewControllerRepresentable {
         picker.delegate = context.coordinator
         return picker
     }
-    
+
     public func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
-    
+
     public func makeCoordinator() -> Coordinator {
         Coordinator(onImagePicked: onImagePicked)
     }
-    
+
     public class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
         let onImagePicked: (UIImage?) -> Void
-        
+
         init(onImagePicked: @escaping (UIImage?) -> Void) {
             self.onImagePicked = onImagePicked
         }
-        
-        public func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+
+        public func imagePickerController(
+            _ picker: UIImagePickerController,
+            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+        ) {
             let image = info[.originalImage] as? UIImage
             onImagePicked(image)
             picker.dismiss(animated: true)
         }
-        
+
         public func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
             onImagePicked(nil)
             picker.dismiss(animated: true)
@@ -250,23 +334,19 @@ public struct CYCameraView: UIViewControllerRepresentable {
 
 public extension UIImage {
     /// 压缩图片到指定最大尺寸（KB）
-    /// - Parameter maxKB: 最大文件大小（千字节）
-    /// - Returns: 压缩后的 Data
     func compressedData(maxKB: Int = 500) -> Data? {
         var quality: CGFloat = 1.0
         var data = self.jpegData(compressionQuality: quality)
-        
+
         while let imageData = data, imageData.count > maxKB * 1024, quality > 0.1 {
             quality -= 0.1
             data = self.jpegData(compressionQuality: quality)
         }
-        
+
         return data
     }
-    
+
     /// 缩放到指定最大宽度，保持宽高比
-    /// - Parameter maxWidth: 最大宽度
-    /// - Returns: 缩放后的 UIImage
     func scaledToMaxWidth(_ maxWidth: CGFloat) -> UIImage {
         guard size.width > maxWidth else { return self }
         let scale = maxWidth / size.width
