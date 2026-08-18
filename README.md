@@ -2,11 +2,13 @@
 
 iOS SwiftUI 工程模板 —— 协议驱动、按需引入、Swift 6 并发安全。
 
-提供网络请求、状态管理、路由导航、缓存、Keychain、权限、反馈 UI、设计系统与 SwiftData 持久化的完整骨架，业务代码依赖协议而非具体实现，所有模块均可通过 DI 替换，无需修改模板源码。
+面向个人开发和中小型团队的 SwiftUI 模板底座，目标是让新项目能快速接入、风格统一、长期迭代。开始使用前建议先阅读 [docs/TEMPLATE_RULES.md](docs/TEMPLATE_RULES.md) 了解规则，再查看 [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) 完成接入。
 
 ---
 
 ## 快速开始
+
+先阅读 [模板开发规范](docs/TEMPLATE_RULES.md) 与 [完整接入指南](docs/GETTING_STARTED.md)，确认当前项目是否需要核心模块、UI 模块和可选模块，再执行接入。
 
 ### 安装
 
@@ -76,6 +78,13 @@ struct MyApp: App {
 | `CYAppUI` | 路由、AppState、Toast/Loading 视图、引导页 | 有 UI 时引入 |
 | `CYAppPersistence` | SwiftData 持久化 | 可选 |
 
+### 使用规则
+
+- 先看规则，再看接入文档
+- 先接入必选和推荐模块，再按需加入可选模块
+- 如果只是个人项目的最小闭环，优先保证 `CYAppCore`、`CYFeedbackStyle`、`CYAppUI`、`CYAppDesignSystem` 可用
+- 如果项目需要网络、图片或本地存储，再引入相应实现模块
+
 ### 分层架构
 
 ```
@@ -124,6 +133,7 @@ Layer 2  CYAppUI (AppState/Router/反馈视图)
 | [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) | 完整接入指南：网络、缓存、Keychain、主题、路由、特异化 |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架构设计：模块依赖、DI、状态管理、网络层、扩展方式 |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | 路线图：版本规划与后续开发计划 |
+| [docs/TEMPLATE_RULES.md](docs/TEMPLATE_RULES.md) | 模板开发规范：适用场景、分层、接入、文档与测试规则 |
 | [docs/REVIEW.md](docs/REVIEW.md) | 评测快照：代码审查与评分（2026-08-13） |
 | [CHANGELOG.md](CHANGELOG.md) | 已发布版本变更记录 |
 | [ExampleApp](ExampleApp/Sources/ExampleApp.swift) | 可运行 Demo（3 Tab 示例） |

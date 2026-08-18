@@ -110,7 +110,7 @@ public final class CYAppState {
         self.localizationManager = localizationManager
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: CYAppConstants.keyOnboardingShown)
         self.theme = themeManager.savedTheme()
-        localizationManager.restore()
+        _ = localizationManager.restore()
     }
     
     // MARK: - 用户 Management
