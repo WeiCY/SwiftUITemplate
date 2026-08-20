@@ -1,10 +1,11 @@
 import Foundation
 
-/// 新手引导页数据模型
-/// 请根据你的 App 内容修改以下引导页
+/// 新手引导页数据模型。
+/// 请根据你的 App 内容修改以下引导页。
 public struct CYOnboardingPage: Identifiable {
     public let id = UUID()
-    public let icon: String       // SF Symbol 名称
+    /// SF Symbol 名称。
+    public let icon: String
     public let title: String
     public let description: String
     

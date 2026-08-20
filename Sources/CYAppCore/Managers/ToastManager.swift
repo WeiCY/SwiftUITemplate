@@ -64,7 +64,7 @@ public final class CYToastManager: CYToastManagerProtocol, @unchecked Sendable {
     public func show(
         _ message: String,
         type: CYToastType = .info,
-        duration: TimeInterval = 2.0
+        duration: TimeInterval = CYAppConstants.toastDuration
     ) {
         let message = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !message.isEmpty else { return }

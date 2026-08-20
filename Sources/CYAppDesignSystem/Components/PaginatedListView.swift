@@ -126,7 +126,7 @@ public struct CYPaginatedListView<Item: Identifiable & Sendable, Row: View, Empt
 
 // MARK: - 默认空状态的便捷初始化
 
-public extension CYPaginatedListView where Empty == CYDefaultEmptyView {
+public extension CYPaginatedListView where Empty == CYEmptyStateView {
     /// 使用默认空状态的初始化
     init(
         viewModel: CYPaginatedListViewModel<Item>,
@@ -136,48 +136,16 @@ public extension CYPaginatedListView where Empty == CYDefaultEmptyView {
     ) {
         self.init(
             viewModel: viewModel,
-            emptyView: { CYDefaultEmptyView() },
+            emptyView: {
+                CYEmptyStateView(
+                    title: "empty_title".cyLocalized,
+                    message: "empty_message".cyLocalized
+                )
+            },
             onRefresh: onRefresh,
             onLoadMore: onLoadMore,
             rowContent: rowContent
         )
-    }
-}
-
-// MARK: - 默认空状态视图
-
-/// 默认的分页列表空状态视图
-public struct CYDefaultEmptyView: View {
-    let title: String
-    let message: String
-    let systemImage: String
-    
-    public init(
-        title: String = "empty_title".cyLocalized,
-        message: String = "empty_message".cyLocalized,
-        systemImage: String = "tray"
-    ) {
-        self.title = title
-        self.message = message
-        self.systemImage = systemImage
-    }
-    
-    public var body: some View {
-        VStack(spacing: CYAppDimens.marginM) {
-            Image(systemName: systemImage)
-                .font(.system(size: 56))
-                .foregroundColor(CYAppColor.textTertiary)
-            
-            Text(title)
-                .font(CYAppFont.h4)
-                .foregroundColor(CYAppColor.textPrimary)
-            
-            Text(message)
-                .font(CYAppFont.bodySmall)
-                .foregroundColor(CYAppColor.textSecondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(CYAppDimens.marginXL)
     }
 }
 

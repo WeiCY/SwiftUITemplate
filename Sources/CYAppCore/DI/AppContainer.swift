@@ -11,9 +11,9 @@ import Foundation
 /// @Injected(\.networkClient) var networkClient
 /// ```
 public final class CYAppContainer: DIContainerProtocol, @unchecked Sendable {
-    
+
     public static let shared = CYAppContainer()
-    
+
     /// 底层 Factory 容器
     private let factory = CYFactoryContainer.shared
     

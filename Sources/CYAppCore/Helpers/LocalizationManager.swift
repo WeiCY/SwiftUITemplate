@@ -82,6 +82,7 @@ public final class CYLocalizationManager: CYLocalizationManaging, @unchecked Sen
         }
         let systemLang = Locale.current.language.languageCode?.identifier ?? "en"
         langLock.withLock { $0 = systemLang }
+        lock.withLock { $0 = Bundle.main }
         return systemLang
     }
 

@@ -46,6 +46,60 @@ https://github.com/your-org/CYSwiftTemplate
 | `CYAppUI` | 路由、AppState、Toast 视图、Loading 视图、引导页 | 有 UI 时引入 |
 | `CYAppPersistence` | SwiftData 持久化（可选） | 需本地存储时引入 |
 
+### 推荐接入组合
+
+为了让新项目更快落地，建议按下面的组合开始，而不是一开始把所有模块都加满。
+
+#### 组合 A：个人项目最小闭环
+
+适合：先把首页、主题、路由、反馈和基础 UI 跑起来。
+
+- `CYAppCore`
+- `CYFeedbackStyle`
+- `CYAppDesignSystem`
+- `CYAppUI`
+
+可选再加：
+- `CYAppNetwork`（需要接口时再加）
+- `CYAppImage`（需要远程图片时再加）
+- `CYAppPersistence`（需要本地数据时再加）
+
+#### 组合 B：标准业务项目
+
+适合：有列表、详情、登录、设置和网络请求的常规 App。
+
+- `CYAppCore`
+- `CYFeedbackStyle`
+- `CYAppDesignSystem`
+- `CYAppUI`
+- `CYAppNetwork`
+
+按需再加：
+- `CYAppImage`
+- `CYAppPersistence`
+
+#### 组合 C：图片 / 内容密集型项目
+
+适合：Feed 流、图文内容、头像和素材较多的项目。
+
+- `CYAppCore`
+- `CYFeedbackStyle`
+- `CYAppDesignSystem`
+- `CYAppUI`
+- `CYAppNetwork`
+- `CYAppImage`
+
+#### 组合 D：带本地数据能力的项目
+
+适合：收藏、书签、离线缓存、草稿箱、阅读记录等场景。
+
+- `CYAppCore`
+- `CYFeedbackStyle`
+- `CYAppDesignSystem`
+- `CYAppUI`
+- `CYAppNetwork`
+- `CYAppPersistence`
+
 ---
 
 ## 2. 启动配置
@@ -104,7 +158,19 @@ struct MyApp: App {
 }
 ```
 
-> 启动顺序：先 `CYAppConfiguration.configure(...)`（注册网络客户端），再配置业务码与反馈样式。`CYAppConfiguration.configure` 内部有锁保护，重复调用会 `precondition` 崩溃。
+> 启动顺序：先 `CYAppConfiguration.configure(...)`（注册网络客户端），再配置 `CYAppConstants.configure(...)`、业务码与反馈样式。`CYAppConfiguration.configure` 内部有锁保护，重复调用会 `precondition` 崩溃。
+
+### 推荐启动顺序
+
+为了让行为更统一，建议按下面顺序初始化：
+
+1. `CYAppConstants.configure(...)`：覆盖缓存目录、Keychain service、分页等默认值
+2. `CYAppConfiguration.configure(...)`：注册网络客户端并配置环境
+3. `CYBusinessCodePolicy.configure { ... }`：统一业务码规则
+4. `CYFeedbackConfiguration.configure(...)`：统一反馈样式
+5. 如有需要，再注册自定义 DI 实现
+
+这样可以保证默认值、网络层和 UI 层都在 App 启动阶段一次性准备好。
 
 ---
 
@@ -931,5 +997,72 @@ Container.shared.loadingManager.register { MockLoadingManager() }
 - 哪些模块是必选、推荐、可选
 - 如何保持快速接入
 - 代码、文档、示例和测试应遵守什么规则
+- 模板目录结构应如何保持稳定
 
 这份规范的目标是让模板长期保持“好起步、好维护、好扩展”的状态。
+
+---
+
+## 18. iOS 18+ 推荐页面范式
+
+随着模板进入 iOS 18+ SwiftUI 项目标准，建议业务页面优先使用以下范式，而不是每个页面都自行拼装结构。
+
+### 18.1 页面优先级
+
+推荐优先使用：
+
+- `CYPageContainer`：标准页面容器，统一标题、内容、工具栏布局
+- `CYBaseView`：统一加载 / 错误 / 内容三态
+- `CYEmptyStateView`：统一空状态
+- `CYPaginatedListView`：统一分页列表
+- `CYLoadingOverlay`、`CYToastView`、`CYAlertManagerModifier`：统一反馈层
+
+### 18.2 页面类型映射
+
+#### 列表页
+
+优先组合：
+
+- `CYPageContainer`
+- `CYPaginatedListView`
+- `CYEmptyStateView`
+- `CYLoadingOverlay`
+
+#### 详情页
+
+优先组合：
+
+- `CYPageContainer`
+- `CYBaseView`
+- `CYLoadingOverlay`
+- `CYToastView`
+
+#### 设置页
+
+优先组合：
+
+- `CYPageContainer`
+- `CYListRow`
+- `CYSectionHeader`
+- `CYTagGroup`
+- `CYBottomSheetModifier`
+
+#### 表单页
+
+优先组合：
+
+- `CYPageContainer`
+- `CYTextField`
+- `CYSearchBar`
+- `CYVerificationCodeInput`
+- `PrimaryButton` / `SecondaryButton`
+
+### 18.3 现代 SwiftUI 使用建议
+
+- 页面优先使用 `@Observable` 状态模型
+- 顶层状态优先通过 `@Environment(CYAppState.self)` 注入
+- 列表页优先使用 `refreshable` 和分页加载
+- 输入页优先使用键盘可感知布局
+- 需要更复杂多栏布局时，再逐步引入 `NavigationSplitView`
+
+这部分范式的目标是：让新项目从一开始就贴近 iOS 18+ 的 SwiftUI 体验，而不是自己重复搭一套页面壳。

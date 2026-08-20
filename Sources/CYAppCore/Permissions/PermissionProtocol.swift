@@ -2,10 +2,14 @@ import Foundation
 
 /// 权限状态枚举
 public enum CYPermissionStatus: String, Sendable {
-    case notDetermined  // 用户尚未做出选择
-    case denied         // 用户拒绝
-    case authorized     // 用户已授权
-    case restricted     // 受限（家长控制等）
+    /// 用户尚未做出选择
+    case notDetermined
+    /// 用户拒绝
+    case denied
+    /// 用户已授权
+    case authorized
+    /// 受限（家长控制等）
+    case restricted
 }
 
 /// 权限类型标识。

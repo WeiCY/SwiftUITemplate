@@ -22,10 +22,10 @@ public enum CYAppConfiguration {
     ///
     /// - Important: 必须在首次解析 `CYAppContainer.shared.networkClient` 前调用。
     public static func configure(
-        environment: CYAppEnvironment,
+        environment: CYAppEnvironment = .current,
         baseURL: String,
         defaultHeaders: [String: String] = [:],
-        timeoutInterval: TimeInterval = 30,
+        timeoutInterval: TimeInterval? = nil,
         requestInterceptors: [any CYRequestInterceptor] = [],
         responseInterceptors: [any CYResponseInterceptor] = []
     ) {
@@ -34,10 +34,11 @@ public enum CYAppConfiguration {
 
         precondition(!didConfigure, "CYAppConfiguration.configure(_:) 只能在应用启动时调用一次")
 
+        let effectiveTimeout = timeoutInterval ?? (environment.isDebugLoggingEnabled ? 60 : 30)
         let client = CYNetworkClient(
             baseURL: baseURL,
             defaultHeaders: defaultHeaders,
-            timeoutInterval: timeoutInterval,
+            timeoutInterval: effectiveTimeout,
             requestInterceptors: requestInterceptors,
             responseInterceptors: responseInterceptors
         )

@@ -75,7 +75,13 @@ public final class CYKeychainHelper: @unchecked Sendable {
     
     /// 从 Keychain 读取 Data
     public func read(service: String, account: String) -> Data? {
-        try? readResult(service: service, account: account).get()
+        switch readResult(service: service, account: account) {
+        case .success(let data):
+            return data
+        case .failure(let error):
+            CYLogger.auth.error("Failed to read keychain item for account: \(account)", error: error)
+            return nil
+        }
     }
 
     public func readResult(service: String, account: String) -> Result<Data?, CYKeychainError> {
@@ -134,5 +140,31 @@ public final class CYKeychainHelper: @unchecked Sendable {
         readResult(service: service, account: account).map { data in
             data.flatMap { String(data: $0, encoding: .utf8) }
         }
+    }
+
+    /// 使用当前模板默认 Keychain service 保存字符串。
+    @discardableResult
+    public func save(
+        _ string: String,
+        account: String,
+        accessibility: CYKeychainAccessibility = .afterFirstUnlock
+    ) -> Result<Void, CYKeychainError> {
+        save(string, service: CYAppConstants.keychainService, account: account, accessibility: accessibility)
+    }
+
+    /// 使用当前模板默认 Keychain service 读取字符串。
+    public func readString(account: String) -> String? {
+        readString(service: CYAppConstants.keychainService, account: account)
+    }
+
+    /// 使用当前模板默认 Keychain service 读取字符串的 Result 版本。
+    public func readStringResult(account: String) -> Result<String?, CYKeychainError> {
+        readStringResult(service: CYAppConstants.keychainService, account: account)
+    }
+
+    /// 使用当前模板默认 Keychain service 删除条目。
+    @discardableResult
+    public func delete(account: String) -> Result<Void, CYKeychainError> {
+        delete(service: CYAppConstants.keychainService, account: account)
     }
 }

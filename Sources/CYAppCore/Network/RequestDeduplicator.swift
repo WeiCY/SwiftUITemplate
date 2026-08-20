@@ -26,27 +26,27 @@ import Foundation
 /// // result1 和 result2 相同，但只发起了一次网络请求
 /// ```
 public actor CYRequestDeduplicator {
-    
+
     /// 存储正在执行的任务（使用类型擦除的 Task 包装）
     private var tasks: [String: TaskWrapper] = [:]
-    
+
     public init() {}
-    
+
     /// Task 包装器（用于类型擦除，标记为 @unchecked Sendable）
     private struct TaskWrapper: @unchecked Sendable {
-        private let _task: Any  // 存储任务引用
+        private let _task: Any
         let cancel: @Sendable () -> Void
-        
+
         init<T: Sendable>(_ task: Task<T, Error>) {
             self._task = task
             self.cancel = { task.cancel() }
         }
-        
+
         func getTask<T: Sendable>(as type: T.Type) -> Task<T, Error>? {
             _task as? Task<T, Error>
         }
     }
-    
+
     /// 执行请求（带去重）
     ///
     /// - Parameters:
@@ -62,21 +62,17 @@ public actor CYRequestDeduplicator {
         key: String,
         action: @escaping @Sendable () async throws -> T
     ) async throws -> T {
-        // 检查是否已有相同请求正在执行
         if let wrapper = tasks[key],
            let existingTask = wrapper.getTask(as: T.self) {
             return try await existingTask.value
         }
-        
-        // 创建新任务
+
         let task = Task<T, Error> { @Sendable in
             try await action()
         }
-        
-        // 缓存任务
+
         tasks[key] = TaskWrapper(task)
-        
-        // 执行并清理
+
         do {
             let result = try await task.value
             tasks[key] = nil
@@ -86,7 +82,7 @@ public actor CYRequestDeduplicator {
             throw error
         }
     }
-    
+
     /// 取消指定 key 的请求
     public func cancel(key: String) {
         if let wrapper = tasks[key] {
@@ -94,7 +90,7 @@ public actor CYRequestDeduplicator {
             tasks[key] = nil
         }
     }
-    
+
     /// 取消所有请求
     public func cancelAll() {
         for (_, wrapper) in tasks {

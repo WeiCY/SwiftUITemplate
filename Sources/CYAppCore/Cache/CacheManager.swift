@@ -90,29 +90,44 @@ private actor CacheStorage {
     func load<T: Codable>(forKey key: String, namespace: String?) -> T? {
         let safeKey = safeFileName(for: key)
         let fullKey = namespace.map { "\($0)/\(safeKey)" } ?? safeKey
+
         if let data = memoryCache.object(forKey: fullKey as NSString) as Data? {
-            if let entry = try? serializer.deserialize(data, as: CacheEntry<T>.self) {
+            do {
+                let entry = try serializer.deserialize(data, as: CacheEntry<T>.self)
                 if !entry.isExpired {
                     return entry.value
                 }
                 removeIgnoringErrors(safeKey: safeKey, fullKey: fullKey, namespace: namespace)
                 return nil
+            } catch {
+                CYLogger.cache.warning("Failed to decode cached value for key: \(key)", error: error)
             }
         }
-        guard let directory = try? getDirectory(for: namespace) else {
+
+        let directory: URL
+        do {
+            directory = try getDirectory(for: namespace)
+        } catch {
+            CYLogger.cache.warning("Failed to resolve cache directory for key: \(key)", error: error)
             return nil
         }
+
         let fileURL = directory.appendingPathComponent(safeKey)
-        if let data = try? Data(contentsOf: fileURL) {
-            if let entry = try? serializer.deserialize(data, as: CacheEntry<T>.self) {
-                if !entry.isExpired {
-                    memoryCache.setObject(data as NSData, forKey: fullKey as NSString)
-                    registerMemoryKey(safeKey, namespace: namespace)
-                    return entry.value
-                }
-                removeIgnoringErrors(safeKey: safeKey, fullKey: fullKey, namespace: namespace)
-                return nil
+        do {
+            let data = try Data(contentsOf: fileURL)
+            let entry = try serializer.deserialize(data, as: CacheEntry<T>.self)
+            if !entry.isExpired {
+                memoryCache.setObject(data as NSData, forKey: fullKey as NSString)
+                registerMemoryKey(safeKey, namespace: namespace)
+                return entry.value
             }
+            removeIgnoringErrors(safeKey: safeKey, fullKey: fullKey, namespace: namespace)
+        } catch let error as CYCacheError {
+            CYLogger.cache.warning("Failed to load cache entry for key: \(key)", error: error)
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+            return nil
+        } catch {
+            CYLogger.cache.warning("Failed to read cached file for key: \(key)", error: error)
         }
         return nil
     }

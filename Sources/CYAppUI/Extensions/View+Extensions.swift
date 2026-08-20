@@ -162,7 +162,7 @@ extension View {
     // MARK: - Safe Area
     
     /// 仅在指定边忽略安全区域
-    public func ignoreSafeArea(_ edges: Edge.Set) -> some View {
+    public func ignoresSafeArea(_ edges: Edge.Set) -> some View {
         self.ignoresSafeArea(edges: edges)
     }
     

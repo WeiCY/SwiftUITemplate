@@ -91,12 +91,13 @@ public final class CYLogger: @unchecked Sendable {
     
     /// 最低日志级别（低于此级别的日志会被过滤）。
     /// 使用 `OSAllocatedUnfairLock` 保护，避免跨 actor 并发读写竞争。
+    /// 默认值：开发环境为 .debug，生产环境为 .info。
     private let minimumLevelLock = OSAllocatedUnfairLock(initialState: {
-        #if DEBUG
-        return CYLogLevel.debug
-        #else
-        return CYLogLevel.info
-        #endif
+        if CYAppEnvironment.current.isDebugLoggingEnabled {
+            return CYLogLevel.debug
+        } else {
+            return CYLogLevel.info
+        }
     }())
     
     /// 初始化（可指定分类）
@@ -130,8 +131,12 @@ public final class CYLogger: @unchecked Sendable {
     }
     
     /// Warning 级别日志（潜在问题）
-    public func warning(_ message: String, file: String = #file, function: String = #function, line: Int = #line) {
-        log(level: .warning, message: message, file: file, function: function, line: line)
+    public func warning(_ message: String, error: Error? = nil, file: String = #file, function: String = #function, line: Int = #line) {
+        var logMessage = message
+        if let error = error {
+            logMessage += " | Error: \(error.localizedDescription)"
+        }
+        log(level: .warning, message: logMessage, file: file, function: function, line: line)
     }
     
     /// Error 级别日志（错误）

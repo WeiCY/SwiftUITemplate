@@ -118,8 +118,8 @@ Layer 2  CYAppUI (AppState/Router/反馈视图)
 
 | 项目 | 结果 |
 |---|---|
-| SPM 构建 | ✅ 通过 |
-| 单元测试 | ✅ 98/98 通过 |
+| SPM 构建 | ⚠️ 受本地 sandbox 限制，当前会话未完成构建验证 |
+| 单元测试 | ✅ 历史记录显示 98/98 通过 |
 | iOS Simulator CI | ✅ 已配置 |
 | 平台 | iOS 18+, macOS 15+ |
 | Swift | 6.0 (strict concurrency) |
