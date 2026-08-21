@@ -14,6 +14,7 @@ public struct CYPageContainer<Content: View, Toolbar: View>: View {
     let title: String?
     let subtitle: String?
     let showsNavigationBar: Bool
+    let usesScrollView: Bool
     let contentPadding: EdgeInsets
     let content: Content
     let toolbar: Toolbar
@@ -22,6 +23,7 @@ public struct CYPageContainer<Content: View, Toolbar: View>: View {
         title: String? = nil,
         subtitle: String? = nil,
         showsNavigationBar: Bool = true,
+        usesScrollView: Bool = true,
         contentPadding: EdgeInsets = .init(top: 0, leading: CYAppDimens.marginM, bottom: CYAppDimens.marginM, trailing: CYAppDimens.marginM),
         @ViewBuilder toolbar: () -> Toolbar,
         @ViewBuilder content: () -> Content
@@ -29,6 +31,7 @@ public struct CYPageContainer<Content: View, Toolbar: View>: View {
         self.title = title
         self.subtitle = subtitle
         self.showsNavigationBar = showsNavigationBar
+        self.usesScrollView = usesScrollView
         self.contentPadding = contentPadding
         self.toolbar = toolbar()
         self.content = content()
@@ -40,7 +43,12 @@ public struct CYPageContainer<Content: View, Toolbar: View>: View {
                 header
             }
 
-            ScrollView {
+            if usesScrollView {
+                ScrollView {
+                    content
+                        .padding(contentPadding)
+                }
+            } else {
                 content
                     .padding(contentPadding)
             }
@@ -80,6 +88,7 @@ public extension CYPageContainer where Toolbar == EmptyView {
         title: String? = nil,
         subtitle: String? = nil,
         showsNavigationBar: Bool = true,
+        usesScrollView: Bool = true,
         contentPadding: EdgeInsets = .init(top: 0, leading: CYAppDimens.marginM, bottom: CYAppDimens.marginM, trailing: CYAppDimens.marginM),
         @ViewBuilder content: () -> Content
     ) {
@@ -87,6 +96,7 @@ public extension CYPageContainer where Toolbar == EmptyView {
             title: title,
             subtitle: subtitle,
             showsNavigationBar: showsNavigationBar,
+            usesScrollView: usesScrollView,
             contentPadding: contentPadding,
             toolbar: { EmptyView() },
             content: content

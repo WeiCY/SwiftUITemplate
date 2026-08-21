@@ -79,6 +79,27 @@ public extension View {
 }
 
 public extension View {
+    func cyPageNavigationChrome<Trailing: View>(
+        title: String? = nil,
+        displayMode: NavigationBarItem.TitleDisplayMode = .automatic,
+        backgroundColor: Color? = nil,
+        isTranslucent: Bool = true,
+        tintColor: Color? = nil,
+        @ViewBuilder trailing: () -> Trailing
+    ) -> some View {
+        modifier(CYPageNavigationChrome(
+            title: title,
+            displayMode: displayMode,
+            backgroundColor: backgroundColor,
+            isTranslucent: isTranslucent,
+            tintColor: tintColor,
+            leading: { EmptyView() },
+            trailing: trailing
+        ))
+    }
+}
+
+public extension View {
     func cyPageNavigationChrome(
         title: String? = nil,
         displayMode: NavigationBarItem.TitleDisplayMode = .automatic,
