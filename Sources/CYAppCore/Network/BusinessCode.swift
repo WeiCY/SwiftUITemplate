@@ -102,6 +102,11 @@ public struct CYBusinessCodePolicy: Sendable {
         shared.withLock { mutate(&$0) }
     }
 
+    /// 恢复默认策略，供测试 teardown 或 App 重置配置时使用。
+    public static func reset() {
+        shared.withLock { $0 = .default }
+    }
+
     /// 不可变默认策略（用于测试或不定制的场景）
     public static let `default` = CYBusinessCodePolicy()
 

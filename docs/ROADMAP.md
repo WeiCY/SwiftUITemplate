@@ -256,9 +256,10 @@
 
 | 优先级 | 问题 | 计划版本 |
 |---|---|---|
-| P2 | `CYAppContainer.shared`、`CYFeedbackConfiguration.shared`、`CYBusinessCodePolicy.shared` 等可变单例增加测试顺序/并行风险；需提供 reset-for-testing 机制 | 1.1.0 |
 | P2 | `ExampleApp` 未展示主题切换、图片、持久化、登录与错误重试 | 1.2.0 |
-| P2 | `Route.swift.example` 没有加入可执行 target；应改成实际示例或删除 | 1.1.0 |
+| P2 | Keychain 可访问级别、日志 subsystem 等仍未统一配置 | 1.1.0 |
+| P2 | iOS 运行级测试尚未覆盖 | 1.1.0 |
+| P2 | macOS/iOS 构建矩阵仍缺少正式验证记录 | 1.1.0 |
 
 ---
 

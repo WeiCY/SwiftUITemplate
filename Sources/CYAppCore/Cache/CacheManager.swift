@@ -53,11 +53,12 @@ private actor CacheStorage {
     private var memoryKeyIndex: [String: Set<String>] = [:]
     private let serializer: CYCacheSerializer
 
-    init(serializer: CYCacheSerializer = CYJSONSerializer(), directoryName: String) {
+    init(serializer: CYCacheSerializer = CYJSONSerializer(), directoryName: String, baseDirectory: URL? = nil) {
         let fm = FileManager.default
-        let cachesURL = fm.urls(for: .cachesDirectory, in: .userDomainMask).first
+        let base = baseDirectory
+            ?? fm.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? fm.temporaryDirectory
-        self.baseCacheDirectory = cachesURL.appendingPathComponent(directoryName)
+        self.baseCacheDirectory = base.appendingPathComponent(directoryName)
         self.serializer = serializer
 
         if !fm.fileExists(atPath: baseCacheDirectory.path) {
@@ -219,7 +220,10 @@ public final class CYCacheManager: Sendable {
     private let storage: CacheStorage
 
     /// 初始化缓存管理器
-    /// - Parameter serializer: 序列化器，默认使用 JSON
+    /// - Parameters:
+    ///   - serializer: 序列化器，默认使用 JSON
+    ///   - directoryName: 缓存子目录名，默认取 `CYAppConstants.cacheDirectoryName`
+    ///   - baseDirectory: 缓存根目录，默认使用系统 caches 目录（测试可注入临时目录避免污染真实缓存）
     ///
     /// **性能优化建议**：
     /// - 小对象（< 1KB）：使用默认 `CYJSONSerializer()`
@@ -230,8 +234,12 @@ public final class CYCacheManager: Sendable {
     /// // 高性能缓存实例（用于列表数据）
     /// let fastCache = CYCacheManager(serializer: CYPropertyListSerializer())
     /// ```
-    public init(serializer: CYCacheSerializer = CYJSONSerializer(), directoryName: String = CYAppConstants.cacheDirectoryName) {
-        self.storage = CacheStorage(serializer: serializer, directoryName: directoryName)
+    public init(
+        serializer: CYCacheSerializer = CYJSONSerializer(),
+        directoryName: String = CYAppConstants.cacheDirectoryName,
+        baseDirectory: URL? = nil
+    ) {
+        self.storage = CacheStorage(serializer: serializer, directoryName: directoryName, baseDirectory: baseDirectory)
     }
 
     /// 保存 Codable 对象到缓存

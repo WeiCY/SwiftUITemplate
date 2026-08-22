@@ -243,7 +243,15 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
         _ endpoint: CYEndpoint,
         config: CYUploadConfig
     ) async throws -> T {
-        try await performRequest {
+        let limitMB = CYAppConstants.maxUploadSizeMB
+        let limitBytes = limitMB * 1_024 * 1_024
+        guard config.data.count <= limitBytes else {
+            CYLogger.network.error(
+                "Upload rejected: \(config.data.count) bytes exceeds \(limitMB) MB limit for \(endpoint.path)"
+            )
+            throw CYNetworkError.payloadTooLarge(limitMB: limitMB)
+        }
+        return try await performRequest {
             var urlRequest = try self.buildURLRequest(for: endpoint)
             await self.applyRequestInterceptors(to: &urlRequest)
 
@@ -487,6 +495,10 @@ private extension CYNetworkClient {
             return .httpError(statusCode: statusCode, data: data)
         }
 
+        if case .responseSerializationFailed(let reason) = afError,
+           case .decodingFailed(let error) = reason {
+            return .decodingFailed(error)
+        }
         if case .sessionTaskFailed(let error) = afError,
            error is DecodingError {
             return .decodingFailed(error)

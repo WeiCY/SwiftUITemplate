@@ -73,8 +73,11 @@ public struct CYAPIResponse<T: Decodable>: Decodable, Sendable where T: Sendable
         } else {
             code = 0
         }
-        data = try? container.decodeIfPresent(T.self, forKey: .data)
-        message = try? container.decodeIfPresent(String.self, forKey: .message)
+        // data / message 缺失（或为 null）时宽容地返回 nil，如 token 过期响应只有 code + message；
+        // 但字段存在却类型错误时直接抛出，让上层拿到真实的 DecodingError，
+        // 而不是被掩盖成笼统的 "data 为 nil"。
+        data = try container.decodeIfPresent(T.self, forKey: .data)
+        message = try container.decodeIfPresent(String.self, forKey: .message)
     }
 }
 

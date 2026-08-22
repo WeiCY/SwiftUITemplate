@@ -369,6 +369,13 @@ public final class CYFeedbackConfiguration {
             shared.errorStyle = errorStyle
         }
     }
+
+    /// 恢复默认反馈样式，便于测试间隔离。
+    public static func reset() {
+        shared.toastStyle = .default
+        shared.loadingStyle = .default
+        shared.errorStyle = .default
+    }
 }
 
 @usableFromInline

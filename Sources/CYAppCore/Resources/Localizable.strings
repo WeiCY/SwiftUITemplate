@@ -31,6 +31,7 @@
 "network_http_error" = "Server error (HTTP %d)";
 "network_decoding_failed" = "Data parsing failed";
 "network_encoding_failed" = "Request body encoding failed";
+"network_payload_too_large" = "File size exceeds the %d MB upload limit";
 "network_underlying_error" = "Network error";
 "network_unknown_error" = "Unknown error";
 "auth_token_expired" = "Session expired. Please log in again";

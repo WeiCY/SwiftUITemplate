@@ -50,6 +50,10 @@ public enum CYNetworkError: Error, LocalizedError, Sendable {
     
     // MARK: - 系统层错误
     
+    /// 上传文件大小超过限制
+    /// - Parameter limitMB: 当前生效的上传大小上限（MB）
+    case payloadTooLarge(limitMB: Int)
+    
     /// 底层网络错误（Alamofire / URLSession 原始错误）
     case underlying(any Error & Sendable)
     
@@ -78,6 +82,8 @@ public enum CYNetworkError: Error, LocalizedError, Sendable {
             return "\("network_decoding_failed".cyLocalized): \(error.localizedDescription)"
         case .encodingFailed(let error):
             return "\("network_encoding_failed".cyLocalized): \(error.localizedDescription)"
+        case .payloadTooLarge(let limitMB):
+            return String(format: "network_payload_too_large".cyLocalized, limitMB)
         case .underlying(let error):
             return "\("network_underlying_error".cyLocalized): \(error.localizedDescription)"
         case .unknown:

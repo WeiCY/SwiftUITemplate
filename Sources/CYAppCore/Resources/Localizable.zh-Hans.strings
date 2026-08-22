@@ -31,6 +31,7 @@
 "network_http_error" = "服务器错误 (HTTP %d)";
 "network_decoding_failed" = "数据解析失败";
 "network_encoding_failed" = "请求体编码失败";
+"network_payload_too_large" = "文件大小超过 %d MB 上传限制";
 "network_underlying_error" = "网络错误";
 "network_unknown_error" = "未知错误";
 "auth_token_expired" = "登录已过期，请重新登录";

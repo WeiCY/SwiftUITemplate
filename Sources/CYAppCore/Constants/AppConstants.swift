@@ -8,7 +8,6 @@ public struct CYAppConfigurationValues: Sendable {
     public var cacheDirectoryName: String
     public var keychainService: String
     public var defaultPageSize: Int
-    public var animationDuration: TimeInterval
     public var toastDuration: TimeInterval
     public var maxUploadSizeMB: Int
 
@@ -16,20 +15,17 @@ public struct CYAppConfigurationValues: Sendable {
         cacheDirectoryName: String = "AppCache",
         keychainService: String = "com.cyapp.auth",
         defaultPageSize: Int = 20,
-        animationDuration: TimeInterval = 0.3,
         toastDuration: TimeInterval = 2.0,
         maxUploadSizeMB: Int = 10
     ) {
         precondition(!cacheDirectoryName.isEmpty, "cacheDirectoryName cannot be empty")
         precondition(!keychainService.isEmpty, "keychainService cannot be empty")
         precondition(defaultPageSize > 0, "defaultPageSize must be greater than zero")
-        precondition(animationDuration >= 0, "animationDuration cannot be negative")
         precondition(toastDuration >= 0, "toastDuration cannot be negative")
         precondition(maxUploadSizeMB > 0, "maxUploadSizeMB must be greater than zero")
         self.cacheDirectoryName = cacheDirectoryName
         self.keychainService = keychainService
         self.defaultPageSize = defaultPageSize
-        self.animationDuration = animationDuration
         self.toastDuration = toastDuration
         self.maxUploadSizeMB = maxUploadSizeMB
     }
@@ -58,7 +54,6 @@ public enum CYAppConstants {
     public static var cacheDirectoryName: String { configuration.cacheDirectoryName }
     public static var keychainService: String { configuration.keychainService }
     public static var defaultPageSize: Int { configuration.defaultPageSize }
-    public static var animationDuration: TimeInterval { configuration.animationDuration }
     public static var toastDuration: TimeInterval { configuration.toastDuration }
     public static var maxUploadSizeMB: Int { configuration.maxUploadSizeMB }
 

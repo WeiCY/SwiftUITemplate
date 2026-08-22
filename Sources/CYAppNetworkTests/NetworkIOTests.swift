@@ -108,6 +108,50 @@ final class NetworkIOTests: XCTestCase {
         XCTAssertEqual(request?.httpMethod, "POST")
     }
 
+    func testDecodingFailureSurfacesAsDecodingFailedError() async {
+        // data 字段类型与模型不匹配时，应映射为 .decodingFailed（携带底层 DecodingError）
+        URLProtocolStub.lock.withLock {
+            URLProtocolStub.handler = { request in
+                (Self.response(for: request), Self.json("{\"code\":0,\"data\":{\"value\":123}}"))
+            }
+        }
+        let client = makeClient()
+        do {
+            let _: TestPayload = try await client.request(TestEndpoint.profile)
+            XCTFail("格式错误的 data 应抛出解码错误")
+        } catch let error as CYNetworkError {
+            guard case .decodingFailed = error else {
+                return XCTFail("应抛出 .decodingFailed，实际 \(error)")
+            }
+        } catch {
+            XCTFail("应抛出 CYNetworkError，实际 \(error)")
+        }
+    }
+
+    func testUploadRejectsOversizedPayload() async {
+        // 将上传上限临时调低到 1MB，验证超限文件在发起请求前被拒绝
+        let original = CYAppConstants.configuration
+        defer { CYAppConstants.configure(original) }
+        CYAppConstants.configure(CYAppConfigurationValues(maxUploadSizeMB: 1))
+
+        let client = makeClient()
+        let oversized = Data(repeating: 0, count: 1_048_577)
+        do {
+            let _: TestPayload = try await client.upload(
+                TestEndpoint.upload,
+                config: CYUploadConfig(data: oversized, mimeType: "application/octet-stream")
+            )
+            XCTFail("超过上传上限的文件应被拒绝")
+        } catch let error as CYNetworkError {
+            guard case .payloadTooLarge(let limitMB) = error else {
+                return XCTFail("应抛出 .payloadTooLarge，实际 \(error)")
+            }
+            XCTAssertEqual(limitMB, 1)
+        } catch {
+            XCTFail("应抛出 CYNetworkError，实际 \(error)")
+        }
+    }
+
     func testDownloadWritesDestinationFile() async throws {
         URLProtocolStub.lock.withLock {
             URLProtocolStub.handler = { request in (Self.response(for: request), Data("file-content".utf8)) }

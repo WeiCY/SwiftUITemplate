@@ -9,6 +9,11 @@ import os
 
 final class HighPriorityTests: XCTestCase {
 
+    override func tearDown() {
+        CYBusinessCodePolicy.reset()
+        super.tearDown()
+    }
+
     // MARK: - Token 刷新并发单飞（P0 #9 核心）
 
     func testTokenRefreshCoordinatorSingleFlight() async {
@@ -76,10 +81,11 @@ final class HighPriorityTests: XCTestCase {
     // MARK: - CacheManager 清命名空间同步清内存（P0 #3）
 
     func testCacheManagerClearNamespaceClearsMemory() async {
-        let cache = CYCacheManager()
-        defer { Task { await cache.clear() } }
+        let (cache, base) = TestCacheFactory.makeTempCache()
+        defer { try? FileManager.default.removeItem(at: base) }
 
-        await cache.save(value: "value", forKey: "k", namespace: "Ns")
+        let saveResult = await cache.save(value: "value", forKey: "k", namespace: "Ns")
+        XCTAssertNoThrow(try saveResult.get())
         let loaded: String? = await cache.load(forKey: "k", namespace: "Ns")
         XCTAssertEqual(loaded, "value")
 

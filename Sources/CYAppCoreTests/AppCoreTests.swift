@@ -172,7 +172,9 @@ final class AppCoreTests: XCTestCase {
     // MARK: - CYCacheManager Tests
     
     func testCacheManagerSaveAndLoad() async {
-        let cache = CYCacheManager.shared
+        let (cache, base) = TestCacheFactory.makeTempCache()
+        defer { try? FileManager.default.removeItem(at: base) }
+
         let testValue = "hello_cache"
         let result = await cache.save(value: testValue, forKey: "test_key", namespace: "UnitTest")
         XCTAssertNoThrow(try result.get())
@@ -183,7 +185,9 @@ final class AppCoreTests: XCTestCase {
     }
     
     func testCacheManagerRemove() async {
-        let cache = CYCacheManager.shared
+        let (cache, base) = TestCacheFactory.makeTempCache()
+        defer { try? FileManager.default.removeItem(at: base) }
+
         let saveResult = await cache.save(value: 42, forKey: "num_key", namespace: "UnitTest")
         XCTAssertNoThrow(try saveResult.get())
         let removeResult = await cache.remove(forKey: "num_key", namespace: "UnitTest")
@@ -193,8 +197,11 @@ final class AppCoreTests: XCTestCase {
     }
     
     func testCacheManagerTTLExpiration() async {
-        let cache = CYCacheManager.shared
-        await cache.save(value: "expired", forKey: "ttl_key", namespace: "UnitTest", ttl: 0)
+        let (cache, base) = TestCacheFactory.makeTempCache()
+        defer { try? FileManager.default.removeItem(at: base) }
+
+        let saveResult = await cache.save(value: "expired", forKey: "ttl_key", namespace: "UnitTest", ttl: 0)
+        XCTAssertNoThrow(try saveResult.get())
         try? await Task.sleep(nanoseconds: 100_000_000)
         let loaded: String? = await cache.load(forKey: "ttl_key", namespace: "UnitTest")
         XCTAssertNil(loaded, "Cached value should have expired")
@@ -328,11 +335,27 @@ final class AppCoreTests: XCTestCase {
         XCTAssertTrue(response.message == "token expired")
     }
     
+    func testAPIResponseMalformedDataThrowsInsteadOfSilentlyNil() throws {
+        // data 字段存在但类型与模型不匹配时，应抛出真实的 DecodingError，
+        // 而不是被吞成 "data 为 nil"。
+        let json = Data("""
+        {"code": 0, "data": {"id": "not-an-int", "name": "John", "role": "user"}, "message": "ok"}
+        """.utf8)
+        XCTAssertThrowsError(try JSONDecoder().decode(CYAPIResponse<User>.self, from: json)) { error in
+            XCTAssertTrue(error is DecodingError, "应抛出 DecodingError，实际 \(error)")
+        }
+    }
+    
+    func testAPIResponseMalformedMessageThrows() throws {
+        let json = Data(#"{"code": 0, "data": null, "message": 123}"#.utf8)
+        XCTAssertThrowsError(try JSONDecoder().decode(CYAPIResponse<Int>.self, from: json))
+    }
+    
     // MARK: - CYAppConstants Tests
     
     func testAppConstantsValues() {
         XCTAssertTrue(CYAppConstants.defaultPageSize > 0)
-        XCTAssertTrue(CYAppConstants.animationDuration > 0)
+        XCTAssertTrue(CYAppConstants.maxUploadSizeMB > 0)
     }
 
     func testAppConstantsConfiguration() {
@@ -709,6 +732,18 @@ extension AppCoreTests {
 }
 
 // MARK: - Test Helpers
+
+/// 为缓存测试创建「临时目录 + 独立实例」的组合，避免：
+/// 1. 写入系统 `~/Library/Caches` 受 macOS TCC / 沙箱限制而失败；
+/// 2. 使用 `.shared` 单例导致测试之间、测试与应用之间相互污染。
+enum TestCacheFactory {
+    static func makeTempCache(directoryName: String = "cache") -> (CYCacheManager, URL) {
+        let base = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CYCacheTests-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        return (CYCacheManager(directoryName: directoryName, baseDirectory: base), base)
+    }
+}
 
 struct TestItem: Identifiable, Sendable {
     let id: Int

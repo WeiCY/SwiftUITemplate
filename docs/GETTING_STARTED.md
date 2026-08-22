@@ -186,7 +186,7 @@ CYAppConstants.configure(CYAppConfigurationValues(
 ))
 ```
 
-支持的配置项包括：缓存目录名、Keychain service、默认分页大小、动画开关、Toast 默认时长、上传大小限制等。
+支持的配置项包括：缓存目录名、Keychain service、默认分页大小、Toast 默认时长、上传大小限制（超限上传会被 `CYNetworkClient.upload` 直接拒绝）等。
 
 ---
 
@@ -419,13 +419,17 @@ let imageData = image.jpegData(compressionQuality: 0.8) ?? Data()
 
 let avatar: Avatar = try await networkClient.upload(
     UserEndpoint.uploadAvatar,
-    data: imageData,
-    mimeType: "image/jpeg",
-    fileName: "avatar.jpg",
-    paramName: "file",
-    additionalParams: ["user_id": "123"]
+    config: CYUploadConfig(
+        data: imageData,
+        mimeType: "image/jpeg",
+        fileName: "avatar.jpg",
+        paramName: "file",
+        additionalParams: ["user_id": "123"]
+    )
 )
 ```
+
+> 超过 `CYAppConstants.maxUploadSizeMB` 设置的上限时，上传会在发起请求前被拒绝并抛出 `CYNetworkError.payloadTooLarge`。
 
 ### 文件下载
 
