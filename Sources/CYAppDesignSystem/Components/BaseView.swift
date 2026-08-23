@@ -17,9 +17,7 @@ public struct CYBaseView<Content: View, ErrorView: View>: View {
     let content: Content
     let errorViewBuilder: (CYAppError, (() -> Void)?) -> ErrorView
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var feedbackConfiguration = CYFeedbackConfiguration.shared
-    @State private var pulseScale: CGFloat = 0.9
 
     /// 使用默认错误样式的初始化。
     public init(
@@ -80,51 +78,7 @@ public struct CYBaseView<Content: View, ErrorView: View>: View {
     private func loadingOverlay(style: CYLoadingStyle) -> some View {
         ZStack {
             loadingMask(style: style)
-
-            VStack(spacing: style.card.contentSpacing) {
-                ZStack {
-                    Circle()
-                        .fill(style.indicator.color.opacity(style.indicator.backgroundOpacity))
-                        .frame(width: style.indicator.size, height: style.indicator.size)
-                        .scaleEffect(pulseScale)
-
-                    ProgressView()
-                        .scaleEffect(style.indicator.scale)
-                        .tint(style.indicator.color)
-                }
-                .onAppear {
-                    pulseScale = style.indicator.pulseScaleRange.lowerBound
-                    guard !reduceMotion else {
-                        pulseScale = 1
-                        return
-                    }
-                    withAnimation(style.indicator.pulseAnimation) {
-                        pulseScale = style.indicator.pulseScaleRange.upperBound
-                    }
-                }
-
-                if let loadingMessage {
-                    Text(loadingMessage)
-                        .font(style.textFont)
-                        .foregroundStyle(style.textColor)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .padding(style.card.insets)
-            .background(
-                RoundedRectangle(cornerRadius: style.card.cornerRadius, style: .continuous)
-                    .fill(style.card.backgroundColor)
-                    .shadow(
-                        color: style.card.shadow.color,
-                        radius: style.card.shadow.radius,
-                        x: style.card.shadow.x,
-                        y: style.card.shadow.y
-                    )
-            )
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(loadingMessage ?? "Loading")
-            .accessibilityAddTraits(.updatesFrequently)
+            CYLoadingIndicator(message: loadingMessage, style: style)
         }
     }
 

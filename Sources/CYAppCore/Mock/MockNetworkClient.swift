@@ -46,28 +46,71 @@ public final class MockNetworkClient: CYNetworkClientProtocol, @unchecked Sendab
         shouldFail = false
     }
 
-    public func request<T: Decodable & Sendable>(_ endpoint: CYEndpoint) async throws -> T {
+    public func send<T: Decodable & Sendable>(_ endpoint: CYEndpoint, strategy: CYResponseStrategy) async throws -> T {
         if shouldFail { throw mockError }
         try await Task.sleep(for: .seconds(defaultDelay))
-        return try resolve(endpoint: endpoint, as: T.self)
+        switch strategy {
+        case .envelope, .envelopeRaw, .direct:
+            // envelopeRaw 需要注册完整 CYAPIResponse<X>（泛型无法自动包装内层值）
+            return try resolve(endpoint: endpoint, as: T.self)
+        case .empty:
+            guard T.self == CYEmptyResponse.self, let empty = CYEmptyResponse() as? T else {
+                throw CYNetworkError.unknown
+            }
+            return empty
+        case .data:
+            throw CYNetworkError.unknown
+        }
     }
 
+    public func send<B: Encodable & Sendable, T: Decodable & Sendable>(
+        _ endpoint: CYEndpoint,
+        strategy: CYResponseStrategy,
+        body: B
+    ) async throws -> T {
+        try await send(endpoint, strategy: strategy)
+    }
+
+    /// `requestRaw` 的 Mock 增强：注册普通值 `T` 时自动包一层成功 envelope（shadow 协议扩展默认实现）
     public func requestRaw<T: Decodable & Sendable>(_ endpoint: CYEndpoint) async throws -> CYAPIResponse<T> {
-        throw CYNetworkError.unknown
+        if shouldFail { throw mockError }
+        try await Task.sleep(for: .seconds(defaultDelay))
+        if let envelope = try? resolve(endpoint: endpoint, as: CYAPIResponse<T>.self) {
+            return envelope
+        }
+        let value = try resolve(endpoint: endpoint, as: T.self)
+        return CYAPIResponse(code: 0, data: value, message: nil)
     }
 
-    public func post<B: Encodable & Sendable, T: Decodable & Sendable>(_ endpoint: CYEndpoint, body: B) async throws -> T {
-        try await request(endpoint)
+    public func requestData(_ endpoint: CYEndpoint) async throws -> Data {
+        if shouldFail { throw mockError }
+        try await Task.sleep(for: .seconds(defaultDelay))
+        let epKey = key(for: endpoint)
+        if let value = queue.sync(execute: { endpointResponses[epKey] }) {
+            if let error = value as? Error { throw error }
+            if let data = value as? Data { return data }
+        }
+        if let value = queue.sync(execute: { typeResponses[String(describing: Data.self)] }) {
+            if let error = value as? Error { throw error }
+            if let data = value as? Data { return data }
+        }
+        throw CYNetworkError.unknown
     }
 
     public func upload<T: Decodable & Sendable>(
         _ endpoint: CYEndpoint,
-        config: CYUploadConfig
+        parts: [CYMultipartPart],
+        additionalParams: [String: String]?,
+        progress: (@Sendable (Double) -> Void)?
     ) async throws -> T {
-        try await request(endpoint)
+        try await send(endpoint, strategy: .envelope)
     }
 
-    public func download(_ endpoint: CYEndpoint, to fileURL: URL) async throws -> URL {
+    public func download(
+        _ endpoint: CYEndpoint,
+        to fileURL: URL,
+        progress: (@Sendable (Double) -> Void)?
+    ) async throws -> URL {
         if shouldFail { throw mockError }
         try await Task.sleep(for: .seconds(defaultDelay))
         return fileURL

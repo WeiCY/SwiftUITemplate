@@ -7,13 +7,9 @@ public struct CYLoadingOverlay: View {
     public let message: String?
     public let style: CYLoadingStyle
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var pulseScale: CGFloat
-
     public init(message: String?, style: CYLoadingStyle = .default) {
         self.message = message
         self.style = style
-        _pulseScale = State(initialValue: style.pulseScaleRange.lowerBound)
     }
 
     public var body: some View {
@@ -21,49 +17,7 @@ public struct CYLoadingOverlay: View {
             mask
                 .ignoresSafeArea()
 
-            VStack(spacing: style.card.contentSpacing) {
-                ZStack {
-                    Circle()
-                        .fill(style.indicator.color.opacity(style.indicator.backgroundOpacity))
-                        .frame(width: style.indicator.size, height: style.indicator.size)
-                        .scaleEffect(pulseScale)
-
-                    ProgressView()
-                        .scaleEffect(style.indicator.scale)
-                        .tint(style.indicator.color)
-                }
-                .onAppear {
-                    guard !reduceMotion else {
-                        pulseScale = 1
-                        return
-                    }
-                    withAnimation(style.indicator.pulseAnimation) {
-                        pulseScale = style.indicator.pulseScaleRange.upperBound
-                    }
-                }
-
-                if let message {
-                    Text(message)
-                        .font(style.textFont)
-                        .foregroundStyle(style.textColor)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .padding(style.card.insets)
-            .background(
-                RoundedRectangle(cornerRadius: style.card.cornerRadius, style: .continuous)
-                    .fill(style.card.backgroundColor)
-                    .shadow(
-                        color: style.card.shadow.color,
-                        radius: style.card.shadow.radius,
-                        x: style.card.shadow.x,
-                        y: style.card.shadow.y
-                    )
-            )
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(message ?? "Loading")
-            .accessibilityAddTraits(.updatesFrequently)
+            CYLoadingIndicator(message: message, style: style)
         }
     }
 

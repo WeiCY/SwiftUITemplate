@@ -48,6 +48,15 @@ public struct CYAPIResponse<T: Decodable>: Decodable, Sendable where T: Sendable
         CYBusinessCodePolicy.shared.withLock { $0.classify(code, message: message) }
     }
     
+    // MARK: - 初始化
+    
+    /// 显式构造（网络层合成空响应时使用；业务方也可用于测试构造）
+    public init(code: Int, data: T?, message: String?) {
+        self.code = code
+        self.data = data
+        self.message = message
+    }
+    
     // MARK: - 解码
     
     enum CodingKeys: String, CodingKey {

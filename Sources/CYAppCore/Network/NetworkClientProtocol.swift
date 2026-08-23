@@ -74,6 +74,10 @@ public protocol CYEndpoint: Sendable {
     var keyDecodingStrategy: JSONDecoder.KeyDecodingStrategy { get }
     /// JSON 编码策略（请求体），默认 convertToSnakeCase，与后端对齐
     var keyEncodingStrategy: JSONEncoder.KeyEncodingStrategy { get }
+    /// 是否允许该端点触发 401 自动刷新 Token + 重放（默认 true）
+    ///
+    /// 登录、刷新 Token 等认证类端点应设为 false，避免刷新请求自身 401 时产生递归刷新。
+    var allowsTokenRefresh: Bool { get }
 }
 
 /// CYEndpoint 默认实现 — 可选属性提供默认值
@@ -83,6 +87,7 @@ public extension CYEndpoint {
     var queryItems: [URLQueryItem]? { nil }
     var keyDecodingStrategy: JSONDecoder.KeyDecodingStrategy { .convertFromSnakeCase }
     var keyEncodingStrategy: JSONEncoder.KeyEncodingStrategy { .convertToSnakeCase }
+    var allowsTokenRefresh: Bool { true }
 }
 
 // MARK: - 网络客户端协议
@@ -99,43 +104,131 @@ public extension CYEndpoint {
 /// // 模式 2：获取完整 CYAPIResponse
 /// let response: CYAPIResponse<User> = try await networkClient.requestRaw(UserEndpoint.profile)
 /// ```
-public struct CYUploadConfig: Sendable {
+/// multipart 单文件部分（供 `upload(parts:)` 多文件上传）
+public struct CYMultipartPart: Sendable {
+    /// 文件数据
     public let data: Data
+    /// MIME 类型（如 "image/jpeg"、"text/plain"）
     public let mimeType: String
+    /// 服务端保存的文件名
     public var fileName: String
+    /// 表单字段名
     public var paramName: String
-    public var additionalParams: [String: String]?
 
     public init(
         data: Data,
         mimeType: String,
         fileName: String = "upload",
-        paramName: String = "file",
-        additionalParams: [String: String]? = nil
+        paramName: String = "file"
     ) {
         self.data = data
         self.mimeType = mimeType
         self.fileName = fileName
         self.paramName = paramName
-        self.additionalParams = additionalParams
     }
 }
 
 public protocol CYNetworkClientProtocol: Sendable {
-    
-    /// 发起请求并自动解包 CYAPIResponse.data
-    /// 业务错误码非 0 时自动抛出 CYNetworkError.businessError
-    func request<T: Decodable & Sendable>(_ endpoint: CYEndpoint) async throws -> T
-    
-    /// 发起请求并返回完整 CYAPIResponse（含 code + data + message）
-    func requestRaw<T: Decodable & Sendable>(_ endpoint: CYEndpoint) async throws -> CYAPIResponse<T>
-    
-    /// 发起 POST 请求，body 使用 Encodable 类型安全编码
-    func post<B: Encodable & Sendable, T: Decodable & Sendable>(_ endpoint: CYEndpoint, body: B) async throws -> T
-    
-    /// 上传数据
-    func upload<T: Decodable & Sendable>(_ endpoint: CYEndpoint, config: CYUploadConfig) async throws -> T
-    
-    /// 下载文件到指定路径
-    func download(_ endpoint: CYEndpoint, to fileURL: URL) async throws -> URL
+
+    /// 按响应策略发起请求（无 Encodable body，使用 `endpoint.body` 字典参数）
+    ///
+    /// ```swift
+    /// let user: User = try await client.send(UserAPI.profile, strategy: .envelope)
+    /// let raw: User = try await client.send(OpenAPI.user, strategy: .direct)
+    /// ```
+    func send<T: Decodable & Sendable>(_ endpoint: CYEndpoint, strategy: CYResponseStrategy) async throws -> T
+
+    /// 按响应策略发起请求（Encodable body）
+    ///
+    /// ```swift
+    /// let user: User = try await client.send(AuthAPI.login, strategy: .envelope, body: LoginRequest(...))
+    /// ```
+    func send<B: Encodable & Sendable, T: Decodable & Sendable>(
+        _ endpoint: CYEndpoint,
+        strategy: CYResponseStrategy,
+        body: B
+    ) async throws -> T
+
+    /// 获取原始响应体 Data（图片、文件等二进制响应，不参与 envelope 解码）
+    func requestData(_ endpoint: CYEndpoint) async throws -> Data
+
+    /// 多文件上传（multipart/form-data，带进度回调，fractionCompleted ∈ [0, 1]）
+    ///
+    /// ```swift
+    /// let result = try await networkClient.upload(
+    ///     UserEndpoint.uploadAvatar,
+    ///     parts: [
+    ///         CYMultipartPart(data: avatarData, mimeType: "image/jpeg", fileName: "a.jpg", paramName: "avatar"),
+    ///         CYMultipartPart(data: coverData, mimeType: "image/png", fileName: "c.png", paramName: "cover"),
+    ///     ],
+    ///     additionalParams: ["scene": "profile"]
+    /// )
+    /// ```
+    func upload<T: Decodable & Sendable>(
+        _ endpoint: CYEndpoint,
+        parts: [CYMultipartPart],
+        additionalParams: [String: String]?,
+        progress: (@Sendable (Double) -> Void)?
+    ) async throws -> T
+
+    /// 下载文件到指定路径（带进度回调，fractionCompleted ∈ [0, 1]）
+    func download(
+        _ endpoint: CYEndpoint,
+        to fileURL: URL,
+        progress: (@Sendable (Double) -> Void)?
+    ) async throws -> URL
+}
+
+// MARK: - 便捷扩展（基于 send / upload / download 组合）
+
+public extension CYNetworkClientProtocol {
+
+    /// 发起请求并自动解包 `CYAPIResponse.data`（等价 `send(.envelope)`）
+    /// 业务错误码非 0 时自动抛出 `CYNetworkError.businessError`
+    func request<T: Decodable & Sendable>(_ endpoint: CYEndpoint) async throws -> T {
+        try await send(endpoint, strategy: .envelope)
+    }
+
+    /// 发起请求并返回完整 `CYAPIResponse`（等价 `send(.envelopeRaw)`，不按业务码抛错）
+    func requestRaw<T: Decodable & Sendable>(_ endpoint: CYEndpoint) async throws -> CYAPIResponse<T> {
+        try await send(endpoint, strategy: .envelopeRaw)
+    }
+
+    /// 只关心成功与否（不关心返回体），业务错误照常抛出
+    ///
+    /// 适合 DELETE / POST 等无返回数据、只确认成功的接口：
+    /// ```swift
+    /// try await networkClient.requestVoid(UserEndpoint.delete(id: 123))
+    /// ```
+    func requestVoid(_ endpoint: CYEndpoint) async throws {
+        let _: CYEmptyResponse = try await send(endpoint, strategy: .envelope)
+    }
+
+    /// 泛型 Encodable body 的请求（等价 `send(.envelope, body:)`）
+    ///
+    /// ```swift
+    /// let user: User = try await networkClient.request(AuthEndpoint.login, body: LoginRequest(...))
+    /// ```
+    func request<B: Encodable & Sendable, T: Decodable & Sendable>(_ endpoint: CYEndpoint, body: B) async throws -> T {
+        try await send(endpoint, strategy: .envelope, body: body)
+    }
+
+    /// 多文件上传（无附加参数字典、无进度回调）
+    func upload<T: Decodable & Sendable>(_ endpoint: CYEndpoint, parts: [CYMultipartPart]) async throws -> T {
+        try await upload(endpoint, parts: parts, additionalParams: nil, progress: nil)
+    }
+
+    /// 多文件上传（无进度回调）
+    func upload<T: Decodable & Sendable>(
+        _ endpoint: CYEndpoint,
+        parts: [CYMultipartPart],
+        additionalParams: [String: String]?
+    ) async throws -> T {
+        try await upload(endpoint, parts: parts, additionalParams: additionalParams, progress: nil)
+    }
+
+    /// 下载文件到指定路径（无进度回调）
+    func download(_ endpoint: CYEndpoint, to fileURL: URL) async throws -> URL {
+        try await download(endpoint, to: fileURL, progress: nil)
+    }
 }

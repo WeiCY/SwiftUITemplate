@@ -25,6 +25,8 @@ public enum CYAppError: Error, Equatable {
     case decoding(String)
     /// 业务逻辑错误（后端返回非 0 错误码）
     case business(code: Int, message: String)
+    /// 请求已取消（不向用户展示，ViewModel 应静默忽略）
+    case cancelled
     /// 未知错误
     case unknown(String)
     
@@ -35,7 +37,15 @@ public enum CYAppError: Error, Equatable {
             return text
         case .business(_, let message):
             return message
+        case .cancelled:
+            return ""
         }
+    }
+    
+    /// 是否为请求取消（Task 取消 / URLSession 取消）— 上层应静默忽略
+    public var isCancellation: Bool {
+        if case .cancelled = self { return true }
+        return false
     }
     
     /// 业务错误码（仅 business 类型有值）
@@ -46,13 +56,15 @@ public enum CYAppError: Error, Equatable {
     
     /// 将任意 Error 转换为 CYAppError
     ///
-    /// 转换优先级：CYAppError > CYNetworkError > DecodingError > 兜底
+    /// 转换优先级：CYAppError > CYNetworkError > CancellationError > DecodingError > 兜底
     public static func resolve(_ error: Error) -> CYAppError {
         if let appError = error as? CYAppError {
             return appError
         }
         if let networkError = error as? CYNetworkError {
             switch networkError {
+            case .cancelled:
+                return .cancelled
             case .businessError(let code, let message):
                 return .business(code: code, message: message)
             case .decodingFailed(let underlying):
@@ -60,6 +72,9 @@ public enum CYAppError: Error, Equatable {
             default:
                 return .network(networkError.errorDescription ?? "网络错误")
             }
+        }
+        if error is CancellationError {
+            return .cancelled
         }
         if error is DecodingError {
             return .decoding(error.localizedDescription)

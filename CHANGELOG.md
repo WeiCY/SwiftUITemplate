@@ -8,6 +8,53 @@
 
 ## 版本历史
 
+### [1.1.0] - 2026-08-23
+
+**网络层能力升级与缺陷修复** - 156 个测试全部通过。
+
+#### 修复（Batch 1–6）
+
+- 取消请求识别：`CYNetworkError.cancelled`，Task/URLSession 取消不再被当作普通错误展示
+- 空响应 / 204：`CYEmptyResponse` 真正可用（缺 data 键、data 为 null、204 No Content 均成功）
+- `buildURL` 斜杠规范化：baseURL 尾斜杠 + path 前导斜杠不再产生双斜杠
+- multipart 数值参数修复：`endpoint.body` 的 Int/Bool/Double 不再被静默丢弃
+- 日志脱敏：`Authorization`/`Cookie`/`Token` 等 Header 与 `password`/`token` 等 Body 字段不再打印原始值
+- Token 刷新边界：
+  - `CYEndpoint.allowsTokenRefresh`（认证类端点可禁用自动刷新，防止递归）
+  - `requestRaw` 改为完全 raw 语义（401 不再自动刷新 + 重放）
+  - 瞬态 401 不再提前触发响应拦截器（自动登出不提前触发）
+  - 刷新失败不递归、不重放
+
+#### 新增能力（Batch 7–15）
+
+- `CYResponseStrategy` + `send` API：envelope / envelopeRaw / direct / empty / data 五种响应策略
+- `requestVoid` / `requestData` / 泛型 `request(body:)` 便捷 API
+- `upload(parts:)` 多文件上传 + 上传/下载进度回调
+- 下载取消传播：Task 取消会取消底层请求，错误映射为 `.cancelled`
+- 请求去重支持 Encodable body（不同 body 不误合并）
+- Mock 全 API 可用（`requestRaw` 缺陷修复）
+- 错误日志带上下文（方法 + 路径 + HTTP 状态码）
+- 现有 `request` / `requestRaw` / `post` 内部统一路由到 `send`（行为不变）
+
+#### 组件与工程改进
+
+- 提取 `CYLoadingIndicator` 公共组件：`CYBaseView` 与 `CYLoadingOverlay` 复用同一指示器，视觉 / 脉冲动画 / 无障碍行为一致，脉冲初始值与无障碍标签已统一（本地化）
+- 文档同步：ARCHITECTURE / ROADMAP / REVIEW 与 1.1.0 现状对齐，补充 NETWORK_GUIDE 与 NETWORK_REFACTOR_PLAN
+
+#### 行为变更提醒
+
+- `requestRaw` 收到 HTTP 401 不再触发自动刷新，直接抛 `httpError(401)`
+- 响应拦截器只收到终态响应（瞬态 401 不再触发）
+
+### [1.0.1] - 2026-08-10
+
+**1.0.0 发布后的即时修复** - 98 个测试全部通过。
+
+- 修复 `upload` 方法参数过多导致的 `function_parameter_count` SwiftLint 违规
+- 网络协议与 Mock 实现对齐（`NetworkClientProtocol` / `CYNetworkClient` / `MockNetworkClient`）
+
+> 该 PATCH 已随 1.0.1 tag 发布；网络层能力升级在 1.1.0 中完成。
+
 ### [1.0.0] - 2026-08-10
 
 **首个正式发布版本** - 核心功能完整，98 个测试全部通过。

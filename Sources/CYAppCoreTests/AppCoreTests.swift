@@ -51,6 +51,24 @@ final class AppCoreTests: XCTestCase {
         XCTAssertTrue(resolved == original)
     }
     
+    func testAppErrorResolveCancelledFromNetworkError() {
+        let resolved = CYAppError.resolve(CYNetworkError.cancelled)
+        XCTAssertTrue(resolved.isCancellation)
+        if case .cancelled = resolved {
+        } else {
+            XCTFail("Expected .cancelled, got \(resolved)")
+        }
+    }
+    
+    func testAppErrorResolveCancelledFromCancellationError() {
+        let resolved = CYAppError.resolve(CancellationError())
+        XCTAssertTrue(resolved.isCancellation)
+        if case .cancelled = resolved {
+        } else {
+            XCTFail("Expected .cancelled, got \(resolved)")
+        }
+    }
+    
     func testAppErrorResolveUnknown() {
         struct CustomError: Error {}
         let resolved = CYAppError.resolve(CustomError())
@@ -272,6 +290,25 @@ final class AppCoreTests: XCTestCase {
     }
     
     @MainActor
+    func testBaseViewModelExecuteTaskIgnoresCancellation() async {
+        let vm = CYBaseViewModel()
+        await vm.executeTask { throw CYNetworkError.cancelled }
+        XCTAssertFalse(vm.isLoading)
+        XCTAssertFalse(vm.hasError, "请求取消不应展示错误")
+        XCTAssertNil(vm.error)
+        XCTAssertNil(vm.errorMessage)
+    }
+    
+    @MainActor
+    func testBaseViewModelExecuteTaskIgnoresCancellationError() async {
+        let vm = CYBaseViewModel()
+        await vm.executeTask { throw CancellationError() }
+        XCTAssertFalse(vm.isLoading)
+        XCTAssertFalse(vm.hasError, "CancellationError 不应展示错误")
+        XCTAssertNil(vm.error)
+    }
+    
+    @MainActor
     func testBaseViewModelRetry() async {
         let vm = CYBaseViewModel()
         var attemptCount = 0
@@ -312,6 +349,9 @@ final class AppCoreTests: XCTestCase {
         XCTAssertFalse(CYNetworkError.httpError(statusCode: 400, data: nil).isServerError)
         XCTAssertTrue(CYNetworkError.httpError(statusCode: 404, data: nil).statusCode == 404)
         XCTAssertTrue(CYNetworkError.businessError(code: 10001, message: "expired").businessCode == 10001)
+        XCTAssertTrue(CYNetworkError.cancelled.isCancellation)
+        XCTAssertFalse(CYNetworkError.unknown.isCancellation)
+        XCTAssertEqual(CYNetworkError.cancelled.displayKind, .silent)
     }
     
     // MARK: - CYAPIResponse Tests

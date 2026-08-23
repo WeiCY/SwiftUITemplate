@@ -11,6 +11,12 @@ private actor Counter {
     }
 }
 
+/// 刷新逻辑测试用端点（allowsTokenRefresh 走默认 true）
+private struct RefreshTestEndpoint: CYEndpoint {
+    let path = "/test"
+    var method: CYHTTPMethod { .get }
+}
+
 final class NetworkClientTests: XCTestCase {
 
     // MARK: - 刷新成功，重放成功
@@ -27,7 +33,7 @@ final class NetworkClientTests: XCTestCase {
         ))
 
         let counter = Counter()
-        let result: String = try await client.performRequest {
+        let result: String = try await client.performRequest(RefreshTestEndpoint()) {
             let callIndex = await counter.increment()
             if callIndex == 1 {
                 throw CYNetworkError.httpError(statusCode: 401, data: nil)
@@ -47,7 +53,7 @@ final class NetworkClientTests: XCTestCase {
 
         let counter = Counter()
         do {
-            let _: String = try await client.performRequest {
+            let _: String = try await client.performRequest(RefreshTestEndpoint()) {
                 _ = await counter.increment()
                 throw CYNetworkError.httpError(statusCode: 401, data: nil)
             }
@@ -77,7 +83,7 @@ final class NetworkClientTests: XCTestCase {
 
         let counter = Counter()
         do {
-            let _: String = try await client.performRequest {
+            let _: String = try await client.performRequest(RefreshTestEndpoint()) {
                 _ = await counter.increment()
                 throw CYNetworkError.httpError(statusCode: 401, data: nil)
             }
@@ -109,7 +115,7 @@ final class NetworkClientTests: XCTestCase {
 
         let counter = Counter()
         do {
-            let _: String = try await client.performRequest {
+            let _: String = try await client.performRequest(RefreshTestEndpoint()) {
                 _ = await counter.increment()
                 throw CYNetworkError.httpError(statusCode: 401, data: nil)
             }
@@ -141,7 +147,7 @@ final class NetworkClientTests: XCTestCase {
 
         let counter = Counter()
         do {
-            let _: String = try await client.performRequest {
+            let _: String = try await client.performRequest(RefreshTestEndpoint()) {
                 _ = await counter.increment()
                 throw CYNetworkError.businessError(code: 500, message: "server error")
             }

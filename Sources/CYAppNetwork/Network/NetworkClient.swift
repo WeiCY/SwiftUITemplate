@@ -13,6 +13,19 @@ extension CYHTTPMethod {
 
 // MARK: - 网络客户端实现
 
+/// 网络请求失败（终态响应上下文包装）
+///
+/// 由底层「发送 + 解码」抛出不带响应拦截器副作用，交由上层在**终态**统一应用响应拦截器。
+/// 这样瞬态 401（会被 Token 刷新 + 重放吞掉的响应）不会提前触发响应拦截器（如自动登出）。
+private struct NetworkFailure: Error {
+    /// 已映射的网络错误
+    let cyError: CYNetworkError
+    /// 底层 HTTP 响应（终态时传给响应拦截器）
+    let response: URLResponse?
+    /// 底层响应体
+    let data: Data?
+}
+
 /// 网络客户端实现（Alamofire 桥接层）
 ///
 /// 业务代码通过 `CYNetworkClientProtocol` 协议使用，不直接依赖 Alamofire。
@@ -95,82 +108,160 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
     /// 统一封装「401 自动刷新 + 重放」逻辑。
     /// `build` 内应完整包含 构建请求 → 拦截器 → 发送 → 解码。
     /// 最多只会触发一次 Token 刷新；刷新失败或重放后仍 401 时直接抛出错误，不会循环。
+    ///
+    /// - Parameter endpoint: 用于读取 `allowsTokenRefresh`（该端点是否允许触发自动刷新）。
     func performRequest<T: Decodable>(
+        _ endpoint: CYEndpoint,
         _ build: @escaping @Sendable () async throws -> T
     ) async throws -> T {
-        try await _performRequest(build, hasRefreshed: false)
+        try await _performRequest(endpoint, build, hasRefreshed: false)
     }
 
     func _performRequest<T: Decodable>(
+        _ endpoint: CYEndpoint,
         _ build: @escaping @Sendable () async throws -> T,
         hasRefreshed: Bool
     ) async throws -> T {
         do {
             return try await build()
         } catch {
-            let requiresRefresh: Bool
-            if let cyError = error as? CYNetworkError {
-                requiresRefresh = cyError.requiresTokenRefresh
-            } else {
-                requiresRefresh = false
+            let failure = error as? NetworkFailure
+            let rawError = failure?.cyError ?? error
+            let requiresRefresh = (rawError as? CYNetworkError)?.requiresTokenRefresh ?? false
+
+            // 仅当「尚未刷新过 + 错误需要刷新 + 端点允许刷新 + 已注册刷新协调器」时才重放
+            if !hasRefreshed, requiresRefresh, endpoint.allowsTokenRefresh,
+               let coordinator = stateLock.withLock({ tokenRefreshCoordinator }) {
+                let refreshedToken = await coordinator.refreshIfNeeded()
+                if refreshedToken != nil {
+                    // 重放原请求：请求拦截器会重新注入最新 Token
+                    return try await _performRequest(endpoint, build, hasRefreshed: true)
+                }
             }
 
-            // 已经刷新过，或不需要刷新，直接抛出错误
-            guard !hasRefreshed, requiresRefresh else { throw error }
-
-            let coordinator = stateLock.withLock { tokenRefreshCoordinator }
-            guard let coordinator else { throw error }
-
-            // 刷新失败（无 refreshToken 或刷新接口报错）则抛出原错误，不再重试
-            let refreshedToken = await coordinator.refreshIfNeeded()
-            guard refreshedToken != nil else { throw error }
-
-            // 重放原请求：请求拦截器会重新注入最新 Token
-            return try await _performRequest(build, hasRefreshed: true)
+            // 终态错误：此时才把响应交给响应拦截器（瞬态 401 不会提前触发自动登出等）
+            if let failure {
+                try? await self.applyResponseInterceptors(failure.response, data: failure.data)
+                self.logTerminalFailure(rawError, endpoint: endpoint, response: failure.response)
+            }
+            throw rawError
         }
     }
 
-    // MARK: - 请求（自动解包 CYAPIResponse）
+    // MARK: - 按策略请求（send）
 
-    /// 发起请求并自动解包 `CYAPIResponse.data`
+    /// 按响应策略发起请求（无 Encodable body，使用 `endpoint.body` 字典参数）
     ///
-    /// 后端返回 `{ "code": 0, "data": {...}, "message": "ok" }` 时直接返回 `T`；
-    /// 业务码按 `CYBusinessCodePolicy` 判定：普通失败抛 `businessError`，
-    /// 命中 Token 过期策略抛 `tokenExpired`（并自动刷新 + 重放，与 HTTP 401 同链路），
-    /// 命中需重新登录策略抛 `needReLogin`。
-    public func request<T: Decodable & Sendable>(_ endpoint: CYEndpoint) async throws -> T {
-        try await performRequest {
-            let apiResponse: CYAPIResponse<T> = try await self.fetchRaw(endpoint)
-            return try self.resolveData(apiResponse)
+    /// `request` / `requestRaw` / `requestVoid` 等便捷方法由 `CYNetworkClientProtocol` 扩展提供。
+    public func send<T: Decodable & Sendable>(_ endpoint: CYEndpoint, strategy: CYResponseStrategy) async throws -> T {
+        try await performSend(endpoint, strategy: strategy, urlRequest: try buildURLRequest(for: endpoint))
+    }
+
+    /// 按响应策略发起请求（Encodable body）
+    public func send<B: Encodable & Sendable, T: Decodable & Sendable>(
+        _ endpoint: CYEndpoint,
+        strategy: CYResponseStrategy,
+        body: B
+    ) async throws -> T {
+        try await performSend(endpoint, strategy: strategy, urlRequest: try buildURLRequest(for: endpoint, encodableBody: body))
+    }
+
+    /// `send` 统一分发：按策略路由到对应的发送 + 解码链路
+    private func performSend<T: Decodable & Sendable>(
+        _ endpoint: CYEndpoint,
+        strategy: CYResponseStrategy,
+        urlRequest: URLRequest
+    ) async throws -> T {
+        switch strategy {
+        case .envelope:
+            // 唯一走「业务码判定 + 401 自动刷新」的链路（对应 request）
+            return try await performRequest(endpoint) {
+                let apiResponse: CYAPIResponse<T> = try await self.fetchRaw(endpoint, urlRequest: urlRequest)
+                return try self.resolveData(apiResponse)
+            }
+
+        case .envelopeRaw, .direct:
+            return try await sendDirect(endpoint, urlRequest: urlRequest)
+
+        case .empty:
+            guard T.self == CYEmptyResponse.self else {
+                throw CYNetworkError.decodingFailed(
+                    NSError(domain: "CYNetworkClient", code: -3,
+                            userInfo: [NSLocalizedDescriptionKey: ".empty 策略仅支持 CYEmptyResponse"])
+                )
+            }
+            return try await sendDirect(endpoint, urlRequest: urlRequest)
+
+        case .data:
+            throw CYNetworkError.decodingFailed(
+                NSError(domain: "CYNetworkClient", code: -3,
+                        userInfo: [NSLocalizedDescriptionKey: ".data 策略请使用 requestData"])
+            )
         }
     }
 
-    // MARK: - 原始请求（返回完整 CYAPIResponse）
-
-    /// 发起请求并返回完整 `CYAPIResponse<T>`（不按业务码抛错，由调用方自行判定）
-    ///
-    /// 适用于需要手动判断业务状态码的场景：
-    /// ```swift
-    /// let response = try await networkClient.requestRaw(UserEndpoint.profile)
-    /// switch response.businessResult {
-    /// case .success: handleSuccess(response.data)
-    /// case .tokenExpired: refreshTokenAndRetry()  // 框架已自动处理，此处仅做补充 UI
-    /// case .businessError(_, let message, let display): show(message, as: display)
-    /// default: break
-    /// }
-    /// ```
-    public func requestRaw<T: Decodable & Sendable>(_ endpoint: CYEndpoint) async throws -> CYAPIResponse<T> {
-        try await performRequest {
-            try await self.fetchRaw(endpoint)
+    /// raw 策略（envelopeRaw / direct / empty）的发送链路：不经业务码判定、不自动刷新，
+    /// 响应拦截器在终态统一调用。
+    private func sendDirect<T: Decodable & Sendable>(
+        _ endpoint: CYEndpoint,
+        urlRequest: URLRequest
+    ) async throws -> T {
+        do {
+            let result: (value: T, response: URLResponse?, data: Data?) = try await self.fetchDirect(endpoint, urlRequest: urlRequest)
+            try await self.applyResponseInterceptors(result.response, data: result.data)
+            return result.value
+        } catch {
+            if let failure = error as? NetworkFailure {
+                try? await self.applyResponseInterceptors(failure.response, data: failure.data)
+                self.logTerminalFailure(failure.cyError, endpoint: endpoint, response: failure.response)
+                throw failure.cyError
+            }
+            self.logTerminalFailure(error, endpoint: endpoint, response: nil)
+            throw error
         }
+    }
+
+    // MARK: - 原始数据请求（Data）
+
+    /// 获取原始响应体 Data（图片、文件等二进制响应，不参与 envelope 解码）
+    public func requestData(_ endpoint: CYEndpoint) async throws -> Data {
+        var urlRequest = try self.buildURLRequest(for: endpoint)
+        await self.applyRequestInterceptors(to: &urlRequest)
+
+        let dataTask = session.request(urlRequest)
+            .validate(statusCode: 200..<300)
+        let response = await dataTask.serializingData().response
+        if let error = response.error {
+            try? await self.applyResponseInterceptors(response.response, data: response.data)
+            let mapped = self.mapNetworkError(error, data: response.data)
+            self.logTerminalFailure(mapped, endpoint: endpoint, response: response.response)
+            throw mapped
+        }
+        let data = response.value ?? Data()
+        try await self.applyResponseInterceptors(response.response, data: data)
+        return data
     }
 
     // MARK: - 原始拉取（内部，不含业务码判定 / 不含刷新重试）
 
-    /// 仅负责「构建请求 → 拦截器 → 发送 → 解码 CYAPIResponse」并映射底层错误，
+    /// 仅负责「发送 → 解码 CYAPIResponse<T>」并映射底层错误，
     /// 业务码判定（成功 / 失败 / Token 过期 / 重新登录）交由上层 `resolveData`。
     private func fetchRaw<T: Decodable>(_ endpoint: CYEndpoint) async throws -> CYAPIResponse<T> {
-        var urlRequest = try self.buildURLRequest(for: endpoint)
+        try await fetchRaw(endpoint, urlRequest: try buildURLRequest(for: endpoint))
+    }
+
+    private func fetchRaw<B: Encodable & Sendable, T: Decodable>(
+        _ endpoint: CYEndpoint,
+        encodableBody: B
+    ) async throws -> CYAPIResponse<T> {
+        try await fetchRaw(endpoint, urlRequest: try buildURLRequest(for: endpoint, encodableBody: encodableBody))
+    }
+
+    private func fetchRaw<T: Decodable>(
+        _ endpoint: CYEndpoint,
+        urlRequest: URLRequest
+    ) async throws -> CYAPIResponse<T> {
+        var urlRequest = urlRequest
         await self.applyRequestInterceptors(to: &urlRequest)
 
         let dataTask = session.request(urlRequest)
@@ -178,93 +269,118 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
             .serializingDecodable(CYAPIResponse<T>.self, decoder: self.makeDecoder(for: endpoint))
 
         do {
-            let apiResponse = try await dataTask.value
+            let apiResponse = try await self.decodeAPIResponse(from: dataTask)
             let response = await dataTask.response
             try await self.applyResponseInterceptors(response.response, data: response.data)
             return apiResponse
         } catch {
             let response = await dataTask.response
-            try? await self.applyResponseInterceptors(response.response, data: response.data)
-            throw self.mapNetworkError(error, data: response.data)
+            // 解码/网络失败：携带终态响应抛出，由上层（performRequest / sendDirect）在终态应用响应拦截器
+            throw NetworkFailure(
+                cyError: self.mapNetworkError(error, data: response.data),
+                response: response.response,
+                data: response.data
+            )
         }
     }
 
-    // MARK: - POST 请求（Encodable Body）
-
-    /// 发起 POST 请求，body 使用 Encodable 类型安全编码
-    ///
-    /// **推荐用法（编译时类型安全，替代 MJExtension 运行时解析）：**
-    /// ```swift
-    /// struct LoginRequest: Encodable, Sendable {
-    ///     let username: String
-    ///     let password: String
-    /// }
-    ///
-    /// let user: User = try await networkClient.post(
-    ///     AuthEndpoint.login,
-    ///     body: LoginRequest(username: "john", password: "123")
-    /// )
-    /// ```
-    public func post<B: Encodable & Sendable, T: Decodable & Sendable>(_ endpoint: CYEndpoint, body: B) async throws -> T {
-        try await performRequest {
-            var urlRequest = try self.buildURLRequest(for: endpoint, encodableBody: body)
-            await self.applyRequestInterceptors(to: &urlRequest)
-
-            let dataTask = self.session.request(urlRequest)
-                .validate(statusCode: 200..<300)
-                .serializingDecodable(CYAPIResponse<T>.self, decoder: self.makeDecoder(for: endpoint))
-
-            do {
-                let apiResponse = try await dataTask.value
-                let response = await dataTask.response
-                try await self.applyResponseInterceptors(response.response, data: response.data)
-
-                return try self.resolveData(apiResponse)
-            } catch {
-                let response = await dataTask.response
-                try? await self.applyResponseInterceptors(response.response, data: response.data)
-                throw self.mapNetworkError(error, data: response.data)
+    /// 解码 `CYAPIResponse<T>`；204/205 空响应体仅在 `T == CYEmptyResponse` 时视为成功
+    /// （合成空 envelope，避免 Alamofire 对非 `EmptyResponse` 类型抛 `.invalidEmptyResponse`）。
+    private func decodeAPIResponse<T: Decodable>(
+        from dataTask: DataTask<CYAPIResponse<T>>
+    ) async throws -> CYAPIResponse<T> {
+        if T.self == CYEmptyResponse.self {
+            let response = await dataTask.response
+            if let statusCode = response.response?.statusCode,
+               (204...205).contains(statusCode),
+               response.data?.isEmpty ?? true {
+                return CYAPIResponse(code: 0, data: nil, message: nil)
             }
+        }
+        return try await dataTask.value
+    }
+
+    /// 直接解码响应体为 `T`（envelopeRaw / direct / empty 策略共用），
+    /// 返回解码值 + 响应上下文；成功时不调用响应拦截器（由 `sendDirect` 在终态统一调用）。
+    private func fetchDirect<T: Decodable & Sendable>(
+        _ endpoint: CYEndpoint,
+        urlRequest: URLRequest
+    ) async throws -> (value: T, response: URLResponse?, data: Data?) {
+        var urlRequest = urlRequest
+        await self.applyRequestInterceptors(to: &urlRequest)
+
+        let dataTask = session.request(urlRequest)
+            .validate(statusCode: 200..<300)
+            .serializingDecodable(T.self, decoder: self.makeDecoder(for: endpoint))
+        return try await self.awaitDirectValue(dataTask)
+    }
+
+    /// 解码直接响应值；204/205 空响应仅在 `T == CYEmptyResponse` 时视为成功
+    /// （合成空实例，避免 Alamofire 抛 `.invalidEmptyResponse`）。
+    private func awaitDirectValue<T: Decodable & Sendable>(
+        _ dataTask: DataTask<T>
+    ) async throws -> (value: T, response: URLResponse?, data: Data?) {
+        let response = await dataTask.response
+        if T.self == CYEmptyResponse.self,
+           let statusCode = response.response?.statusCode,
+           (204...205).contains(statusCode),
+           response.data?.isEmpty ?? true,
+           let empty = CYEmptyResponse() as? T {
+            return (empty, response.response, response.data)
+        }
+        do {
+            let value = try await dataTask.value
+            return (value, response.response, response.data)
+        } catch {
+            throw NetworkFailure(
+                cyError: self.mapNetworkError(error, data: response.data),
+                response: response.response,
+                data: response.data
+            )
         }
     }
 
     // MARK: - 上传
 
-    /// 上传文件（multipart/form-data）
+    /// 多文件上传（multipart/form-data，带进度回调）
     ///
-    /// 支持同时上传文件和附加参数：
+    /// 支持同时上传多个文件和附加参数：
     /// ```swift
     /// let avatar: Avatar = try await networkClient.upload(
     ///     UserEndpoint.uploadAvatar,
-    ///     config: CYUploadConfig(data: imageData, mimeType: "image/jpeg")
+    ///     parts: [CYMultipartPart(data: imageData, mimeType: "image/jpeg")]
     /// )
     /// ```
     public func upload<T: Decodable & Sendable>(
         _ endpoint: CYEndpoint,
-        config: CYUploadConfig
+        parts: [CYMultipartPart],
+        additionalParams: [String: String]?,
+        progress: (@Sendable (Double) -> Void)?
     ) async throws -> T {
         let limitMB = CYAppConstants.maxUploadSizeMB
         let limitBytes = limitMB * 1_024 * 1_024
-        guard config.data.count <= limitBytes else {
+        let totalBytes = parts.reduce(0) { $0 + $1.data.count }
+        guard totalBytes <= limitBytes else {
             CYLogger.network.error(
-                "Upload rejected: \(config.data.count) bytes exceeds \(limitMB) MB limit for \(endpoint.path)"
+                "Upload rejected: \(totalBytes) bytes exceeds \(limitMB) MB limit for \(endpoint.path)"
             )
             throw CYNetworkError.payloadTooLarge(limitMB: limitMB)
         }
-        return try await performRequest {
+        return try await performRequest(endpoint) {
             var urlRequest = try self.buildURLRequest(for: endpoint)
             await self.applyRequestInterceptors(to: &urlRequest)
 
             let uploadTask = self.session.upload(multipartFormData: { formData in
-                formData.append(config.data, withName: config.paramName, fileName: config.fileName, mimeType: config.mimeType)
+                for part in parts {
+                    formData.append(part.data, withName: part.paramName, fileName: part.fileName, mimeType: part.mimeType)
+                }
                 if let body = endpoint.body {
                     for (key, value) in body {
-                        if let string = value.stringValue, let d = string.data(using: .utf8) {
-                            formData.append(d, withName: key)
-                        }
+                        guard let string = value.multipartStringValue else { continue }
+                        formData.append(Data(string.utf8), withName: key)
                     }
                 }
-                if let additionalParams = config.additionalParams {
+                if let additionalParams {
                     for (key, value) in additionalParams {
                         if let d = value.data(using: .utf8) {
                             formData.append(d, withName: key)
@@ -273,56 +389,80 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
                 }
             }, with: urlRequest)
             .validate(statusCode: 200..<300)
+            .uploadProgress { uploadProgress in
+                progress?(uploadProgress.fractionCompleted)
+            }
             .serializingDecodable(CYAPIResponse<T>.self, decoder: self.makeDecoder(for: endpoint))
 
+            let response = await uploadTask.response
+            let apiResponse: CYAPIResponse<T>
             do {
-                let apiResponse = try await uploadTask.value
-                let response = await uploadTask.response
-                try await self.applyResponseInterceptors(response.response, data: response.data)
-
-                return try self.resolveData(apiResponse)
+                apiResponse = try await uploadTask.value
             } catch {
-                let response = await uploadTask.response
-                try? await self.applyResponseInterceptors(response.response, data: response.data)
-                throw self.mapNetworkError(error, data: response.data)
+                // 解码失败：携带终态响应抛出，由上层在终态统一应用响应拦截器
+                throw NetworkFailure(
+                    cyError: self.mapNetworkError(error, data: response.data),
+                    response: response.response,
+                    data: response.data
+                )
             }
+
+            try await self.applyResponseInterceptors(response.response, data: response.data)
+            return try self.resolveData(apiResponse)
         }
     }
 
     // MARK: - 下载
 
-    /// 下载文件到指定路径
+    /// 下载文件到指定路径（带进度回调；取消会传播到底层请求，错误映射为 `.cancelled`）
     ///
     /// ```swift
     /// let fileURL = try await networkClient.download(
     ///     FileEndpoint.download(id: "123"),
-    ///     to: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("file.pdf")
+    ///     to: documentsDirectory.appendingPathComponent("file.pdf")
     /// )
     /// ```
-    public func download(_ endpoint: CYEndpoint, to fileURL: URL) async throws -> URL {
-        try await performRequest {
+    public func download(
+        _ endpoint: CYEndpoint,
+        to fileURL: URL,
+        progress: (@Sendable (Double) -> Void)?
+    ) async throws -> URL {
+        try await performRequest(endpoint) {
             var urlRequest = try self.buildURLRequest(for: endpoint)
             await self.applyRequestInterceptors(to: &urlRequest)
             let destination: DownloadRequest.Destination = { _, _ in
                 (fileURL, [.removePreviousFile, .createIntermediateDirectories])
             }
 
-            return try await withCheckedThrowingContinuation { continuation in
-                self.session.download(urlRequest, to: destination)
-                    .validate(statusCode: 200..<300)
-                    .response { response in
-                        Task {
-                            try? await self.applyResponseInterceptors(response.response, data: response.resumeData)
+            // 先创建 Alamofire 请求（取消处理器需要持有它）
+            let downloadRequest = self.session.download(urlRequest, to: destination)
+                .validate(statusCode: 200..<300)
+                .downloadProgress { downloadProgress in
+                    progress?(downloadProgress.fractionCompleted)
+                }
 
+            return try await withTaskCancellationHandler {
+                try await withCheckedThrowingContinuation { continuation in
+                    downloadRequest.response { response in
+                        Task {
                             if let error = response.error {
-                                continuation.resume(throwing: self.mapNetworkError(error, data: response.resumeData))
+                                // 下载失败（含取消）：携带终态响应抛出，由上层在终态统一应用响应拦截器
+                                continuation.resume(throwing: NetworkFailure(
+                                    cyError: self.mapNetworkError(error, data: response.resumeData),
+                                    response: response.response,
+                                    data: response.resumeData
+                                ))
                             } else if let fileURL = response.fileURL {
+                                try? await self.applyResponseInterceptors(response.response, data: response.resumeData)
                                 continuation.resume(returning: fileURL)
                             } else {
                                 continuation.resume(throwing: CYNetworkError.unknown)
                             }
                         }
                     }
+                }
+            } onCancel: {
+                downloadRequest.cancel()
             }
         }
     }
@@ -345,8 +485,10 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
 
     // MARK: - 私有方法
 
-    private func buildURL(for endpoint: CYEndpoint) -> URL? {
-        var components = URLComponents(string: baseURL + endpoint.path)
+    func buildURL(for endpoint: CYEndpoint) -> URL? {
+        let base = baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL
+        let path = endpoint.path.hasPrefix("/") ? String(endpoint.path.dropFirst()) : endpoint.path
+        var components = URLComponents(string: "\(base)/\(path)")
         if let queryItems = endpoint.queryItems {
             components?.queryItems = queryItems
         }
@@ -440,20 +582,29 @@ private extension CYNetworkClient {
     /// 按 `CYBusinessCodePolicy` 解析 `CYAPIResponse`，统一处理「成功 / 普通错误 /
     /// Token 过期 / 需重新登录」，并始终优先使用服务端返回的 `message`。
     ///
-    /// - 成功：返回 `data`（data 为 nil 时抛 `decodingFailed`）。
+    /// - 成功：返回 `data`；若 `T == CYEmptyResponse` 则允许 `data == nil`，返回空实例。
     /// - Token 过期：抛 `CYNetworkError.tokenExpired` → 被 `performRequest` 捕获后自动刷新 + 重放。
     /// - 需重新登录：抛 `CYNetworkError.needReLogin`。
     /// - 普通错误：抛 `CYNetworkError.businessError`（message 取自服务端响应）。
     func resolveData<T: Decodable>(_ apiResponse: CYAPIResponse<T>) throws -> T {
         switch apiResponse.businessResult {
         case .success:
-            guard let data = apiResponse.data else {
-                throw CYNetworkError.decodingFailed(
-                    NSError(domain: "CYNetworkClient", code: -1,
-                            userInfo: [NSLocalizedDescriptionKey: "CYAPIResponse.data 为 nil"])
-                )
+            if let data = apiResponse.data {
+                return data
             }
-            return data
+            if T.self == CYEmptyResponse.self {
+                guard let empty = CYEmptyResponse() as? T else {
+                    throw CYNetworkError.decodingFailed(
+                        NSError(domain: "CYNetworkClient", code: -1,
+                                userInfo: [NSLocalizedDescriptionKey: "CYEmptyResponse 类型转换失败"])
+                    )
+                }
+                return empty
+            }
+            throw CYNetworkError.decodingFailed(
+                NSError(domain: "CYNetworkClient", code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "CYAPIResponse.data 为 nil"])
+            )
 
         case .tokenExpired(let code, let message):
             throw CYNetworkError.tokenExpired(code: code, message: message ?? "auth_token_expired".cyLocalized)
@@ -478,10 +629,25 @@ private extension CYNetworkClient {
         return mapAlamofireError(.sessionTaskFailed(error: error), data: data)
     }
 
+    /// 终态失败时输出带上下文的错误日志（所有出口统一调用）
+    private func logTerminalFailure(_ error: Error, endpoint: CYEndpoint, response: URLResponse?) {
+        CYLogger.network.error(Self.failureLogMessage(error: error, endpoint: endpoint, response: response))
+    }
+
     /// 将 Alamofire 错误映射为 CYNetworkError
     func mapAlamofireError(_ afError: AFError, data: Data?) -> CYNetworkError {
+        // 请求取消（Task 取消 / URLSession 取消 / 显式 cancel）→ .cancelled
+        if case .explicitlyCancelled = afError {
+            return .cancelled
+        }
+        if case .sessionTaskFailed(let error) = afError, error is CancellationError {
+            return .cancelled
+        }
+
         if let urlError = afError.underlyingError as? URLError {
             switch urlError.code {
+            case .cancelled:
+                return .cancelled
             case .notConnectedToInternet, .networkConnectionLost:
                 return .noConnection
             case .timedOut:
@@ -508,6 +674,43 @@ private extension CYNetworkClient {
     }
 }
 
+// MARK: - 错误日志（可测试纯函数）
+
+extension CYNetworkClient {
+    /// 构造终态失败日志文本（纯函数，可测试）
+    ///
+    /// 格式：`[GET /api/user/profile] HTTP 500 | <错误描述>`
+    static func failureLogMessage(error: Error, endpoint: CYEndpoint, response: URLResponse?) -> String {
+        var message = "[\(endpoint.method.rawValue) \(endpoint.path)]"
+        if let statusCode = (response as? HTTPURLResponse)?.statusCode {
+            message += " HTTP \(statusCode)"
+        }
+        if let cyError = error as? CYNetworkError, let description = cyError.errorDescription {
+            message += " | \(description)"
+        } else {
+            message += " | \(error)"
+        }
+        return message
+    }
+}
+
+// MARK: - multipart 表单字段转换
+
+private extension CYJSONValue {
+    /// multipart 表单字段的字符串表示：字符串去引号，数值/布尔/空转为文本，
+    /// 数组/对象不支持作为表单字段（返回 nil，调用方跳过）。
+    var multipartStringValue: String? {
+        switch self {
+        case .string(let v): return v
+        case .int(let v): return "\(v)"
+        case .double(let v): return "\(v)"
+        case .bool(let v): return "\(v)"
+        case .null: return "null"
+        case .array, .object: return nil
+        }
+    }
+}
+
 // MARK: - 请求去重集成
 
 extension CYNetworkClient {
@@ -521,13 +724,23 @@ extension CYNetworkClient {
         }
     }
 
-    /// 带去重的原始请求
-    public func requestRawWithDeduplication<T: Decodable & Sendable>(
+    /// 带去重的 POST（Encodable body 纳入去重键）
+    ///
+    /// 默认 `deduplicationKey` 只覆盖 `endpoint.body` 字典参数；
+    /// 本方法额外将 Encodable body 的确定性指纹拼入去重键，避免不同 body 被错误合并。
+    public func requestWithDeduplication<B: Encodable & Sendable, T: Decodable & Sendable>(
         _ endpoint: CYEndpoint,
+        body: B,
         deduplicator: CYRequestDeduplicator
-    ) async throws -> CYAPIResponse<T> {
-        try await deduplicator.execute(key: endpoint.deduplicationKey) {
-            try await self.requestRaw(endpoint)
+    ) async throws -> T {
+        try await deduplicator.execute(key: endpoint.deduplicationKey + ":body=" + Self.bodyFingerprint(body)) {
+            try await self.request(endpoint, body: body)
         }
+    }
+
+    /// 生成 Encodable body 的确定性指纹（纳入去重键）
+    private static func bodyFingerprint<B: Encodable>(_ body: B) -> String {
+        guard let data = try? JSONEncoder().encode(body) else { return "?" }
+        return data.base64EncodedString()
     }
 }

@@ -119,8 +119,8 @@ Layer 2  CYAppUI (AppState/Router/反馈视图)
 | 项目 | 结果 |
 |---|---|
 | SPM 构建 | ✅ 通过（macOS 宿主；本机沙箱环境需 `--disable-sandbox`） |
-| 单元测试 | ✅ 108/108 通过 |
-| iOS Simulator CI | ✅ 已配置 |
+| 单元测试 | ✅ 156/156 通过 |
+| iOS Simulator CI | ⚠️ 已配置但待修复（仓库无 `.xcodeproj`，`xcodebuild -scheme ExampleApp` 不可执行） |
 | 平台 | iOS 18+, macOS 15+ |
 | Swift | 6.0 (strict concurrency) |
 
@@ -131,6 +131,7 @@ Layer 2  CYAppUI (AppState/Router/反馈视图)
 | 文档 | 说明 |
 |---|---|
 | [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) | 完整接入指南：网络、缓存、Keychain、主题、路由、特异化 |
+| [docs/NETWORK_GUIDE.md](docs/NETWORK_GUIDE.md) | 网络框架使用指南：请求/上传/下载/Token 刷新/业务码/去重/Mock |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架构设计：模块依赖、DI、状态管理、网络层、扩展方式 |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | 路线图：版本规划与后续开发计划 |
 | [docs/TEMPLATE_RULES.md](docs/TEMPLATE_RULES.md) | 模板开发规范：适用场景、分层、接入、文档与测试规则 |

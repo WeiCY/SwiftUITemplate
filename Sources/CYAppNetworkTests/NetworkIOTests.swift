@@ -101,7 +101,11 @@ final class NetworkIOTests: XCTestCase {
             }
         }
         let client = makeClient()
-        let result: TestPayload = try await client.upload(TestEndpoint.upload, config: CYUploadConfig(data: Data("image".utf8), mimeType: "image/jpeg", fileName: "avatar.jpg", paramName: "avatar", additionalParams: ["kind": "profile"]))
+        let result: TestPayload = try await client.upload(
+            TestEndpoint.upload,
+            parts: [CYMultipartPart(data: Data("image".utf8), mimeType: "image/jpeg", fileName: "avatar.jpg", paramName: "avatar")],
+            additionalParams: ["kind": "profile"]
+        )
 
         XCTAssertEqual(result, TestPayload(value: "uploaded"))
         let request = await capture.request
@@ -139,7 +143,7 @@ final class NetworkIOTests: XCTestCase {
         do {
             let _: TestPayload = try await client.upload(
                 TestEndpoint.upload,
-                config: CYUploadConfig(data: oversized, mimeType: "application/octet-stream")
+                parts: [CYMultipartPart(data: oversized, mimeType: "application/octet-stream")]
             )
             XCTFail("超过上传上限的文件应被拒绝")
         } catch let error as CYNetworkError {

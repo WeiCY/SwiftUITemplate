@@ -66,7 +66,10 @@ open class CYBaseViewModel {
             isLoading = false
         } catch {
             isLoading = false
-            self.error = CYAppError.resolve(error)
+            let appError = CYAppError.resolve(error)
+            // 请求取消（Task 取消 / URLSession 取消）属于预期内终止，不展示错误
+            guard !appError.isCancellation else { return }
+            self.error = appError
             // 保存重试闭包，方便 View 层一键重试
             self.retryAction = { [weak self] in
                 await self?.executeTask(action)

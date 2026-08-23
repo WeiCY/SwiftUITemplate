@@ -57,6 +57,12 @@ public enum CYNetworkError: Error, LocalizedError, Sendable {
     /// 底层网络错误（Alamofire / URLSession 原始错误）
     case underlying(any Error & Sendable)
     
+    /// 请求已取消（Task 取消 / URLSession 取消）
+    ///
+    /// 与 `.underlying` 的区别：`.cancelled` 是「预期内的终止」，不应向用户展示任何错误提示，
+    /// 上层（如 `CYBaseViewModel`）应当静默忽略。
+    case cancelled
+    
     /// 未知错误
     case unknown
     
@@ -86,12 +92,20 @@ public enum CYNetworkError: Error, LocalizedError, Sendable {
             return String(format: "network_payload_too_large".cyLocalized, limitMB)
         case .underlying(let error):
             return "\("network_underlying_error".cyLocalized): \(error.localizedDescription)"
+        case .cancelled:
+            return "network_cancelled".cyLocalized
         case .unknown:
             return "network_unknown_error".cyLocalized
         }
     }
     
     // MARK: - 辅助方法
+    
+    /// 是否为请求取消（Task 取消 / URLSession 取消）— 上层应静默忽略
+    public var isCancellation: Bool {
+        if case .cancelled = self { return true }
+        return false
+    }
     
     /// 是否为认证失败（401）— 用于自动刷新 Token
     public var isUnauthorized: Bool {
@@ -127,6 +141,8 @@ public enum CYNetworkError: Error, LocalizedError, Sendable {
             return CYBusinessCodePolicy.shared.withLock { $0.display(for: code) }
         case .needReLogin(let code, _):
             return CYBusinessCodePolicy.shared.withLock { $0.display(for: code) }
+        case .cancelled:
+            return .silent
         default:
             return .toast
         }

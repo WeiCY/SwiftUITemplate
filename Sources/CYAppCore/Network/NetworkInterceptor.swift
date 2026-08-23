@@ -38,44 +38,82 @@ public struct CYLoggingInterceptor: CYRequestInterceptor, CYResponseInterceptor,
     }
     
     public func intercept(_ request: inout URLRequest) async {
+        CYLogger.shared.debug(Self.redactedRequestDescription(request, includeBody: includeBody))
+    }
+    
+    public func intercept(_ response: URLResponse?, data: Data?) async throws {
+        guard let httpResponse = response as? HTTPURLResponse else { return }
+        CYLogger.shared.debug(Self.redactedResponseDescription(httpResponse, data: data, includeBody: includeBody))
+    }
+    
+    // MARK: - 日志脱敏纯函数（internal，供测试直接验证）
+    
+    /// 敏感请求头名称（值一律脱敏为 `***`），匹配时不区分大小写
+    private static let sensitiveHeaderNames: Set<String> = [
+        "authorization", "proxy-authorization", "cookie",
+        "x-api-key", "apikey", "api_key", "x-auth-token", "token"
+    ]
+    
+    /// 敏感 JSON 字段（值一律脱敏为 `***`），匹配时不区分大小写
+    private static let sensitiveBodyKeys = [
+        "password", "token", "access_token", "refresh_token",
+        "secret", "api_key", "apikey", "authorization"
+    ]
+    
+    /// 构造脱敏后的请求日志字符串
+    static func redactedRequestDescription(_ request: URLRequest, includeBody: Bool = true) -> String {
         let method = request.httpMethod ?? "GET"
         let url = request.url?.absoluteString ?? "unknown"
         
         var log = "→ \(method) \(url)"
         
-        // 请求头
         if let headers = request.allHTTPHeaderFields, !headers.isEmpty {
-            log += "\n   Headers: \(headers)"
+            let redacted = headers.reduce(into: [String: String]()) { result, item in
+                result[item.key] = isSensitiveHeader(item.key) ? "***" : item.value
+            }
+            log += "\n   Headers: \(redacted)"
         }
         
-        // 请求体
         if includeBody, let body = request.httpBody,
            let bodyString = String(data: body, encoding: .utf8) {
-            log += "\n   Body: \(bodyString)"
+            log += "\n   Body: \(redactSensitiveBodyFields(bodyString))"
         }
         
-        CYLogger.shared.debug(log)
+        return log
     }
     
-    public func intercept(_ response: URLResponse?, data: Data?) async throws {
-        guard let httpResponse = response as? HTTPURLResponse else { return }
-        
-        let status = httpResponse.statusCode
-        let url = httpResponse.url?.absoluteString ?? "unknown"
+    /// 构造脱敏后的响应日志字符串
+    static func redactedResponseDescription(_ response: HTTPURLResponse, data: Data?, includeBody: Bool = true) -> String {
+        let status = response.statusCode
+        let url = response.url?.absoluteString ?? "unknown"
         let icon = (200..<300).contains(status) ? "✅" : "❌"
         
         var log = "\(icon) ← \(status) \(url)"
         
-        // 响应体
         if includeBody, let data, let bodyString = String(data: data, encoding: .utf8) {
-            // 截断过长的响应体
-            let truncated = bodyString.count > 500
-                ? String(bodyString.prefix(500)) + "... (\(bodyString.count) chars)"
-                : bodyString
+            let redacted = redactSensitiveBodyFields(bodyString)
+            let truncated = redacted.count > 500
+                ? String(redacted.prefix(500)) + "... (\(redacted.count) chars)"
+                : redacted
             log += "\n   Body: \(truncated)"
         }
         
-        CYLogger.shared.debug(log)
+        return log
+    }
+    
+    private static func isSensitiveHeader(_ name: String) -> Bool {
+        sensitiveHeaderNames.contains(name.lowercased())
+    }
+    
+    /// 将 JSON 文本中敏感字段的值替换为 `***`
+    private static func redactSensitiveBodyFields(_ bodyString: String) -> String {
+        let keys = sensitiveBodyKeys.joined(separator: "|")
+        let pattern = "(\"(?:" + keys + ")\"\\s*:\\s*)(?:\"[^\"]*\"|true|false|-?\\d+(?:\\.\\d+)?)"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return bodyString
+        }
+        let range = NSRange(location: 0, length: (bodyString as NSString).length)
+        return regex.stringByReplacingMatches(in: bodyString, options: [], range: range, withTemplate: "$1\"***\"")
     }
 }
 

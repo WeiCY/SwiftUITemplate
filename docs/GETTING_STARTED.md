@@ -225,6 +225,8 @@ CYAppConfiguration.configure(
 
 ## 5. 网络请求
 
+> 完整、权威的网络层使用说明（请求 API / 响应策略 / 业务码 / Token 刷新 / 上传下载 / 去重 / Mock）请阅读 [docs/NETWORK_GUIDE.md](NETWORK_GUIDE.md)。本节为快速上手。
+
 ### Step 1: 定义 CYEndpoint（API 路径）
 
 ```swift
@@ -291,7 +293,7 @@ let user: User = try await networkClient.request(UserEndpoint.profile)
 
 // ─── 方式 2：带 Encodable body 的 POST ───
 let body = UpdateProfileBody(name: "John", email: "john@example.com")
-let updatedUser: User = try await networkClient.post(UserEndpoint.update, body: body)
+let updatedUser: User = try await networkClient.request(UserEndpoint.update, body: body)
 
 // ─── 方式 3：获取完整响应（需要手动处理业务码）───
 let response: CYAPIResponse<User> = try await networkClient.requestRaw(UserEndpoint.profile)
@@ -328,7 +330,7 @@ final class ProfileViewModel: CYBaseViewModel {
         await executeTask { [weak self] in
             let body = UpdateProfileBody(name: name, email: email)
             self?.user = try await CYAppContainer.shared.networkClient
-                .post(UserEndpoint.update, body: body)
+                .request(UserEndpoint.update, body: body)
         }
     }
 }
@@ -405,39 +407,102 @@ CYAppConfiguration.configure(
 ```swift
 let deduplicator = CYAppContainer.shared.requestDeduplicator
 
-let user: User = try await deduplicator.request(
+// 相同 key 的并发请求自动合并，只发起一次网络请求
+let user: User = try await networkClient.requestWithDeduplication(
     UserEndpoint.profile,
-    using: networkClient
+    deduplicator: deduplicator
 )
-// 500ms 内的重复请求会自动合并，只发起一次网络请求
+
+// POST：Encodable body 会纳入去重键（相同 body 合并，不同 body 不误合并）
+let updated: User = try await networkClient.requestWithDeduplication(
+    UserEndpoint.update,
+    body: UpdateRequest(name: "Tom"),
+    deduplicator: deduplicator
+)
 ```
 
-### 文件上传
+### 响应策略 send（envelope / direct / raw / empty）
+
+```swift
+// envelope：默认包装，自动解包 data（等价 request）
+let user: User = try await networkClient.send(UserEndpoint.profile, strategy: .envelope)
+
+// envelopeRaw：返回原始 CYAPIResponse，不按业务码抛错（等价 requestRaw）
+let response: CYAPIResponse<User> = try await networkClient.send(UserEndpoint.profile, strategy: .envelopeRaw)
+
+// direct：响应体直接就是目标类型（无 envelope，适合第三方接口）
+let raw: ThirdPartyDTO = try await networkClient.send(OpenAPIEndpoint.status, strategy: .direct)
+
+// empty：只关心成功与否（204 等空响应）
+let _: CYEmptyResponse = try await networkClient.send(UserEndpoint.delete, strategy: .empty)
+```
+
+### 便捷 API（requestVoid / requestData / request(body:)）
+
+```swift
+// 只确认成功（业务错误仍会抛出）
+try await networkClient.requestVoid(UserEndpoint.delete(id: 123))
+
+// 原始响应体 Data（图片、文件等二进制）
+let imageData: Data = try await networkClient.requestData(ImageEndpoint.fetch)
+
+// 泛型 Encodable body（等价 post）
+let user: User = try await networkClient.request(AuthEndpoint.login, body: LoginRequest(...))
+```
+
+### 空响应 / 204（CYEmptyResponse）
+
+POST / DELETE 等只返回 `code + message`（或 204 No Content）的接口，用 `CYEmptyResponse`：
+
+```swift
+let _: CYEmptyResponse = try await networkClient.request(UserEndpoint.delete(id: 123))
+// 204 空 body、缺 data 键、data 为 null 均视为成功
+```
+
+### 文件上传（单文件 / 多文件 / 进度）
 
 ```swift
 let imageData = image.jpegData(compressionQuality: 0.8) ?? Data()
 
+// 单文件
 let avatar: Avatar = try await networkClient.upload(
     UserEndpoint.uploadAvatar,
-    config: CYUploadConfig(
-        data: imageData,
-        mimeType: "image/jpeg",
-        fileName: "avatar.jpg",
-        paramName: "file",
-        additionalParams: ["user_id": "123"]
-    )
+    parts: [
+        CYMultipartPart(data: imageData, mimeType: "image/jpeg", fileName: "avatar.jpg", paramName: "file")
+    ],
+    additionalParams: ["user_id": "123"]
+)
+
+// 多文件 + 进度回调（fractionCompleted ∈ [0, 1]）
+let result: UploadResult = try await networkClient.upload(
+    UserEndpoint.uploadAttachments,
+    parts: [
+        CYMultipartPart(data: imageData, mimeType: "image/jpeg", fileName: "a.jpg", paramName: "avatar"),
+        CYMultipartPart(data: coverData, mimeType: "image/png", fileName: "c.png", paramName: "cover"),
+    ],
+    additionalParams: ["scene": "profile"],
+    progress: { fraction in
+        uploadProgressView.progress = fraction
+    }
 )
 ```
 
 > 超过 `CYAppConstants.maxUploadSizeMB` 设置的上限时，上传会在发起请求前被拒绝并抛出 `CYNetworkError.payloadTooLarge`。
 
-### 文件下载
+### 文件下载（进度 / 取消）
 
 ```swift
 let fileURL = try await networkClient.download(
     FileEndpoint.downloadPDF(id: "doc123"),
-    to: documentsDirectory.appendingPathComponent("doc.pdf")
+    to: documentsDirectory.appendingPathComponent("doc.pdf"),
+    progress: { fraction in
+        downloadProgressView.progress = fraction
+    }
 )
+
+// 取消会传播到底层请求，Task 取消时抛出 CYNetworkError.cancelled
+let task = Task { try await networkClient.download(...) }
+task.cancel()
 ```
 
 ### Token 自动刷新
@@ -447,6 +512,24 @@ let fileURL = try await networkClient.download(
 - **HTTP 401**：拦截响应，触发 `CYTokenRefreshCoordinator`（Actor 隔离，并发请求只刷新一次），刷新成功后自动重放原请求。
 - **业务码过期**：`CYBusinessCodePolicy.tokenExpiredCodes` 匹配时，同样触发刷新 + 重放。
 - **防循环**：`hasRefreshed` 标记确保每个请求最多刷新一次。
+- **按端点禁用**：登录 / 刷新等认证类端点设置 `allowsTokenRefresh = false`，避免刷新请求自身 401 时递归刷新。
+- **requestRaw / direct / empty**：raw 语义，401 不触发自动刷新。
+
+### 日志脱敏
+
+`CYLoggingInterceptor` 自动对敏感信息脱敏：
+
+- 请求头：`Authorization`、`Cookie`、`X-Api-Key`、`Token` 等值输出为 `***`
+- 请求/响应体：`password`、`token`、`access_token`、`refresh_token`、`secret` 等字段值输出为 `***`
+
+```swift
+// 开启网络日志
+CYAppConfiguration.configure(
+    environment: .production,
+    baseURL: "https://api.example.com",
+    requestInterceptors: [CYLoggingInterceptor()]   // includeBody: false 可关闭 Body 打印
+)
+```
 
 ---
 

@@ -18,13 +18,15 @@
 - [x] Step 3：审查模板主干代码
 - [x] Step 4：只修当前主题的问题
 - [x] Step 5：立即验收
-- [ ] Step 6：确认是否进入下一阶段
+- [x] Step 6：确认是否进入下一阶段
 
 ### 现阶段说明
 
 - 已完成的内容：`docs/TEMPLATE_RULES.md`、`README.md`、`docs/GETTING_STARTED.md` 的定位与结构已调整；`CYAppState` 的 unused-result 告警已消除；`CYAppCore`、`CYAppUI`、`CYAppDesignSystem`、`CYAppNetwork`、`CYAppPersistence` 已完成主干审查；环境、日志、安全区等若干细节已统一。
-- 当前重点：继续补主干细节，优先找可统一的默认值、环境开关和命名一致性问题。
-- 当前不做：`ExampleApp` 的扩展与大改。
+- **网络层能力升级（1.1.0，2026-08-23）已完成**：`CYResponseStrategy` + `send` API、`requestVoid`/`requestData`/泛型 `request(body:)`、`upload(parts:)` 多文件上传、上传/下载进度与取消传播、`.cancelled` 取消识别、日志脱敏、Token 刷新边界（`allowsTokenRefresh`、`requestRaw` 纯 raw 语义）、空响应/204 支持；测试基线 108 → **156/156 全绿**。详见 [CHANGELOG](../CHANGELOG.md) 与 [docs/NETWORK_REFACTOR_PLAN.md](./NETWORK_REFACTOR_PLAN.md)。
+- 发布质量修整（原 1.0.1 计划）内容已提前完成：FactoryKit 依赖显式声明、`CYAppConstants` 可注入配置、Keychain 错误处理 `Result` + `kSecAttrAccessible` 配置、缓存错误可观测、SwiftLint 版本固定。
+- 当前重点：测试补强（图片层 / 权限管理 / 持久化 / 全局单例隔离）、iOS CI 构建步骤修复与运行级测试、`CYLoadingIndicator` 公共组件提取、Logger subsystem 可配置化。
+- 当前不做：`ExampleApp` 的扩展与大改（模板主干稳定后再进入）。
 
 ### Step 0：确认边界
 
@@ -90,10 +92,11 @@
 | 版本 | 状态 | 测试数量 | 覆盖率 | 组件数量 | 平台支持 |
 |---|---|---|---|---|---|
 | 1.0.0 | 已发布 (2026-08-10) | 98 | ~60% | 30+ | iOS 18, macOS 15 |
-| 1.0.1 | 计划中 | 100+ | ~65% | 30+ | iOS 18, macOS 15 |
-| 1.1.0 | 计划中 | 120+ | 70%+ | 35+ | iOS 18, macOS 15 |
-| 1.2.0 | 计划中 | 140+ | 75%+ | 40+ | iOS 18, macOS 15 |
-| 2.0.0 | 远期 | 160+ | 80%+ | 45+ | iOS 18, macOS 15, visionOS |
+| 1.1.0 | 已发布 (2026-08-23) | 156 | ~70% | 35+ | iOS 18, macOS 15 |
+| 1.2.0 | 计划中 (2026-10-05) | 160+ | 75%+ | 40+ | iOS 18, macOS 15 |
+| 2.0.0 | 远期 | 180+ | 80%+ | 45+ | iOS 18, macOS 15, visionOS |
+
+> 1.0.1 计划已取消：其内容（可配置默认值、Keychain/缓存错误可观测、FactoryKit 依赖显式化等）已完成并随 1.1.0 发布。
 
 ---
 
@@ -164,66 +167,69 @@
 
 ---
 
-## Phase 1：发布质量修整（约 1 周）
+## Phase 1：发布质量修整（✅ 已完成，随 1.1.0 发布）
 
-> 对应版本 [1.0.1] - 计划 2026-08-24
->
-> 执行要求：本阶段只处理“模板主干稳定性”，不做 ExampleApp 扩展。
+> 原计划对应版本 [1.0.1]（已取消），内容并入 1.1.0（2026-08-23）。
 
 **主题：配置化与错误处理增强**
 
-| 任务 | 验收标准 |
+| 任务 | 状态 |
 |---|---|
-| 显式声明 FactoryKit 依赖 | Network/Image 不依赖 Core 的传递依赖仍可干净构建 |
-| 存储错误可观测 | Keychain/缓存失败可被上层处理并结构化记录 |
-| `CYAppConstants` 可注入配置 | 缓存目录名、Keychain service、分页大小等可通过 `.configure(...)` 覆盖 |
-| Keychain 错误处理增强 | `save` / `read` / `delete` 返回 `Result`，增加 `kSecAttrAccessible` 配置 |
-| 缓存错误处理增强 | `CacheManager` 写入失败返回错误而非静默忽略 |
-| 消除编译告警 | `AppState` 无 unused-result 告警；评估并记录第三方 Kingfisher 告警 |
-| 提取 `CYLoadingIndicator` 公共组件 | `CYBaseView` 与 `CYLoadingOverlay` 复用同一组件 |
-| 文档校准 | README、DocC、报告中的模块数、依赖与测试统计一致 |
+| 显式声明 FactoryKit 依赖 | ✅ `Package.swift` 中 Network/Image 显式声明，不依赖 Core 传递依赖 |
+| 存储错误可观测 | ✅ Keychain/缓存失败返回 `Result` 并结构化记录 |
+| `CYAppConstants` 可注入配置 | ✅ `CYAppConfigurationValues` + `.configure(...)` 可覆盖缓存目录名、Keychain service、分页大小等 |
+| Keychain 错误处理增强 | ✅ `save` / `read` / `delete` 返回 `Result`，支持 `kSecAttrAccessible` 配置 |
+| 缓存错误处理增强 | ✅ `CacheManager` 写入/清除失败返回错误而非静默忽略 |
+| 消除编译告警 | ✅ `AppState` 无 unused-result 告警；第三方 Kingfisher `Info.plist` 告警已记录为已知 |
+| 提取 `CYLoadingIndicator` 公共组件 | ✅ `CYBaseView` 与 `CYLoadingOverlay` 复用同一组件（`CYAppDesignSystem/Components/LoadingIndicator.swift`），行为一致 |
+| 文档校准 | ✅ 本轮完成：ROADMAP、REVIEW、ARCHITECTURE、README 已与 1.1.0 现状同步 |
 
 ---
 
-## Phase 2：可信测试与 CI（约 2–3 周）
+## Phase 2：可信测试与 CI（✅ 网络重构完成；其余项移至 1.2.0）
 
-> 对应版本 [1.1.0] - 计划 2026-09-07
->
-> 执行要求：只有在 Phase 1 完成并验收后，才允许进入本阶段。
+> 原计划对应版本 [1.1.0]，实际 1.1.0 发布内容为网络层能力升级（Batch 0–16，156/156 测试全绿），
+> 原「测试增强与组件完善」中未完成项全部顺延至 1.2.0。
 
-**主题：测试增强与组件完善**
+**主题：测试增强与组件完善（1.1.0 完成情况）**
 
-| 任务 | 验收标准 |
+| 任务 | 状态 |
 |---|---|
-| 网络层测试覆盖率 70%+ | 上传/下载/拦截器/超时有确定性测试（URLProtocol mock 或 Alamofire Session mock） |
-| 图片层测试 | `CYKingfisherImageLoader` / `CYDefaultImageLoader` 测试 |
-| 权限管理测试 | `CYPermissionManager` 状态流转 + 各权限类型测试 |
-| 持久化测试 | `CYBookmarkRepository` CRUD + SwiftData 内存 ModelContainer 测试 |
-| 隔离全局单例 | `setUp` / `tearDown` 统一重置机制，测试可并行执行 |
-| 新增业务组件 | 导航栏组件 / 图片轮播组件 / 表单构建器 |
-| iOS CI | 至少构建 ExampleApp 和主要 targets 到固定 iOS Simulator |
-| 固定工具链 | Xcode/SwiftLint 版本明确，可重复执行 |
+| 网络层测试覆盖率 70%+ | ✅ `NetworkRegressionTests`（34 条）+ `MockNetworkClientTests`，上传/下载/拦截器/取消/去重均有确定性测试（URLProtocol mock） |
+| 固定工具链 | ✅ SwiftLint 0.59.1 固定；CI 使用固定 Xcode |
+| iOS CI | ⚠️ 已配置 iOS Simulator 构建步骤，但仓库无 `.xcodeproj`，`xcodebuild -scheme ExampleApp` 实际不可执行（移至 1.2.0 修复并验证） |
+| 图片层测试 | ⬜ 移至 1.2.0 |
+| 权限管理测试 | ⬜ 移至 1.2.0 |
+| 持久化测试 | ⬜ 部分完成（BookmarkRepository CRUD 1 条），移至 1.2.0 补强 |
+| 隔离全局单例 | ⬜ 移至 1.2.0 |
+| 新增业务组件 | ⬜ 移至 1.2.0 |
 
 ---
 
-## Phase 3：模板体验与生产治理（持续）
+## Phase 3：测试补强、CI 修复与模板完善（约 2–3 周）
 
 > 对应版本 [1.2.0] - 计划 2026-10-05
 >
-> 执行要求：只有在 Phase 2 完成并验收后，才允许进入本阶段。ExampleApp 的完整完善在本阶段进行。
+> 执行要求：Phase 1（发布质量修整）与 Phase 2（网络重构）已完成，本阶段合并剩余未完成项。
 
-**主题：CI 增强与示例完善**
+**主题：测试补强、CI 修复与示例完善**
 
 | 任务 | 验收标准 |
 |---|---|
-| CI 验证 iOS 模拟器 | GitHub Actions 增加 iOS 模拟器构建步骤 |
+| 图片层测试 | `CYKingfisherImageLoader` / `CYDefaultImageLoader` 测试 |
+| 权限管理测试 | `CYPermissionManager` 状态流转 + 各权限类型测试（注入 mock requester） |
+| 持久化测试补强 | `CYBookmarkRepository`/`CYTagRepository` CRUD + 错误路径 + 内存 ModelContainer 测试 |
+| 隔离全局单例 | `setUp` / `tearDown` 统一重置机制，测试可并行执行 |
+| 新增业务组件 | 导航栏组件 / 图片轮播组件 / 表单构建器 |
+| iOS CI 修复与验证 | `xcodebuild` iOS Simulator 构建步骤修复（提交 `.xcodeproj` 或改用等价方案），并在 CI 实际跑通 |
+| iOS 运行级测试 | XCUITest / iOS Simulator 运行级测试覆盖关键流程 |
+| Logger subsystem 可配置 | 宿主可通过 `.configure(...)` 统一设置 `OSLog` subsystem 与默认 category |
 | ExampleApp 完整演示 | 登录、列表、详情、设置、图片与持久化均可在 ExampleApp 跑通 |
 | 主题切换实时演示 | `appState.theme = .dark` 在 ExampleApp 中可切换 |
 | SwiftData 迁移示例 | V1 -> V2 版本化迁移计划与演示 |
-| App Intents 支持 | Siri Shortcuts 模板 + 至少一个 Widget 模板 |
-| 更多业务组件 | 图表组件（Charts 封装）/ 二维码扫描 / 文件选择器 |
 | 性能与安全基线 | 缓存/网络基准、依赖扫描、Keychain 策略与隐私清单形成文档 |
 | API 文档完善 | 每个公共模块具有自己的 DocC 入口及关键 public API 注释 |
+| 多平台构建矩阵 | iOS/macOS 双平台构建与测试矩阵形成正式验证记录 |
 
 ---
 
@@ -256,10 +262,12 @@
 
 | 优先级 | 问题 | 计划版本 |
 |---|---|---|
+| P1 | iOS Simulator CI 构建步骤不可执行（仓库无 `.xcodeproj`，`xcodebuild -scheme ExampleApp` 报错） | 1.2.0 |
 | P2 | `ExampleApp` 未展示主题切换、图片、持久化、登录与错误重试 | 1.2.0 |
-| P2 | Keychain 可访问级别、日志 subsystem 等仍未统一配置 | 1.1.0 |
-| P2 | iOS 运行级测试尚未覆盖 | 1.1.0 |
-| P2 | macOS/iOS 构建矩阵仍缺少正式验证记录 | 1.1.0 |
+| P2 | `OSLog` subsystem/category 仍无法由宿主统一配置 | 1.2.0 |
+| P2 | 图片层 / 权限管理 / 持久化测试不足；全局单例无统一测试隔离 | 1.2.0 |
+| P2 | iOS 运行级测试尚未覆盖 | 1.2.0 |
+| P2 | macOS/iOS 构建矩阵仍缺少正式验证记录 | 1.2.0 |
 
 ---
 

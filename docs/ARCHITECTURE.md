@@ -95,7 +95,7 @@ Layer 2 — UI 功能
 
 | 子目录 | 职责 | 关键类型 |
 |---|---|---|
-| `Network/` | 网络协议层 | `CYEndpoint`, `CYNetworkClientProtocol`, `CYAPIResponse<T>`, `CYBusinessCodePolicy`, `CYRequestInterceptor`, `CYResponseInterceptor`, `CYRequestDeduplicator`, `CYTokenRefreshCoordinator` |
+| `Network/` | 网络协议层 | `CYEndpoint`, `CYNetworkClientProtocol`, `CYAPIResponse<T>`, `CYBusinessCodePolicy`, `CYResponseStrategy`, `CYRequestInterceptor`, `CYResponseInterceptor`, `CYRequestDeduplicator`, `CYTokenRefreshCoordinator` |
 | `Services/` | 认证 / 分析 / 用户会话 | `AuthServiceProtocol`, `CYAuthService`, `CYAnalyticsServiceProtocol`, `CYUserSession`, `TokenPair`, `User` |
 | `DI/` | 依赖注入 | `DIContainerProtocol`, `CYFactoryContainer`, `CYAppContainer` |
 | `Configuration/` | 环境配置 | `CYAppEnvironment` |
@@ -117,7 +117,7 @@ Alamofire 桥接层。
 | 文件 | 职责 |
 |---|---|
 | `AppConfiguration.swift` | `CYAppConfiguration` — 启动配置器，构建 `CYNetworkClient` 并注册到 Factory |
-| `Network/NetworkClient.swift` | `CYNetworkClient` — 实现 `CYNetworkClientProtocol`，包含拦截器链、401/Token 刷新重放、请求去重 |
+| `Network/NetworkClient.swift` | `CYNetworkClient` — 实现 `CYNetworkClientProtocol`，包含拦截器链、401/Token 刷新重放、请求去重、响应策略解码、上传/下载进度与取消传播 |
 
 ### CYAppImage（Layer 0 — 图片实现）
 
@@ -143,7 +143,7 @@ Kingfisher 桥接层。
 | 子目录 | 关键类型 |
 |---|---|
 | `Theme/` | `CYAppColor`, `CYAppFont`, `CYAppDimens`, Color+Hex 扩展 |
-| `Components/` | `CYBaseView`, `PrimaryButton`/`SecondaryButton`/`CYScaledButtonStyle`, `CardView`, `EmptyStateView`, `CYTextField`/`CYSearchBar`/`CYVerificationCodeInput`, `CYListRow`/`CYSectionHeader`, `CYPaginatedListView`, `CYBadge`/`CYTag`, `ShimmerModifier`/`SkeletonRow`, `CYBottomSheetModifier`/`CYSnackBar` |
+| `Components/` | `CYBaseView`, `CYLoadingIndicator`, `PrimaryButton`/`SecondaryButton`/`CYScaledButtonStyle`, `CardView`, `EmptyStateView`, `CYTextField`/`CYSearchBar`/`CYVerificationCodeInput`, `CYListRow`/`CYSectionHeader`, `CYPaginatedListView`, `CYBadge`/`CYTag`, `ShimmerModifier`/`SkeletonRow`, `CYBottomSheetModifier`/`CYSnackBar` |
 
 ### CYAppUI（Layer 2 — UI 功能）
 
@@ -286,7 +286,7 @@ Container.shared.authService.register { MockAuthService(userSession: CYUserSessi
 
 ```
 CYNetworkError（网络层，细粒度）
-  .httpError / .businessError / .tokenExpired / .needReLogin / .decodingFailed
+  .httpError / .businessError / .tokenExpired / .needReLogin / .decodingFailed / .cancelled
         │
         ▼  CYAppError.resolve(_:)
 CYAppError（视图层，粗粒度）
@@ -340,7 +340,7 @@ CYAppError（视图层，粗粒度）
 
 ```
                     ┌─────────────┐
-                    │ CYEndpoint  │  协议：path / method / headers / body / queryItems
+                    │ CYEndpoint  │  协议：path / method / headers / body / queryItems / allowsTokenRefresh
                     └──────┬──────┘
                            │
                            ▼
@@ -356,31 +356,65 @@ CYAppError（视图层，粗粒度）
                            │
                            ▼
               ┌─────────────────────────┐
-              │  Alamofire Session       │  发送请求
+              │  Alamofire Session       │  发送请求（上传/下载支持进度回调）
               └────────────┬────────────┘
                            │
                            ▼
               ┌─────────────────────────┐
-              │  解码 CYAPIResponse<T>   │  {code, data, message}
+              │  CYResponseStrategy 解码  │  envelope / envelopeRaw / direct / empty / data
               └────────────┬────────────┘
                            │
                            ▼
               ┌─────────────────────────┐
-              │  CYResponseInterceptor[] │  响应拦截器链
+              │  CYResponseInterceptor[] │  响应拦截器链（仅终态响应）
               └────────────┬────────────┘
                            │
-                    ┌──────┴──────┐
-                    │             │
-                    ▼             ▼
-            .request()      .requestRaw()
-          自动解包 data     返回完整 response
-          业务码错误抛出     手动处理 businessResult
+                           ▼
+                send(strategy:)  统一入口
+                          │
+            ┌─────────────┼─────────────────┐
+            │             │                 │
+            ▼             ▼                 ▼
+       .envelope      .envelopeRaw      .direct
+      自动解包 data   返回完整 CYAPIResponse  裸模型（第三方 API）
+      业务码错误抛出   手动检查业务状态
 ```
+
+### 响应策略 `CYResponseStrategy`
+
+1.1.0 起所有请求统一路由到 `send(_:strategy:)`，按策略解码响应：
+
+| 策略 | 解码目标 | 适用场景 |
+|---|---|---|
+| `.envelope` | `CYAPIResponse<T>` 的 `data` | 标准 `{code, data, message}` 包络，业务码错误自动抛出 |
+| `.envelopeRaw` | 完整 `CYAPIResponse<T>` | 需要手动检查业务码/消息 |
+| `.direct` | 裸 `T` | 无包络的第三方/开放 API |
+| `.empty` | `CYEmptyResponse` | 204 / 空 body 接口 |
+| `.data` | `Data` | 二进制下载内容 |
+
+### 便捷 API
+
+| API | 说明 |
+|---|---|
+| `requestVoid(_:)` | 无需返回值的接口（内部走 `.empty`） |
+| `requestData(_:)` | 直接返回 `Data`（内部走 `.data`） |
+| `request<T>(body:strategy:)` | 泛型请求，支持 `Encodable` body 编码 |
+| `upload(_:fileData:...)` / `upload(parts:)` | 单/多文件 multipart 上传，支持进度回调 |
+| `download(_:to:)` | 下载到目标文件，支持进度回调 |
+
+既有 `request` / `requestRaw` / `post` 保持协议要求不变，内部路由到 `send`，行为兼容。
+
+### 错误模型（1.1.0 补充）
+
+- 新增 `CYNetworkError.cancelled`：Task/URLSession 取消被识别为取消而非普通错误，`CYBaseViewModel` 自动忽略展示。
+- 空响应 / 204 不再抛 `decodingFailed`（`CYEmptyResponse` 可用）。
+- `buildURL` 自动规范化 baseURL 尾斜杠与 path 前导斜杠，避免双斜杠。
+- 请求/响应日志自动脱敏（Authorization、Cookie、Token 等 Header 与 password/token 等 Body 字段）。
 
 ### Token 自动刷新
 
 ```
-请求失败（HTTP 401 或业务码 tokenExpired）
+请求失败（HTTP 401 或业务码 tokenExpired，且 endpoint.allowsTokenRefresh == true）
     │
     ▼
 CYTokenRefreshCoordinator（Actor）
@@ -391,9 +425,16 @@ CYTokenRefreshCoordinator（Actor）
 刷新失败 → 抛出 CYNetworkError.needReLogin
 ```
 
+1.1.0 补充的刷新边界：
+
+- `CYEndpoint.allowsTokenRefresh`（默认 `true`）：登录 / 刷新等认证类端点设为 `false`，防止刷新请求自身 401 时递归刷新。
+- `requestRaw` 为完全 raw 语义：收到 HTTP 401 不自动刷新、不重放，直接抛 `httpError(401)`。
+- 瞬态 401 不再提前触发响应拦截器：响应拦截器只收到终态响应，`CYAutoLogoutInterceptor` 不会在刷新链路中提前登出。
+- 刷新失败不递归、不重放，避免无限循环。
+
 ### 请求去重
 
-`CYRequestDeduplicator`（Actor）按 `method + path + query + body` 生成 key，合并 500ms 内的相同并发请求，只发起一次网络调用。
+`CYRequestDeduplicator`（Actor）按 `method + path + query + body` 生成 key，合并 500ms 内的相同并发请求，只发起一次网络调用。1.1.0 起去重 key 完整覆盖 `Encodable` body（不同 body 不会误合并）。
 
 ### 内置拦截器
 
@@ -504,9 +545,12 @@ CYSwiftTemplate/
 │   └── ci.yml                     # CI（build + test + lint + iOS Simulator）
 ├── docs/                          # 文档
 │   ├── GETTING_STARTED.md         # 完整接入指南
+│   ├── NETWORK_GUIDE.md           # 网络框架使用指南
+│   ├── NETWORK_REFACTOR_PLAN.md   # 网络层重构执行记录
 │   ├── ARCHITECTURE.md            # 架构设计（本文档）
 │   ├── ROADMAP.md                 # 路线图
-│   └── REVIEW.md                  # 评测快照
+│   ├── REVIEW.md                  # 评测快照
+│   └── TEMPLATE_RULES.md          # 模板开发规范
 ├── Sources/
 │   ├── CYAppCore/                   # Layer 0: 纯逻辑（协议 + 工具）
 │   │   ├── Network/               #   CYEndpoint, CYNetworkClientProtocol, APIResponse, BusinessCode
