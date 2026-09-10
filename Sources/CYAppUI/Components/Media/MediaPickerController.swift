@@ -325,27 +325,30 @@ public struct CYMediaPickerController: View {
 
     // MARK: - 拍照回调
 
+    @MainActor
     private func handleCameraDismissed() {
-        guard let image = pendingCapturedImage else { return }
-        pendingCapturedImage = nil
-        guard selectionManager.canSelectMore else { return }
-        selectionManager.addCapturedImage(image)
-
-        // 拍照本身就是一次完整选择：直接回传并关闭媒体选择器，避免用户
-        // 被留在相册网格页再次点击“完成”。
-        onConfirm(selectionManager.selectedItems)
-    }
-
-    private func handleCapturedImage(_ image: UIImage) {
-        // 直接添加到选择列表
-        if selectionManager.canSelectMore {
-            selectionManager.addCapturedImage(image)
+        guard let image = pendingCapturedImage else {
+            return
         }
 
-        // 拍摄结果已在选择管理器中，可直接预览、确认和交给业务层识别。
-        // 不自动写回系统相册：部分设备在相机采集会话结束时调用
-        // PHPhotoLibrary.performChanges 会触发系统的队列断言，且该副作用并非
-        // 媒体选择或食物识别流程的必需条件。
+        pendingCapturedImage = nil
+
+        // 单选场景下替换之前的选择
+        if maxSelection == 1 {
+            selectionManager.clear()
+        }
+
+        guard selectionManager.addCapturedImage(image) else {
+            return
+        }
+
+        // 从主线程调用系统相册保存入口，避免在 Photos 后台闭包中
+        // 捕获 MainActor 隔离的 UIImage。
+        UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
+
+        // 回传图片。CYMediaPicker 外层收到回调后会将
+        // showGridPicker 设置为 false，从而关闭整个媒体选择界面。
+        onConfirm(selectionManager.selectedItems)
     }
 }
 #endif

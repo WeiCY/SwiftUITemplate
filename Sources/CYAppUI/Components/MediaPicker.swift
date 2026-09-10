@@ -171,8 +171,9 @@ public struct CYMediaPicker<Label: View>: View {
                         let identifiers = items.localIdentifiers
                         retainedSelectionIDs = identifiers
                         selectionIDs?.wrappedValue = identifiers
-                        onPicked(items)
+
                         showGridPicker = false
+                        onPicked(items)
                     },
                     onCancel: {
                         showGridPicker = false
