@@ -48,5 +48,12 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
 
-      - name: Build package and ExampleApp for iOS Simulator
-        run: xcodebuild build -scheme ExampleApp -destination 'platform=iOS Simulator,name=iPhone 16 Pro' CODE_SIGNING_ALLOWED=NO
+      # 仓库为纯 SwiftPM 包（无 .xcodeproj），xcodebuild -scheme 不可用。
+      # 改用 swift build 交叉编译验证 iOS Simulator 目标（全部 Library + ExampleApp）。
+      - name: Cross-compile package and ExampleApp for iOS Simulator
+        run: |
+          SDK="$(xcrun --sdk iphonesimulator --show-sdk-path)"
+          swift build \
+            --sdk "$SDK" \
+            --triple arm64-apple-ios18.0-simulator \
+            -Xlinker -syslibroot -Xlinker "$SDK"

@@ -119,8 +119,8 @@ Layer 2  CYAppUI (AppState/Router/反馈视图)
 | 项目 | 结果 |
 |---|---|
 | SPM 构建 | ✅ 通过（macOS 宿主；本机沙箱环境需 `--disable-sandbox`） |
-| 单元测试 | ✅ 156/156 通过 |
-| iOS Simulator CI | ⚠️ 已配置但待修复（仓库无 `.xcodeproj`，`xcodebuild -scheme ExampleApp` 不可执行） |
+| 单元测试 | ✅ 156/156 通过（AppState 测试已隔离 UserDefaults 持久化，跨运行可复现） |
+| iOS Simulator 构建 | ✅ 通过（`swift build` 交叉编译验证全部目标，无需 `.xcodeproj`；CI 步骤已同步修复） |
 | 平台 | iOS 18+, macOS 15+ |
 | Swift | 6.0 (strict concurrency) |
 

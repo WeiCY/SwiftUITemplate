@@ -318,14 +318,14 @@ public struct CYCameraView: UIViewControllerRepresentable {
             _ picker: UIImagePickerController,
             didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
         ) {
+            // 仅通过回调驱动外层 SwiftUI fullScreenCover/sheet 关闭，
+            // 避免 UIKit dismiss 与 showCamera = false 双重关闭导致崩溃。
             let image = info[.originalImage] as? UIImage
             onImagePicked(image)
-            picker.dismiss(animated: true)
         }
 
         public func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
             onImagePicked(nil)
-            picker.dismiss(animated: true)
         }
     }
 }

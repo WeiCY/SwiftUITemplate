@@ -7,12 +7,33 @@ import CYFeedbackStyle
 // MARK: - UI 层补充测试
 //
 // 覆盖 AppRouter 导航栈核心逻辑与全局反馈样式配置。
+// AppState 相关测试统一注入内存版管理器（见 TestSupport.swift），
+// 不依赖 UserDefaults 持久化状态，保证跨用例、跨运行可复现。
 
 final class AppUITests: XCTestCase {
 
+    override func setUp() {
+        super.setUp()
+        AppStateTestSupport.resetPersistedPreferences()
+    }
+
+    override func tearDown() {
+        AppStateTestSupport.resetPersistedPreferences()
+        super.tearDown()
+    }
+
+    /// 构造使用内存版管理器的 AppState，隔离 UserDefaults 持久化
+    @MainActor
+    private func makeAppState() -> CYAppState {
+        CYAppState(
+            themeManager: MockThemeManager(),
+            localizationManager: MockLocalizationManager()
+        )
+    }
+
     @MainActor
     func testRouterNavigateAndPop() {
-        let appState = CYAppState()
+        let appState = makeAppState()
         let router = CYAppRouter(appState: appState)
         router.navigate(to: "detail")
         XCTAssertEqual(router.paths[.home]?.count, 1)
@@ -23,7 +44,7 @@ final class AppUITests: XCTestCase {
 
     @MainActor
     func testRouterPopToRoot() {
-        let appState = CYAppState()
+        let appState = makeAppState()
         let router = CYAppRouter(appState: appState)
         router.navigate(to: "a")
         router.navigate(to: "b")
@@ -36,7 +57,7 @@ final class AppUITests: XCTestCase {
 
     @MainActor
     func testRouterNavigateSwitchesTab() {
-        let appState = CYAppState()
+        let appState = makeAppState()
         let router = CYAppRouter(appState: appState)
         router.navigate(to: "settings", on: .profile)
         XCTAssertEqual(appState.selectedTab, .profile)
@@ -92,7 +113,7 @@ final class AppUITests: XCTestCase {
     
     @MainActor
     func testAppStateInitialState() {
-        let state = CYAppState()
+        let state = makeAppState()
         XCTAssertNil(state.user)
         XCTAssertFalse(state.isLoggedIn)
         XCTAssertTrue(state.selectedTab == .home)
@@ -101,7 +122,7 @@ final class AppUITests: XCTestCase {
     
     @MainActor
     func testAppStateSetUser() {
-        let state = CYAppState()
+        let state = makeAppState()
         let user = User(id: 1, name: "Test", email: "test@example.com")
         state.setUser(user)
         XCTAssertNotNil(state.user)
@@ -111,7 +132,7 @@ final class AppUITests: XCTestCase {
     
     @MainActor
     func testAppStateLogout() {
-        let state = CYAppState()
+        let state = makeAppState()
         let user = User(id: 1, name: "Test", email: nil)
         state.setUser(user)
         state.selectedTab = .profile
@@ -123,7 +144,7 @@ final class AppUITests: XCTestCase {
     
     @MainActor
     func testAppStateResetUserPreservesPreferences() {
-        let state = CYAppState()
+        let state = makeAppState()
         state.setUser(User(id: 1, name: "Test", email: nil))
         state.selectedTab = .profile
         state.theme = .dark
@@ -135,7 +156,7 @@ final class AppUITests: XCTestCase {
 
     @MainActor
     func testAppStateResetAllClearsPreferences() {
-        let state = CYAppState()
+        let state = makeAppState()
         state.setUser(User(id: 1, name: "Test", email: nil))
         state.selectedTab = .profile
         state.theme = .dark

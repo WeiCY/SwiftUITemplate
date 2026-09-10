@@ -40,12 +40,20 @@ public final class CYPhotoAssetLoader {
         options.resizeMode = .fast
 
         let image = await withCheckedContinuation { (continuation: CheckedContinuation<UIImage?, Never>) in
+            let lock = NSLock()
+            var hasResumed = false
             imageManager.requestImage(
                 for: asset,
                 targetSize: targetSize,
                 contentMode: .aspectFill,
                 options: options
-            ) { image, _ in
+            ) { image, info in
+                // highQualityFormat 通常只回调一次；仍防 degraded / 重复 resume
+                if (info?[PHImageResultIsDegradedKey] as? Bool) == true { return }
+                lock.lock()
+                defer { lock.unlock() }
+                guard !hasResumed else { return }
+                hasResumed = true
                 continuation.resume(returning: image)
             }
         }
@@ -65,12 +73,19 @@ public final class CYPhotoAssetLoader {
         options.isNetworkAccessAllowed = true
 
         return await withCheckedContinuation { (continuation: CheckedContinuation<UIImage?, Never>) in
+            let lock = NSLock()
+            var hasResumed = false
             imageManager.requestImage(
                 for: asset,
                 targetSize: PHImageManagerMaximumSize,
                 contentMode: .default,
                 options: options
-            ) { image, _ in
+            ) { image, info in
+                if (info?[PHImageResultIsDegradedKey] as? Bool) == true { return }
+                lock.lock()
+                defer { lock.unlock() }
+                guard !hasResumed else { return }
+                hasResumed = true
                 continuation.resume(returning: image)
             }
         }
@@ -85,7 +100,13 @@ public final class CYPhotoAssetLoader {
         options.deliveryMode = .highQualityFormat
 
         return await withCheckedContinuation { (continuation: CheckedContinuation<Data?, Never>) in
+            let lock = NSLock()
+            var hasResumed = false
             imageManager.requestImageDataAndOrientation(for: asset, options: options) { data, _, _, _ in
+                lock.lock()
+                defer { lock.unlock() }
+                guard !hasResumed else { return }
+                hasResumed = true
                 continuation.resume(returning: data)
             }
         }

@@ -25,7 +25,8 @@
 - 已完成的内容：`docs/TEMPLATE_RULES.md`、`README.md`、`docs/GETTING_STARTED.md` 的定位与结构已调整；`CYAppState` 的 unused-result 告警已消除；`CYAppCore`、`CYAppUI`、`CYAppDesignSystem`、`CYAppNetwork`、`CYAppPersistence` 已完成主干审查；环境、日志、安全区等若干细节已统一。
 - **网络层能力升级（1.1.0，2026-08-23）已完成**：`CYResponseStrategy` + `send` API、`requestVoid`/`requestData`/泛型 `request(body:)`、`upload(parts:)` 多文件上传、上传/下载进度与取消传播、`.cancelled` 取消识别、日志脱敏、Token 刷新边界（`allowsTokenRefresh`、`requestRaw` 纯 raw 语义）、空响应/204 支持；测试基线 108 → **156/156 全绿**。详见 [CHANGELOG](../CHANGELOG.md) 与 [docs/NETWORK_REFACTOR_PLAN.md](./NETWORK_REFACTOR_PLAN.md)。
 - 发布质量修整（原 1.0.1 计划）内容已提前完成：FactoryKit 依赖显式声明、`CYAppConstants` 可注入配置、Keychain 错误处理 `Result` + `kSecAttrAccessible` 配置、缓存错误可观测、SwiftLint 版本固定。
-- 当前重点：测试补强（图片层 / 权限管理 / 持久化 / 全局单例隔离）、iOS CI 构建步骤修复与运行级测试、`CYLoadingIndicator` 公共组件提取、Logger subsystem 可配置化。
+- **P1 修复（2026-09-02）已完成，待随下个版本发布**：① 测试隔离 —— `CYAppState` 测试注入内存版主题/多语言管理器替身并清理 UserDefaults 持久化键，156 项测试跨用例、跨运行可复现；② iOS Simulator 构建 —— CI 改为 `swift build --sdk/--triple` 交叉编译验证（无需 `.xcodeproj`），本地已验证通过。
+- 当前重点：测试补强（图片层 / 权限管理 / 持久化 / 反馈管理器单例隔离）、iOS 运行级测试、Logger subsystem 可配置化。
 - 当前不做：`ExampleApp` 的扩展与大改（模板主干稳定后再进入）。
 
 ### Step 0：确认边界
@@ -197,7 +198,7 @@
 |---|---|
 | 网络层测试覆盖率 70%+ | ✅ `NetworkRegressionTests`（34 条）+ `MockNetworkClientTests`，上传/下载/拦截器/取消/去重均有确定性测试（URLProtocol mock） |
 | 固定工具链 | ✅ SwiftLint 0.59.1 固定；CI 使用固定 Xcode |
-| iOS CI | ⚠️ 已配置 iOS Simulator 构建步骤，但仓库无 `.xcodeproj`，`xcodebuild -scheme ExampleApp` 实际不可执行（移至 1.2.0 修复并验证） |
+| iOS CI | ✅ 已修复（2026-09-02）：改为 `swift build --sdk/--triple` 交叉编译验证 iOS Simulator 目标，无需 `.xcodeproj`，本地已验证通过 |
 | 图片层测试 | ⬜ 移至 1.2.0 |
 | 权限管理测试 | ⬜ 移至 1.2.0 |
 | 持久化测试 | ⬜ 部分完成（BookmarkRepository CRUD 1 条），移至 1.2.0 补强 |
@@ -221,7 +222,7 @@
 | 持久化测试补强 | `CYBookmarkRepository`/`CYTagRepository` CRUD + 错误路径 + 内存 ModelContainer 测试 |
 | 隔离全局单例 | `setUp` / `tearDown` 统一重置机制，测试可并行执行 |
 | 新增业务组件 | 导航栏组件 / 图片轮播组件 / 表单构建器 |
-| iOS CI 修复与验证 | `xcodebuild` iOS Simulator 构建步骤修复（提交 `.xcodeproj` 或改用等价方案），并在 CI 实际跑通 |
+| iOS CI 修复与验证 | ✅ 已完成（2026-09-02）：CI 改为 `swift build` 交叉编译，无需 `.xcodeproj`；远程 Actions 待下次推送确认 |
 | iOS 运行级测试 | XCUITest / iOS Simulator 运行级测试覆盖关键流程 |
 | Logger subsystem 可配置 | 宿主可通过 `.configure(...)` 统一设置 `OSLog` subsystem 与默认 category |
 | ExampleApp 完整演示 | 登录、列表、详情、设置、图片与持久化均可在 ExampleApp 跑通 |
@@ -262,10 +263,10 @@
 
 | 优先级 | 问题 | 计划版本 |
 |---|---|---|
-| P1 | iOS Simulator CI 构建步骤不可执行（仓库无 `.xcodeproj`，`xcodebuild -scheme ExampleApp` 报错） | 1.2.0 |
+| ~~P1~~ | ✅ iOS Simulator CI 构建步骤已修复（2026-09-02，改为 `swift build` 交叉编译，无需 `.xcodeproj`） | 已完成 |
 | P2 | `ExampleApp` 未展示主题切换、图片、持久化、登录与错误重试 | 1.2.0 |
 | P2 | `OSLog` subsystem/category 仍无法由宿主统一配置 | 1.2.0 |
-| P2 | 图片层 / 权限管理 / 持久化测试不足；全局单例无统一测试隔离 | 1.2.0 |
+| P2 | 图片层 / 权限管理 / 持久化测试不足；反馈管理器（Toast/Loading/Alert）与 DI 容器无统一测试隔离（AppState/主题/语言隔离已于 2026-09-02 修复） | 1.2.0 |
 | P2 | iOS 运行级测试尚未覆盖 | 1.2.0 |
 | P2 | macOS/iOS 构建矩阵仍缺少正式验证记录 | 1.2.0 |
 

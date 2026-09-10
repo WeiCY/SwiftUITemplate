@@ -76,7 +76,10 @@ public enum CYNetworkError: Error, LocalizedError, Sendable {
             return "network_timeout".cyLocalized
         case .noConnection:
             return "network_no_connection".cyLocalized
-        case .httpError(let statusCode, _):
+        case .httpError(let statusCode, let data):
+            if let message = Self.serverMessage(from: data) {
+                return message
+            }
             return String(format: "network_http_error".cyLocalized, statusCode)
         case .businessError(_, let message):
             return message
@@ -168,5 +171,17 @@ public enum CYNetworkError: Error, LocalizedError, Sendable {
         case .needReLogin(let code, _): return code
         default: return nil
         }
+    }
+
+    /// 从 HTTP 错误响应体中提取服务端 message（后端统一格式 `{ code, message, data }`）。
+    /// 提取不到时返回 nil，由调用方回退到通用文案。
+    static func serverMessage(from data: Data?) -> String? {
+        guard let data,
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let message = object["message"] as? String,
+              !message.isEmpty else {
+            return nil
+        }
+        return message
     }
 }
