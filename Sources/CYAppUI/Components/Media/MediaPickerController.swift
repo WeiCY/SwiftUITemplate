@@ -39,6 +39,7 @@ public struct CYMediaPickerController: View {
     @State private var showPreview = false
     @State private var showAlbumList = false
     @State private var previewIndex = 0
+    @State private var pendingCapturedImage: UIImage?
     @State private var currentAlbum = CYAlbumInfo.allPhotos
     @State private var albums: [CYAlbumInfo] = [.allPhotos]
     @State private var gridAssets: [PHAsset] = []
@@ -80,12 +81,13 @@ public struct CYMediaPickerController: View {
             }
         }
         .task { await checkPermission() }
-        .fullScreenCover(isPresented: $showCamera) {
+        .fullScreenCover(isPresented: $showCamera, onDismiss: handleCameraDismissed) {
             CYCameraView { image in
+                // UIImagePickerController 的拍照回调发生时，相机采集会话仍在收尾。
+                // 仅记录结果并关闭页面；相册写入必须等到 onDismiss 后再开始，避免
+                // 相机与 Photos 同时访问底层媒体资源而触发系统队列断言。
+                pendingCapturedImage = image
                 showCamera = false
-                if let image {
-                    handleCapturedImage(image)
-                }
             }
             .ignoresSafeArea()
         }
@@ -323,24 +325,27 @@ public struct CYMediaPickerController: View {
 
     // MARK: - 拍照回调
 
+    private func handleCameraDismissed() {
+        guard let image = pendingCapturedImage else { return }
+        pendingCapturedImage = nil
+        guard selectionManager.canSelectMore else { return }
+        selectionManager.addCapturedImage(image)
+
+        // 拍照本身就是一次完整选择：直接回传并关闭媒体选择器，避免用户
+        // 被留在相册网格页再次点击“完成”。
+        onConfirm(selectionManager.selectedItems)
+    }
+
     private func handleCapturedImage(_ image: UIImage) {
         // 直接添加到选择列表
         if selectionManager.canSelectMore {
             selectionManager.addCapturedImage(image)
         }
 
-        // 同时保存到相册，使其出现在网格中
-        saveToPhotoLibrary(image)
-    }
-
-    private func saveToPhotoLibrary(_ image: UIImage) {
-        PHPhotoLibrary.shared().performChanges {
-            PHAssetCreationRequest.creationRequestForAsset(from: image)
-        } completionHandler: { _, _ in
-            Task { @MainActor in
-                await reloadAssets(for: currentAlbum)
-            }
-        }
+        // 拍摄结果已在选择管理器中，可直接预览、确认和交给业务层识别。
+        // 不自动写回系统相册：部分设备在相机采集会话结束时调用
+        // PHPhotoLibrary.performChanges 会触发系统的队列断言，且该副作用并非
+        // 媒体选择或食物识别流程的必需条件。
     }
 }
 #endif

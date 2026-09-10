@@ -321,11 +321,15 @@ public struct CYCameraView: UIViewControllerRepresentable {
             // 仅通过回调驱动外层 SwiftUI fullScreenCover/sheet 关闭，
             // 避免 UIKit dismiss 与 showCamera = false 双重关闭导致崩溃。
             let image = info[.originalImage] as? UIImage
-            onImagePicked(image)
+            DispatchQueue.main.async { [onImagePicked] in
+                onImagePicked(image)
+            }
         }
 
         public func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            onImagePicked(nil)
+            DispatchQueue.main.async { [onImagePicked] in
+                onImagePicked(nil)
+            }
         }
     }
 }
