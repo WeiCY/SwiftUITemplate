@@ -1,7 +1,32 @@
 import XCTest
 @testable import CYAppCore
 
+private struct TestPayload: Codable, Sendable {
+    let id: Int
+    let name: String
+}
+
 final class AppCoreTests: XCTestCase {
+
+    func testCoreBootstrapAppliesConfiguration() {
+        let original = CYAppConstants.configuration
+        defer { CYAppConstants.configure(original) }
+
+        let values = CYAppConfigurationValues(
+            cacheDirectoryName: "BootstrapCache",
+            keychainService: "com.example.bootstrap",
+            defaultPageSize: 42
+        )
+        CYCoreBootstrap.configure(CYAppConfig(
+            environment: .development,
+            values: values,
+            minimumLogLevel: .warning
+        ))
+
+        XCTAssertEqual(CYAppConstants.cacheDirectoryName, "BootstrapCache")
+        XCTAssertEqual(CYAppConstants.keychainService, "com.example.bootstrap")
+        XCTAssertEqual(CYAppConstants.defaultPageSize, 42)
+    }
     
     // MARK: - CYAppError Tests
     
@@ -360,7 +385,7 @@ final class AppCoreTests: XCTestCase {
         let json = Data("""
         {"code": 0, "data": {"id": 1, "name": "John", "email": "john@example.com", "role": "user"}, "message": "ok"}
         """.utf8)
-        let response = try JSONDecoder().decode(CYAPIResponse<User>.self, from: json)
+        let response = try JSONDecoder().decode(CYAPIResponse<TestPayload>.self, from: json)
         XCTAssertTrue(response.isSuccess)
         XCTAssertTrue(response.data?.name == "John")
     }
@@ -369,7 +394,7 @@ final class AppCoreTests: XCTestCase {
         let json = Data("""
         {"code": 10001, "data": null, "message": "token expired"}
         """.utf8)
-        let response = try JSONDecoder().decode(CYAPIResponse<User>.self, from: json)
+        let response = try JSONDecoder().decode(CYAPIResponse<TestPayload>.self, from: json)
         XCTAssertFalse(response.isSuccess)
         XCTAssertNil(response.data)
         XCTAssertTrue(response.message == "token expired")
@@ -381,7 +406,7 @@ final class AppCoreTests: XCTestCase {
         let json = Data("""
         {"code": 0, "data": {"id": "not-an-int", "name": "John", "role": "user"}, "message": "ok"}
         """.utf8)
-        XCTAssertThrowsError(try JSONDecoder().decode(CYAPIResponse<User>.self, from: json)) { error in
+        XCTAssertThrowsError(try JSONDecoder().decode(CYAPIResponse<TestPayload>.self, from: json)) { error in
             XCTAssertTrue(error is DecodingError, "应抛出 DecodingError，实际 \(error)")
         }
     }
@@ -423,26 +448,11 @@ final class AppCoreTests: XCTestCase {
         XCTAssertNotNil(container.logger)
     }
     
-    @MainActor
-    func testAuthServiceUsesContainerUserSession() async throws {
-        let container = CYAppContainer.shared
-        container.userSession.clear()
-        
-        let user = try await container.authService.login(username: "shared-session", password: "password")
-        
-        XCTAssertEqual(container.userSession.user?.id, user.id)
-        XCTAssertEqual(container.userSession.user?.name, "shared-session")
-        XCTAssertTrue(container.userSession.isLoggedIn)
-        XCTAssertNotNil(container.userSession.accessToken)
-    }
-    
-    // MARK: - CYAppTab Tests
-    
-    func testAppTabProperties() {
-        XCTAssertTrue(CYAppTab.home.icon == "house")
-        XCTAssertTrue(CYAppTab.explore.icon == "safari")
-        XCTAssertTrue(CYAppTab.profile.icon == "person")
-        XCTAssertTrue(CYAppTab.allCases.count == 3)
+    // MARK: - CYTabID Tests
+
+    func testTabIdentifier() {
+        let home: CYTabID = "home"
+        XCTAssertEqual(home.rawValue, "home")
     }
 }
 
@@ -454,107 +464,6 @@ extension AppCoreTests {
         XCTAssertNil(CYAppTheme.system.isDarkMode)
         XCTAssertFalse(CYAppTheme.light.isDarkMode ?? true)
         XCTAssertTrue(CYAppTheme.dark.isDarkMode ?? false)
-    }
-    
-    // MARK: - User Model Tests
-    
-    func testUserCreation() {
-        let user = User(id: 1, name: "John", email: "john@example.com", phone: "13800138000", avatarURL: "https://example.com/avatar.png", role: .vip)
-        XCTAssertEqual(user.id, 1)
-        XCTAssertEqual(user.name, "John")
-        XCTAssertEqual(user.email, "john@example.com")
-        XCTAssertEqual(user.phone, "13800138000")
-        XCTAssertEqual(user.avatarURL, "https://example.com/avatar.png")
-        XCTAssertEqual(user.role, .vip)
-    }
-    
-    func testUserDefaultValues() {
-        let user = User(id: 2, name: "Jane")
-        XCTAssertNil(user.email)
-        XCTAssertNil(user.phone)
-        XCTAssertNil(user.avatarURL)
-        XCTAssertEqual(user.role, .user)
-    }
-    
-    func testUserRoleProperties() {
-        XCTAssertTrue(UserRole.admin.isStaff)
-        XCTAssertFalse(UserRole.user.isStaff)
-        XCTAssertFalse(UserRole.vip.isStaff)
-        XCTAssertFalse(UserRole.user.displayName.isEmpty)
-        XCTAssertFalse(UserRole.vip.displayName.isEmpty)
-        XCTAssertFalse(UserRole.admin.displayName.isEmpty)
-    }
-    
-    func testUserCodable() throws {
-        let user = User(id: 1, name: "John", email: "john@example.com", role: .admin)
-        let data = try JSONEncoder().encode(user)
-        let decoded = try JSONDecoder().decode(User.self, from: data)
-        XCTAssertEqual(decoded.id, user.id)
-        XCTAssertEqual(decoded.name, user.name)
-        XCTAssertEqual(decoded.email, user.email)
-        XCTAssertEqual(decoded.role, user.role)
-    }
-    
-    // MARK: - TokenPair Tests
-    
-    func testTokenPairCreation() {
-        let token = TokenPair(accessToken: "access", refreshToken: "refresh")
-        XCTAssertEqual(token.accessToken, "access")
-        XCTAssertEqual(token.refreshToken, "refresh")
-        XCTAssertNil(token.expiresAt)
-    }
-    
-    func testTokenPairFromExpiresIn() {
-        let token = TokenPair.from(expiresIn: 3600, accessToken: "a", refreshToken: "r")
-        XCTAssertNotNil(token.expiresAt)
-        let expected = Date().addingTimeInterval(3600)
-        XCTAssertEqual(token.expiresAt!.timeIntervalSinceReferenceDate, expected.timeIntervalSinceReferenceDate, accuracy: 2.0)
-    }
-    
-    // MARK: - UserSession Tests
-    
-    @MainActor
-    func testUserSessionSaveUserWithToken() {
-        let session = CYUserSession()
-        let user = User(id: 1, name: "Test")
-        let token = TokenPair(accessToken: "access_token", refreshToken: "refresh_token", expiresAt: Date().addingTimeInterval(3600))
-        session.saveUser(user, token: token)
-        XCTAssertTrue(session.isLoggedIn)
-        XCTAssertEqual(session.accessToken, "access_token")
-        XCTAssertEqual(session.refreshToken, "refresh_token")
-        XCTAssertFalse(session.isTokenExpired)
-    }
-    
-    @MainActor
-    func testUserSessionUpdateToken() {
-        let session = CYUserSession()
-        let user = User(id: 1, name: "Test")
-        session.saveUser(user, token: TokenPair(accessToken: "old", refreshToken: "old_r"))
-        let newToken = TokenPair(accessToken: "new", refreshToken: "new_r")
-        session.updateToken(newToken)
-        XCTAssertEqual(session.accessToken, "new")
-        XCTAssertEqual(session.refreshToken, "new_r")
-    }
-    
-    @MainActor
-    func testUserSessionTokenExpired() {
-        let session = CYUserSession()
-        let user = User(id: 1, name: "Test")
-        let expiredToken = TokenPair(accessToken: "a", refreshToken: "r", expiresAt: Date().addingTimeInterval(-100))
-        session.saveUser(user, token: expiredToken)
-        XCTAssertTrue(session.isTokenExpired)
-    }
-    
-    @MainActor
-    func testUserSessionClear() {
-        let session = CYUserSession()
-        let user = User(id: 1, name: "Test")
-        session.saveUser(user, token: TokenPair(accessToken: "a", refreshToken: "r"))
-        session.clear()
-        XCTAssertNil(session.user)
-        XCTAssertNil(session.accessToken)
-        XCTAssertNil(session.refreshToken)
-        XCTAssertFalse(session.isLoggedIn)
     }
     
     // MARK: - FormValidator Tests

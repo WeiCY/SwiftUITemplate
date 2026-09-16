@@ -9,8 +9,6 @@ public protocol DIContainerProtocol {
     var networkClient: CYNetworkClientProtocol { get }
     var cacheManager: CYCacheManager { get }
     var logger: CYLogger { get }
-    var userSession: UserSessionProtocol { get }
-    var authService: AuthServiceProtocol { get }
     var analyticsService: CYAnalyticsServiceProtocol { get }
     var imageLoader: CYImageLoaderProtocol { get }
     var permissionManager: CYPermissionManager { get }

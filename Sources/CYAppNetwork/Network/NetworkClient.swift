@@ -36,9 +36,8 @@ private struct NetworkFailure: Error {
 /// 3. 发送请求
 /// 4. 依次执行所有 CYResponseInterceptor（日志、统一错误处理等）
 ///
-/// **Token 刷新（401 自动重放）：**
-/// 通过 `setTokenRefreshInterceptor(_:)` 注册刷新拦截器后，
-/// 任意请求收到 401 时会自动触发一次 Token 刷新并重试原请求（并发安全，多个 401 只会刷新一次）。
+/// **凭证恢复（401 自动重放）：**
+/// 注册 `CYCredentialRecovery` 后，`.required` 请求认证失败会恢复凭证并重试一次。
 ///
 /// **与 OC 时代的对比：**
 /// | OC (YTKRequest / MJExtension) | Swift (本模板) |
@@ -58,7 +57,7 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
     private let stateLock = NSLock()
     private var requestInterceptors: [any CYRequestInterceptor] = []
     private var responseInterceptors: [any CYResponseInterceptor] = []
-    private var tokenRefreshCoordinator: CYTokenRefreshCoordinator?
+    private var credentialRecoveryCoordinator: CYCredentialRecoveryCoordinator?
 
     public init(
         baseURL: String,
@@ -76,17 +75,11 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
         self.responseInterceptors = responseInterceptors
     }
 
-    /// 注册 Token 刷新拦截器，启用 401 自动刷新 + 重放。
-    /// 通常在 App 启动时调用一次：
-    /// ```swift
-    /// CYNetworkClient.shared.setTokenRefreshInterceptor(
-    ///     CYTokenRefreshInterceptor(refreshTokenProvider: ..., refreshAction: ..., ...)
-    /// )
-    /// ```
-    public func setTokenRefreshInterceptor(_ interceptor: CYTokenRefreshInterceptor) {
+    /// 注册可选的凭证恢复动作。仅 `.required` 端点认证失败时执行并重放一次。
+    public func setCredentialRecovery(_ recovery: CYCredentialRecovery) {
         stateLock.lock()
         defer { stateLock.unlock() }
-        tokenRefreshCoordinator = CYTokenRefreshCoordinator(interceptor: interceptor)
+        credentialRecoveryCoordinator = CYCredentialRecoveryCoordinator(recovery: recovery)
     }
 
     /// 添加请求拦截器
@@ -127,14 +120,13 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
         } catch {
             let failure = error as? NetworkFailure
             let rawError = failure?.cyError ?? error
-            let requiresRefresh = (rawError as? CYNetworkError)?.requiresTokenRefresh ?? false
+            let requiresRefresh = (rawError as? CYNetworkError)?.requiresCredentialRecovery ?? false
 
-            // 仅当「尚未刷新过 + 错误需要刷新 + 端点允许刷新 + 已注册刷新协调器」时才重放
-            if !hasRefreshed, requiresRefresh, endpoint.allowsTokenRefresh,
-               let coordinator = stateLock.withLock({ tokenRefreshCoordinator }) {
-                let refreshedToken = await coordinator.refreshIfNeeded()
-                if refreshedToken != nil {
-                    // 重放原请求：请求拦截器会重新注入最新 Token
+            // 只有明确要求凭证的端点才允许恢复；公开或可选鉴权请求不会隐式改变账号状态。
+            if !hasRefreshed, requiresRefresh, endpoint.authentication == .required,
+               let coordinator = stateLock.withLock({ credentialRecoveryCoordinator }) {
+                if await coordinator.recoverIfNeeded() {
+                    // 重放时凭证拦截器会重新读取宿主更新后的 Authorization Header。
                     return try await _performRequest(endpoint, build, hasRefreshed: true)
                 }
             }
@@ -226,7 +218,7 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
     /// 获取原始响应体 Data（图片、文件等二进制响应，不参与 envelope 解码）
     public func requestData(_ endpoint: CYEndpoint) async throws -> Data {
         var urlRequest = try self.buildURLRequest(for: endpoint)
-        await self.applyRequestInterceptors(to: &urlRequest)
+        try await self.applyRequestInterceptors(to: &urlRequest, authentication: endpoint.authentication)
 
         let dataTask = session.request(urlRequest)
             .validate(statusCode: 200..<300)
@@ -262,7 +254,7 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
         urlRequest: URLRequest
     ) async throws -> CYAPIResponse<T> {
         var urlRequest = urlRequest
-        await self.applyRequestInterceptors(to: &urlRequest)
+        try await self.applyRequestInterceptors(to: &urlRequest, authentication: endpoint.authentication)
 
         let dataTask = session.request(urlRequest)
             .validate(statusCode: 200..<300)
@@ -307,7 +299,7 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
         urlRequest: URLRequest
     ) async throws -> (value: T, response: URLResponse?, data: Data?) {
         var urlRequest = urlRequest
-        await self.applyRequestInterceptors(to: &urlRequest)
+        try await self.applyRequestInterceptors(to: &urlRequest, authentication: endpoint.authentication)
 
         let dataTask = session.request(urlRequest)
             .validate(statusCode: 200..<300)
@@ -368,7 +360,7 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
         }
         return try await performRequest(endpoint) {
             var urlRequest = try self.buildURLRequest(for: endpoint)
-            await self.applyRequestInterceptors(to: &urlRequest)
+            try await self.applyRequestInterceptors(to: &urlRequest, authentication: endpoint.authentication)
 
             let uploadTask = self.session.upload(multipartFormData: { formData in
                 for part in parts {
@@ -429,7 +421,7 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
     ) async throws -> URL {
         try await performRequest(endpoint) {
             var urlRequest = try self.buildURLRequest(for: endpoint)
-            await self.applyRequestInterceptors(to: &urlRequest)
+            try await self.applyRequestInterceptors(to: &urlRequest, authentication: endpoint.authentication)
             let destination: DownloadRequest.Destination = { _, _ in
                 (fileURL, [.removePreviousFile, .createIntermediateDirectories])
             }
@@ -560,10 +552,17 @@ public final class CYNetworkClient: CYNetworkClientProtocol, @unchecked Sendable
         return request
     }
 
-    private func applyRequestInterceptors(to request: inout URLRequest) async {
+    private func applyRequestInterceptors(
+        to request: inout URLRequest,
+        authentication: CYAuthenticationPolicy
+    ) async throws {
         let interceptors = stateLock.withLock { requestInterceptors }
         for interceptor in interceptors {
-            await interceptor.intercept(&request)
+            if let authenticationInterceptor = interceptor as? any CYAuthenticationRequestInterceptor {
+                try await authenticationInterceptor.intercept(&request, authentication: authentication)
+            } else {
+                await interceptor.intercept(&request)
+            }
         }
     }
 

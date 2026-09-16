@@ -9,7 +9,7 @@
 
 | 概念 | 说明 |
 |---|---|
-| `CYEndpoint` | 描述一个 API：路径、方法、头、参数、解码策略、是否允许 Token 刷新 |
+| `CYEndpoint` | 描述一个 API：路径、方法、头、参数、解码策略与凭证策略 |
 | `CYNetworkClientProtocol` | 协议驱动的网络客户端（生产用 `CYNetworkClient`，测试/预览用 `MockNetworkClient`） |
 | `CYAPIResponse<T>` | 统一响应包装 `{ code, data, message }` |
 | `CYResponseStrategy` | 响应解析策略：envelope / envelopeRaw / direct / empty / data |
@@ -35,7 +35,7 @@ import CYAppNetwork
 struct MyApp: App {
     init() {
         // 1. 网络客户端（静态默认头 + 拦截器）
-        CYAppConfiguration.configure(
+        CYNetworkConfiguration.configure(
             environment: .production,
             baseURL: "https://api.example.com",
             defaultHeaders: [
@@ -43,12 +43,10 @@ struct MyApp: App {
                 "X-Device-ID": UIDevice.current.identifierForVendor?.uuidString ?? "",
             ],
             requestInterceptors: [
-                CYAuthInterceptor(tokenProvider: { [weak session] in session?.token }),
+                CYCredentialInterceptor(authorizationHeaderProvider: { await accountStore.authorizationHeader }),
                 CYLoggingInterceptor(),
             ],
-            responseInterceptors: [
-                // CYAutoLogoutInterceptor() 等（若需要统一登出）
-            ]
+            responseInterceptors: []
         )
 
         // 2. 业务码策略（按自家后端契约覆盖）
@@ -115,11 +113,10 @@ enum UserEndpoint: CYEndpoint {
     // var headers: [String: String]?            // 该端点专属请求头
     // var body: CYRequestParams?                // 字典参数（["age": .int(25), "vip": true]）
     // var keyDecodingStrategy / keyEncodingStrategy  // 默认 convertFromSnakeCase / convertToSnakeCase
-    var allowsTokenRefresh: Bool {
-        // 登录/刷新 Token 等认证类端点必须设为 false，防止刷新请求自身 401 时递归刷新
+    var authentication: CYAuthenticationPolicy {
         switch self {
-        case .login: return false
-        default:     return true
+        case .login: return .none
+        default:     return .required
         }
     }
 }
@@ -238,7 +235,7 @@ CYBusinessCodePolicy.configure { policy in
 
 ```swift
 // ① 静态默认头（全请求生效）
-CYAppConfiguration.configure(
+CYNetworkConfiguration.configure(
     baseURL: "...",
     defaultHeaders: ["X-App-Version": "1.2.0", "X-Lang": "zh"]
 )
@@ -254,13 +251,13 @@ struct SignatureInterceptor: CYRequestInterceptor {
 }
 ```
 
-**Token 注入**用现成的 `CYAuthInterceptor`（Bearer）：
+**凭证注入**使用 `CYCredentialInterceptor`，完整 Header 值由宿主决定：
 
 ```swift
-CYAuthInterceptor(tokenProvider: { [weak session] in session?.token })
+CYCredentialInterceptor { await accountStore.authorizationHeader }
 ```
 
-Token 刷新重放后，请求拦截器会重新执行 → 新 Token 自动注入。
+凭证恢复重放后，请求拦截器会重新执行并读取最新值。
 
 ---
 
@@ -307,13 +304,13 @@ task.cancel()
 
 ---
 
-## 10. Token 刷新边界
+## 10. 凭证恢复边界
 
-- HTTP 401 或业务码命中 `tokenExpiredCodes` → 触发一次刷新 + 重放（Actor 隔离，并发请求只刷一次）
-- **最多重放一次**：重放仍 401 或刷新失败 → 直接抛错，不循环
-- **`allowsTokenRefresh = false` 的端点**（登录/刷新）→ 401 直接抛错，不刷新
+- 仅 `.required` 端点在 HTTP 401 或业务码命中 `tokenExpiredCodes` 时触发恢复 + 重放
+- **最多重放一次**：重放仍 401 或恢复失败时直接抛错
+- `.none` 与 `.optional` 端点不触发凭证恢复
 - **`requestRaw` / `direct` / `empty` / `requestData`** → raw 语义，401 不触发刷新
-- 刷新请求本身由业务方 `refreshAction` 提供，不经 `performRequest`，天然无递归
+- 恢复动作由宿主通过 `CYCredentialRecovery` 提供，不绑定具体 Token 模型
 
 ---
 

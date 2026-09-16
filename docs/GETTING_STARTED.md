@@ -17,7 +17,7 @@
 - [9. 导航路由](#9-导航路由)
 - [10. 缓存](#10-缓存)
 - [11. Keychain 安全存储](#11-keychain-安全存储)
-- [12. 认证服务](#12-认证服务)
+- [12. 宿主认证](#12-宿主认证)
 - [13. 反馈样式自定义](#13-反馈样式自定义)
 - [14. 组件速查](#14-组件速查)
 - [15. 常见问题](#15-常见问题)
@@ -104,7 +104,9 @@ https://github.com/your-org/CYSwiftTemplate
 
 ## 2. 启动配置
 
-在 `@main App` 初始化时配置，**不需要修改模板源码**：
+推荐在宿主 App 的 `AppConfig` / `AppBootstrap` 中配置，**不需要修改模板源码**。
+`App.swift` 只负责调用 Bootstrap 和挂载根状态。下面是直接调用现有 API 的兼容写法；
+新 App 建议参考 `ExampleApp/Sources/AppBootstrap.swift` 集中编排这些调用：
 
 ```swift
 import SwiftUI
@@ -117,7 +119,7 @@ import CYAppUI
 struct MyApp: App {
     init() {
         // 1. 配置环境与网络请求
-        CYAppConfiguration.configure(
+        CYNetworkConfiguration.configure(
             environment: .production,
             baseURL: "https://api.your-domain.com",
             defaultHeaders: [
@@ -158,14 +160,14 @@ struct MyApp: App {
 }
 ```
 
-> 启动顺序：先 `CYAppConfiguration.configure(...)`（注册网络客户端），再配置 `CYAppConstants.configure(...)`、业务码与反馈样式。`CYAppConfiguration.configure` 内部有锁保护，重复调用会 `precondition` 崩溃。
+> 启动顺序由宿主 `AppBootstrap` 统一编排。离线 App 只配置 Core；网络 App 再调用 `CYNetworkConfiguration.configure(...)`。网络配置重复调用会触发 `precondition`。
 
 ### 推荐启动顺序
 
 为了让行为更统一，建议按下面顺序初始化：
 
 1. `CYAppConstants.configure(...)`：覆盖缓存目录、Keychain service、分页等默认值
-2. `CYAppConfiguration.configure(...)`：注册网络客户端并配置环境
+2. `CYNetworkConfiguration.configure(...)`：仅网络 App 注册网络客户端
 3. `CYBusinessCodePolicy.configure { ... }`：统一业务码规则
 4. `CYFeedbackConfiguration.configure(...)`：统一反馈样式
 5. 如有需要，再注册自定义 DI 实现
@@ -176,7 +178,7 @@ struct MyApp: App {
 
 ## 3. 核心默认值配置
 
-在启动阶段、创建缓存或认证服务之前，可覆盖模板默认的缓存目录、Keychain service 与分页设置：
+在启动阶段、创建缓存或宿主账号服务之前，可覆盖模板默认的缓存目录、Keychain service 与分页设置：
 
 ```swift
 CYAppConstants.configure(CYAppConfigurationValues(
@@ -214,7 +216,7 @@ API_BASE_URL = https:/$()/api.example.com
 ```swift
 let baseURL = Bundle.main.object(forInfoDictionaryKey: "API_BASE_URL") as? String ?? ""
 
-CYAppConfiguration.configure(
+CYNetworkConfiguration.configure(
     environment: .production,
     baseURL: baseURL,
     defaultHeaders: ["X-App-Platform": "iOS"]
@@ -225,7 +227,7 @@ CYAppConfiguration.configure(
 
 ## 5. 网络请求
 
-> 完整、权威的网络层使用说明（请求 API / 响应策略 / 业务码 / Token 刷新 / 上传下载 / 去重 / Mock）请阅读 [docs/NETWORK_GUIDE.md](NETWORK_GUIDE.md)。本节为快速上手。
+> 完整、权威的网络层使用说明（请求 API、响应策略、业务码、可选凭证、上传下载、去重与 Mock）请阅读 [docs/NETWORK_GUIDE.md](NETWORK_GUIDE.md)。本节为快速上手。
 
 ### Step 1: 定义 CYEndpoint（API 路径）
 
@@ -390,7 +392,7 @@ struct EncryptionInterceptor: CYRequestInterceptor {
 }
 
 // 在 App 启动时注册
-CYAppConfiguration.configure(
+CYNetworkConfiguration.configure(
     environment: .production,
     baseURL: "https://api.example.com",
     requestInterceptors: [
@@ -400,7 +402,7 @@ CYAppConfiguration.configure(
 )
 ```
 
-内置拦截器：`CYLoggingInterceptor`、`CYAuthInterceptor`（Bearer Token 注入）、`CYTokenRefreshInterceptor`、`CYAutoLogoutInterceptor`。
+内置拦截器：`CYLoggingInterceptor`、`CYCredentialInterceptor`、`CYAuthenticationFailureInterceptor`。凭证格式和失败后的账号状态处理由宿主 App 决定。
 
 ### 请求去重
 
@@ -505,15 +507,9 @@ let task = Task { try await networkClient.download(...) }
 task.cancel()
 ```
 
-### Token 自动刷新
+### 可选凭证与恢复
 
-框架内置 401 / 业务码双链路 Token 刷新：
-
-- **HTTP 401**：拦截响应，触发 `CYTokenRefreshCoordinator`（Actor 隔离，并发请求只刷新一次），刷新成功后自动重放原请求。
-- **业务码过期**：`CYBusinessCodePolicy.tokenExpiredCodes` 匹配时，同样触发刷新 + 重放。
-- **防循环**：`hasRefreshed` 标记确保每个请求最多刷新一次。
-- **按端点禁用**：登录 / 刷新等认证类端点设置 `allowsTokenRefresh = false`，避免刷新请求自身 401 时递归刷新。
-- **requestRaw / direct / empty**：raw 语义，401 不触发自动刷新。
+端点通过 `authentication` 声明 `.none`、`.optional` 或 `.required`，默认 `.none`。只有 `.required` 请求认证失败时，才会调用宿主注册的 `CYCredentialRecovery`；并发失败共享一次恢复，成功后最多重放一次。Network 不判断登录状态，也不持有 User、Access Token 或 Refresh Token 模型。
 
 ### 日志脱敏
 
@@ -524,7 +520,7 @@ task.cancel()
 
 ```swift
 // 开启网络日志
-CYAppConfiguration.configure(
+CYNetworkConfiguration.configure(
     environment: .production,
     baseURL: "https://api.example.com",
     requestInterceptors: [CYLoggingInterceptor()]   // includeBody: false 可关闭 Body 打印
@@ -627,10 +623,8 @@ final class HomeViewModel: CYBaseViewModel {
 
 | 放 CYAppState | 放 ViewModel |
 |---|---|
-| 当前用户 / 登录状态 | 页面列表数据 |
-| 选中 Tab / 路由状态 | 页面 loading / error |
 | 主题偏好 / 语言 | 搜索关键词 |
-| 引导页完成状态 | 表单输入内容 |
+| App 生命周期通用偏好 | 页面列表数据 / loading / error |
 
 ---
 
@@ -667,12 +661,12 @@ CYAppRouter.shared.navigate(to: Route.settings, on: .profile)
 ```swift
 struct RootView: View {
     @Bindable var router = CYAppRouter.shared
-    @Environment(CYAppState.self) private var appState
+    @State private var selectedTab = AppTab.home
 
     var body: some View {
-        TabView(selection: $appState.selectedTab) {
-            ForEach(CYAppTab.allCases, id: \.self) { tab in
-                NavigationStack(path: router.binding(for: tab)) {
+        TabView(selection: $selectedTab) {
+            ForEach(AppTab.allCases) { tab in
+                NavigationStack(path: router.binding(for: tab.id)) {
                     HomeView()
                         .navigationDestination(for: Route.self) { route in
                             switch route {
@@ -689,7 +683,7 @@ struct RootView: View {
                 .tag(tab)
             }
         }
-        .onAppear { router.bind(to: appState) }
+        .onChange(of: selectedTab) { _, tab in router.selectTab(tab.id) }
         .feedbackOverlay()
     }
 }
@@ -744,27 +738,19 @@ Keychain service 默认值可通过 `CYAppConstants.configure(...)` 统一覆盖
 
 ---
 
-## 12. 认证服务
+## 12. 宿主认证
 
 ```swift
-let auth = CYAppContainer.shared.authService
-
-// 登录（Mock 实现，自动持久化到 Keychain）
-let user = try await auth.login(username: "john", password: "123")
-
-// 刷新 Token
-let newToken = try await auth.refreshToken(refreshToken)
-
-// 登出（清除内存 + Keychain）
-try await auth.logout()
-
-// App 启动时恢复会话
-if let user = await auth.restoreSession() {
-    print("已恢复登录: \(user.name)")
+let credential = CYCredentialInterceptor {
+    await accountStore.authorizationHeader // 例如 "Bearer ..." 或自定义格式
 }
+networkClient.addRequestInterceptor(credential)
+networkClient.setCredentialRecovery(CYCredentialRecovery(action: {
+    try await accountStore.refreshCredential()
+}))
 ```
 
-默认实现是 Mock，生产环境需实现 `AuthServiceProtocol` 并注册到 DI。
+模板不提供 User、登录状态或 AuthService。需要账号的宿主 App 自行拥有这些模型；无需账号的 App 不做任何认证配置。
 
 ---
 
@@ -1057,7 +1043,6 @@ CYBusinessCodePolicy.configure {
 ```swift
 // 替换所有关键组件为 Mock
 Container.shared.networkClient.register { MockNetworkClient() }
-Container.shared.authService.register { MockAuthService(userSession: CYUserSession()) }
 Container.shared.analyticsService.register { MockAnalyticsService() }
 Container.shared.toastManager.register { MockToastManager() }
 Container.shared.loadingManager.register { MockLoadingManager() }

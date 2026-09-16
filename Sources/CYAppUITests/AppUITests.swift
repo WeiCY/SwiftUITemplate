@@ -33,35 +33,36 @@ final class AppUITests: XCTestCase {
 
     @MainActor
     func testRouterNavigateAndPop() {
-        let appState = makeAppState()
-        let router = CYAppRouter(appState: appState)
+        let home: CYTabID = "home"
+        let router = CYAppRouter(tabs: [home], selectedTab: home)
         router.navigate(to: "detail")
-        XCTAssertEqual(router.paths[.home]?.count, 1)
+        XCTAssertEqual(router.paths[home]?.count, 1)
 
         router.pop()
-        XCTAssertEqual(router.paths[.home]?.count, 0)
+        XCTAssertEqual(router.paths[home]?.count, 0)
     }
 
     @MainActor
     func testRouterPopToRoot() {
-        let appState = makeAppState()
-        let router = CYAppRouter(appState: appState)
+        let home: CYTabID = "home"
+        let router = CYAppRouter(tabs: [home], selectedTab: home)
         router.navigate(to: "a")
         router.navigate(to: "b")
         router.navigate(to: "c")
-        XCTAssertEqual(router.paths[.home]?.count, 3)
+        XCTAssertEqual(router.paths[home]?.count, 3)
 
         router.popToRoot()
-        XCTAssertEqual(router.paths[.home]?.count, 0)
+        XCTAssertEqual(router.paths[home]?.count, 0)
     }
 
     @MainActor
     func testRouterNavigateSwitchesTab() {
-        let appState = makeAppState()
-        let router = CYAppRouter(appState: appState)
-        router.navigate(to: "settings", on: .profile)
-        XCTAssertEqual(appState.selectedTab, .profile)
-        XCTAssertEqual(router.paths[.profile]?.count, 1)
+        let home: CYTabID = "home"
+        let profile: CYTabID = "profile"
+        let router = CYAppRouter(tabs: [home, profile], selectedTab: home)
+        router.navigate(to: "settings", on: profile)
+        XCTAssertEqual(router.selectedTab, profile)
+        XCTAssertEqual(router.paths[profile]?.count, 1)
     }
 
     @MainActor
@@ -114,57 +115,14 @@ final class AppUITests: XCTestCase {
     @MainActor
     func testAppStateInitialState() {
         let state = makeAppState()
-        XCTAssertNil(state.user)
-        XCTAssertFalse(state.isLoggedIn)
-        XCTAssertTrue(state.selectedTab == .home)
         XCTAssertTrue(state.theme == .system)
-    }
-    
-    @MainActor
-    func testAppStateSetUser() {
-        let state = makeAppState()
-        let user = User(id: 1, name: "Test", email: "test@example.com")
-        state.setUser(user)
-        XCTAssertNotNil(state.user)
-        XCTAssertTrue(state.isLoggedIn)
-        XCTAssertTrue(state.user?.name == "Test")
-    }
-    
-    @MainActor
-    func testAppStateLogout() {
-        let state = makeAppState()
-        let user = User(id: 1, name: "Test", email: nil)
-        state.setUser(user)
-        state.selectedTab = .profile
-        state.logout()
-        XCTAssertNil(state.user)
-        XCTAssertFalse(state.isLoggedIn)
-        XCTAssertTrue(state.selectedTab == .home)
-    }
-    
-    @MainActor
-    func testAppStateResetUserPreservesPreferences() {
-        let state = makeAppState()
-        state.setUser(User(id: 1, name: "Test", email: nil))
-        state.selectedTab = .profile
-        state.theme = .dark
-        state.resetUser()
-        XCTAssertNil(state.user)
-        XCTAssertTrue(state.selectedTab == .home)
-        XCTAssertTrue(state.theme == .dark)
     }
 
     @MainActor
     func testAppStateResetAllClearsPreferences() {
         let state = makeAppState()
-        state.setUser(User(id: 1, name: "Test", email: nil))
-        state.selectedTab = .profile
         state.theme = .dark
-        state.hasCompletedOnboarding = true
         state.resetAll()
-        XCTAssertNil(state.user)
-        XCTAssertTrue(state.selectedTab == .home)
         XCTAssertTrue(state.theme == .system)
-        XCTAssertFalse(state.hasCompletedOnboarding)
     }
 }

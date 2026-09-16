@@ -11,10 +11,11 @@ private actor Counter {
     }
 }
 
-/// 刷新逻辑测试用端点（allowsTokenRefresh 走默认 true）
+/// 凭证恢复测试用端点。
 private struct RefreshTestEndpoint: CYEndpoint {
     let path = "/test"
     var method: CYHTTPMethod { .get }
+    var authentication: CYAuthenticationPolicy { .required }
 }
 
 final class NetworkClientTests: XCTestCase {
@@ -23,14 +24,7 @@ final class NetworkClientTests: XCTestCase {
 
     func testRefreshAndRetrySucceeds() async throws {
         let client = CYNetworkClient(baseURL: "https://api.example.com")
-        client.setTokenRefreshInterceptor(CYTokenRefreshInterceptor(
-            refreshTokenProvider: { "refresh_token" },
-            onTokenRefreshed: { _ in },
-            refreshAction: { _ in
-                TokenPair(accessToken: "new_access", refreshToken: "new_refresh", expiresAt: nil)
-            },
-            onRefreshFailed: {}
-        ))
+        client.setCredentialRecovery(CYCredentialRecovery(action: { true }))
 
         let counter = Counter()
         let result: String = try await client.performRequest(RefreshTestEndpoint()) {
@@ -74,12 +68,7 @@ final class NetworkClientTests: XCTestCase {
 
     func testRefreshFailureThrowsWithoutRetry() async {
         let client = CYNetworkClient(baseURL: "https://api.example.com")
-        client.setTokenRefreshInterceptor(CYTokenRefreshInterceptor(
-            refreshTokenProvider: { "refresh_token" },
-            onTokenRefreshed: { _ in },
-            refreshAction: { _ in throw CYNetworkError.invalidURL },
-            onRefreshFailed: {}
-        ))
+        client.setCredentialRecovery(CYCredentialRecovery(action: { throw CYNetworkError.invalidURL }))
 
         let counter = Counter()
         do {
@@ -104,14 +93,7 @@ final class NetworkClientTests: XCTestCase {
 
     func testRefreshSuccessButReplayStill401DoesNotLoop() async {
         let client = CYNetworkClient(baseURL: "https://api.example.com")
-        client.setTokenRefreshInterceptor(CYTokenRefreshInterceptor(
-            refreshTokenProvider: { "refresh_token" },
-            onTokenRefreshed: { _ in },
-            refreshAction: { _ in
-                TokenPair(accessToken: "new_access", refreshToken: "new_refresh", expiresAt: nil)
-            },
-            onRefreshFailed: {}
-        ))
+        client.setCredentialRecovery(CYCredentialRecovery(action: { true }))
 
         let counter = Counter()
         do {
@@ -136,14 +118,7 @@ final class NetworkClientTests: XCTestCase {
 
     func testBusinessErrorDoesNotTriggerRefresh() async {
         let client = CYNetworkClient(baseURL: "https://api.example.com")
-        client.setTokenRefreshInterceptor(CYTokenRefreshInterceptor(
-            refreshTokenProvider: { "refresh_token" },
-            onTokenRefreshed: { _ in },
-            refreshAction: { _ in
-                TokenPair(accessToken: "new_access", refreshToken: "new_refresh", expiresAt: nil)
-            },
-            onRefreshFailed: {}
-        ))
+        client.setCredentialRecovery(CYCredentialRecovery(action: { true }))
 
         let counter = Counter()
         do {

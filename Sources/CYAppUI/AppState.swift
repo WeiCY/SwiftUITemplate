@@ -8,7 +8,7 @@ import CYAppCore
 ///
 /// 存放跨页面共享的全局状态，通过 `@Environment` 注入 View 树。
 /// 与 `CYBaseViewModel` 分工明确：
-/// - **CYAppState**：App 生命周期内的全局状态（用户、Tab、主题、语言、引导页）
+/// - **CYAppState**：App 生命周期内的通用状态（主题、语言）
 /// - **CYBaseViewModel**：单页面生命周期内的局部状态（列表数据、loading、error）
 ///
 /// ## 主题系统
@@ -53,19 +53,6 @@ public final class CYAppState {
     private let themeManager: CYThemeManaging
     private let localizationManager: CYLocalizationManaging
     
-    // MARK: - 用户
-    
-    /// 当前登录用户（nil = 未登录）
-    public var user: User?
-    
-    /// 是否已登录
-    public var isLoggedIn: Bool { user != nil }
-    
-    // MARK: - 导航
-    
-    /// 当前选中的 Tab
-    public var selectedTab: CYAppTab = .home
-    
     // MARK: - 外观（主题）
     
     /// 主题偏好（赋值时自动持久化到 UserDefaults）
@@ -88,13 +75,6 @@ public final class CYAppState {
         localizationManager.setLanguage(languageCode)
     }
     
-    // MARK: - 引导页
-    
-    /// 是否已完成新手引导（自动同步 UserDefaults）
-    public var hasCompletedOnboarding: Bool {
-        didSet { UserDefaults.standard.set(hasCompletedOnboarding, forKey: CYAppConstants.keyOnboardingShown) }
-    }
-    
     // MARK: - 初始化
     
     /// 创建全局状态实例
@@ -108,41 +88,13 @@ public final class CYAppState {
     ) {
         self.themeManager = themeManager
         self.localizationManager = localizationManager
-        self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: CYAppConstants.keyOnboardingShown)
         self.theme = themeManager.savedTheme()
         _ = localizationManager.restore()
     }
-    
-    // MARK: - 用户 Management
-    
-    /// 设置用户信息（登录成功后调用）
-    public func setUser(_ user: User) {
-        self.user = user
-    }
-    
-    /// 退出登录 — 清除用户数据并重置导航
-    public func logout() {
-        self.user = nil
-        self.selectedTab = .home
-    }
-    
-    /// 重置当前用户会话与导航，保留主题、语言和引导偏好。
-    public func resetUser() {
-        self.user = nil
-        self.selectedTab = .home
-    }
 
-    /// 重置用户会话及所有应用偏好。
+    /// 重置模板管理的外观和语言偏好。
     public func resetAll() {
-        resetUser()
         self.theme = .system
         localizationManager.resetToSystem()
-        hasCompletedOnboarding = false
-    }
-
-    /// 兼容旧调用；等同于 `resetAll()`。
-    @available(*, deprecated, message: "Use resetUser() to preserve preferences, or resetAll() to clear them.")
-    public func reset() {
-        resetAll()
     }
 }

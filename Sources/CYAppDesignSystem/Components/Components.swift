@@ -42,15 +42,10 @@ public struct CardView<Content: View>: View {
 
 // MARK: - 状态视图
 
-/// 空状态提示视图
+/// 旧空状态名称的兼容包装。新代码使用 `CYEmptyStateView`。
+@available(*, deprecated, renamed: "CYEmptyStateView")
 public struct EmptyStateView: View {
-    public let title: String
-    public let message: String
-    public let image: String
-    public let iconSize: CGFloat
-    public let iconColor: Color
-    public let actionTitle: String?
-    public let action: (() -> Void)?
+    private let content: CYEmptyStateView
 
     public init(
         title: String,
@@ -61,40 +56,19 @@ public struct EmptyStateView: View {
         actionTitle: String? = nil,
         action: (() -> Void)? = nil
     ) {
-        self.title = title
-        self.message = message
-        self.image = image
-        self.iconSize = iconSize
-        self.iconColor = iconColor
-        self.actionTitle = actionTitle
-        self.action = action
+        self.content = CYEmptyStateView(
+            systemImage: image,
+            title: title,
+            message: message,
+            iconSize: iconSize,
+            iconColor: iconColor,
+            actionTitle: actionTitle,
+            action: action
+        )
     }
     
     public var body: some View {
-        VStack(spacing: CYAppDimens.marginM) {
-            Image(systemName: image)
-                .font(.system(size: iconSize))
-                .foregroundColor(iconColor)
-            
-            Text(title)
-                .font(CYAppFont.h3)
-                .foregroundColor(CYAppColor.textPrimary)
-            
-            Text(message)
-                .font(CYAppFont.bodyMedium)
-                .multilineTextAlignment(.center)
-                .foregroundColor(CYAppColor.textSecondary)
-
-            if let actionTitle, let action {
-                Button(action: action) {
-                    Text(actionTitle)
-                        .font(CYAppFont.button)
-                        .foregroundColor(CYAppColor.primary)
-                }
-                .padding(.top, CYAppDimens.marginS)
-            }
-        }
-        .padding(CYAppDimens.marginXL)
+        content
     }
 }
 
@@ -156,10 +130,10 @@ public struct LoadingView: View {
                     .bold()
                     .padding(.horizontal)
                 
-                EmptyStateView(
+                CYEmptyStateView(
+                    systemImage: "magnifyingglass",
                     title: "No Items Found",
-                    message: "Try adjusting your search filters to find what you're looking for.",
-                    image: "magnifyingglass"
+                    message: "Try adjusting your search filters to find what you're looking for."
                 )
                 .background(Color.gray.opacity(0.05))
                 .cornerRadius(12)

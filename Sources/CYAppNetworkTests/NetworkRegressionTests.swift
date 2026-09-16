@@ -78,6 +78,10 @@ private enum RegressionEndpoint: CYEndpoint {
         default: return nil
         }
     }
+
+    var authentication: CYAuthenticationPolicy {
+        self == .profile ? .required : .none
+    }
 }
 
 private struct RegressionPayload: Codable, Sendable, Equatable {
@@ -96,7 +100,7 @@ private struct NoRefreshEndpoint: CYEndpoint {
     let path: String
     var method: CYHTTPMethod { .get }
     var body: CYRequestParams? { nil }
-    var allowsTokenRefresh: Bool { false }
+    var authentication: CYAuthenticationPolicy { .none }
 }
 
 private final class AttemptCounter: @unchecked Sendable {
@@ -385,15 +389,10 @@ final class NetworkRegressionTests: XCTestCase {
         let refreshCount = RefreshCounter()
         stub { _ in regResponse(401) }
         let client = makeClient()
-        client.setTokenRefreshInterceptor(CYTokenRefreshInterceptor(
-            refreshTokenProvider: { "refresh_token" },
-            onTokenRefreshed: { _ in },
-            refreshAction: { _ in
-                await refreshCount.increment()
-                return TokenPair(accessToken: "new", refreshToken: "new_rt", expiresAt: nil)
-            },
-            onRefreshFailed: {}
-        ))
+        client.setCredentialRecovery(CYCredentialRecovery(action: {
+            await refreshCount.increment()
+            return true
+        }))
         do {
             let _: CYAPIResponse<RegressionPayload> = try await client.requestRaw(RegressionEndpoint.raw)
             XCTFail("requestRaw 收到 HTTP 401 应直接抛出，不应自动刷新")
@@ -419,14 +418,7 @@ final class NetworkRegressionTests: XCTestCase {
             return regResponse(200, body: successJSON)
         }
         let client = makeClient(responseInterceptors: [RecordingResponseInterceptor(recorder: recorder)])
-        client.setTokenRefreshInterceptor(CYTokenRefreshInterceptor(
-            refreshTokenProvider: { "refresh_token" },
-            onTokenRefreshed: { _ in },
-            refreshAction: { _ in
-                TokenPair(accessToken: "new", refreshToken: "new_rt", expiresAt: nil)
-            },
-            onRefreshFailed: {}
-        ))
+        client.setCredentialRecovery(CYCredentialRecovery(action: { true }))
         let payload: RegressionPayload = try await client.request(RegressionEndpoint.profile)
         XCTAssertEqual(payload.ok, true)
         let statuses = await recorder.statuses
@@ -440,15 +432,10 @@ final class NetworkRegressionTests: XCTestCase {
         let refreshCount = RefreshCounter()
         stub { _ in regResponse(401) }
         let client = makeClient()
-        client.setTokenRefreshInterceptor(CYTokenRefreshInterceptor(
-            refreshTokenProvider: { "refresh_token" },
-            onTokenRefreshed: { _ in },
-            refreshAction: { _ in
-                await refreshCount.increment()
-                return TokenPair(accessToken: "new", refreshToken: "new_rt", expiresAt: nil)
-            },
-            onRefreshFailed: {}
-        ))
+        client.setCredentialRecovery(CYCredentialRecovery(action: {
+            await refreshCount.increment()
+            return true
+        }))
         do {
             let _: RegressionPayload = try await client.request(NoRefreshEndpoint(path: "/no-refresh"))
             XCTFail("应抛出 401")
@@ -470,15 +457,10 @@ final class NetworkRegressionTests: XCTestCase {
             return regResponse(401)
         }
         let client = makeClient()
-        client.setTokenRefreshInterceptor(CYTokenRefreshInterceptor(
-            refreshTokenProvider: { "refresh_token" },
-            onTokenRefreshed: { _ in },
-            refreshAction: { _ in
-                await refreshCount.increment()
-                throw URLError(.badServerResponse)
-            },
-            onRefreshFailed: {}
-        ))
+        client.setCredentialRecovery(CYCredentialRecovery(action: {
+            await refreshCount.increment()
+            throw URLError(.badServerResponse)
+        }))
         do {
             let _: RegressionPayload = try await client.request(RegressionEndpoint.profile)
             XCTFail("刷新失败后应抛出 401")
@@ -503,15 +485,10 @@ final class NetworkRegressionTests: XCTestCase {
             return regResponse(200, body: successJSON)
         }
         let client = makeClient()
-        client.setTokenRefreshInterceptor(CYTokenRefreshInterceptor(
-            refreshTokenProvider: { "refresh_token" },
-            onTokenRefreshed: { _ in },
-            refreshAction: { _ in
-                await refreshCount.increment()
-                return TokenPair(accessToken: "new", refreshToken: "new_rt", expiresAt: nil)
-            },
-            onRefreshFailed: {}
-        ))
+        client.setCredentialRecovery(CYCredentialRecovery(action: {
+            await refreshCount.increment()
+            return true
+        }))
         let payload: RegressionPayload = try await client.request(RegressionEndpoint.profile)
         XCTAssertEqual(payload.ok, true)
         let refreshed = await refreshCount.value

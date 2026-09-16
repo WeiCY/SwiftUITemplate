@@ -22,8 +22,6 @@ public final class CYAppContainer: DIContainerProtocol, @unchecked Sendable {
     public var networkClient: CYNetworkClientProtocol { factory.networkClient }
     public var cacheManager: CYCacheManager { factory.cacheManager }
     public var logger: CYLogger { factory.logger }
-    public var userSession: UserSessionProtocol { factory.userSession }
-    public var authService: AuthServiceProtocol { factory.authService }
     public var analyticsService: CYAnalyticsServiceProtocol { factory.analyticsService }
     public var imageLoader: CYImageLoaderProtocol { factory.imageLoader }
     public var permissionManager: CYPermissionManager { factory.permissionManager }

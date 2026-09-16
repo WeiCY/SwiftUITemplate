@@ -22,6 +22,16 @@ public enum CYHTTPMethod: String, Sendable {
 /// ```
 public typealias CYRequestParams = [String: CYJSONValue]
 
+/// 端点的凭证使用策略。Network 只执行策略，不判断用户是否“已登录”。
+public enum CYAuthenticationPolicy: Sendable, Equatable {
+    /// 公开请求：不读取、不注入凭证，也不触发凭证恢复。
+    case none
+    /// 有凭证时注入，没有凭证时仍可发送。
+    case optional
+    /// 必须有凭证；认证失败时可触发宿主提供的恢复动作并重放一次。
+    case required
+}
+
 // MARK: - 端点协议
 
 /// 网络请求端点协议
@@ -74,10 +84,8 @@ public protocol CYEndpoint: Sendable {
     var keyDecodingStrategy: JSONDecoder.KeyDecodingStrategy { get }
     /// JSON 编码策略（请求体），默认 convertToSnakeCase，与后端对齐
     var keyEncodingStrategy: JSONEncoder.KeyEncodingStrategy { get }
-    /// 是否允许该端点触发 401 自动刷新 Token + 重放（默认 true）
-    ///
-    /// 登录、刷新 Token 等认证类端点应设为 false，避免刷新请求自身 401 时产生递归刷新。
-    var allowsTokenRefresh: Bool { get }
+    /// 凭证策略。默认 `.none`，不需要账号体系的 App 无需任何配置。
+    var authentication: CYAuthenticationPolicy { get }
 }
 
 /// CYEndpoint 默认实现 — 可选属性提供默认值
@@ -87,7 +95,7 @@ public extension CYEndpoint {
     var queryItems: [URLQueryItem]? { nil }
     var keyDecodingStrategy: JSONDecoder.KeyDecodingStrategy { .convertFromSnakeCase }
     var keyEncodingStrategy: JSONEncoder.KeyEncodingStrategy { .convertToSnakeCase }
-    var allowsTokenRefresh: Bool { true }
+    var authentication: CYAuthenticationPolicy { .none }
 }
 
 // MARK: - 网络客户端协议

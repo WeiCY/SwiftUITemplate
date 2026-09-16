@@ -20,13 +20,11 @@ import SwiftData
 //
 // ## SwiftUI View 中使用
 // ```swift
-// struct BookmarkListView: View {
+// struct ItemListView: View {
 //     @Environment(\.modelContext) private var context
 //
 //     var body: some View {
-//         // 通过 context 创建 Repository
-//         let repo = CYBookmarkRepository(context: context)
-//         // ...
+//         // 使用宿主 App 自己的 Model 和 Repository
 //     }
 // }
 // ```
@@ -34,59 +32,35 @@ import SwiftData
 // ## Preview 中使用
 // ```swift
 // #Preview {
-//     BookmarkListView()
-//         .modelContainer(CYPersistenceController.preview.container)
+//     ItemListView()
+//         .modelContainer(previewController.container)
 // }
 // ```
 
 public struct CYPersistenceController: @unchecked Sendable {
-    
-    /// 生产环境实例（磁盘持久化）
-    public static let shared = CYPersistenceController()
-    
-    /// Preview / 测试用内存实例
-    @MainActor
-    public static let preview: CYPersistenceController = {
-        let controller = CYPersistenceController(inMemory: true)
-        let context = controller.container.mainContext
-        
-        // 插入示例标签
-        let techTag = CYTag(name: "科技", color: "#3498DB")
-        let newsTag = CYTag(name: "资讯", color: "#E74C3C")
-        context.insert(techTag)
-        context.insert(newsTag)
-        
-        // 插入示例书签
-        let samples = [
-            CYBookmarkItem(title: "Apple Developer", url: "https://developer.apple.com", note: "苹果开发者官网"),
-            CYBookmarkItem(title: "SwiftUI Tutorials", url: "https://developer.apple.com/tutorials/swiftui", isFavorite: true),
-            CYBookmarkItem(title: "Swift.org", url: "https://swift.org", note: "Swift 语言官网")
-        ]
-        
-        for sample in samples {
-            sample.addTag(techTag)
-            context.insert(sample)
-        }
-        
-        try? context.save()
-        return controller
-    }()
-    
     public let container: ModelContainer
     
     /// 创建持久化控制器
-    /// - Parameter inMemory: true 为内存模式（Preview/测试），false 为磁盘模式（生产）
+    /// - Parameters:
+    ///   - modelTypes: 宿主 App 拥有的 SwiftData 模型类型。
+    ///   - inMemory: true 为内存模式（Preview/测试），false 为磁盘模式（生产）。
     public init(
+        for modelTypes: [any PersistentModel.Type],
         inMemory: Bool = false,
-        containerBuilder: @escaping (_ inMemory: Bool) throws -> ModelContainer = { inMemory in
-            try ModelContainer(
-                for: CYBookmarkItem.self, CYTag.self,
-                configurations: ModelConfiguration(isStoredInMemoryOnly: inMemory)
-            )
-        }
+        containerBuilder: ((_ schema: Schema, _ inMemory: Bool) throws -> ModelContainer)? = nil
     ) {
+        precondition(!modelTypes.isEmpty, "CYPersistenceController requires at least one model type")
+        let schema = Schema(modelTypes)
         do {
-            container = try containerBuilder(inMemory)
+            if let containerBuilder {
+                container = try containerBuilder(schema, inMemory)
+            } else {
+                let configuration = ModelConfiguration(
+                    schema: schema,
+                    isStoredInMemoryOnly: inMemory
+                )
+                container = try ModelContainer(for: schema, configurations: [configuration])
+            }
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }

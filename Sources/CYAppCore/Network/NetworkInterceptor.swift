@@ -117,156 +117,94 @@ public struct CYLoggingInterceptor: CYRequestInterceptor, CYResponseInterceptor,
     }
 }
 
-// MARK: - Token 注入拦截器
+// MARK: - 凭证注入
 
-/// Token 注入拦截器 — 自动在请求头中添加 Authorization
-public struct CYAuthInterceptor: CYRequestInterceptor, Sendable {
-    private let tokenProvider: @Sendable () -> String?
-    
-    public init(tokenProvider: @escaping @Sendable () -> String?) {
-        self.tokenProvider = tokenProvider
+/// Network 内部用于传递端点策略的专用拦截器协议。
+public protocol CYAuthenticationRequestInterceptor: CYRequestInterceptor {
+    func intercept(_ request: inout URLRequest, authentication: CYAuthenticationPolicy) async throws
+}
+
+/// 按端点策略注入完整 Authorization Header。
+/// Header 的格式、存储和生命周期均由宿主 App 决定。
+public struct CYCredentialInterceptor: CYAuthenticationRequestInterceptor, Sendable {
+    private let authorizationHeaderProvider: @Sendable () async -> String?
+
+    public init(authorizationHeaderProvider: @escaping @Sendable () async -> String?) {
+        self.authorizationHeaderProvider = authorizationHeaderProvider
     }
-    
-    public func intercept(_ request: inout URLRequest) async {
-        if let token = tokenProvider() {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+    public func intercept(_ request: inout URLRequest) async {}
+
+    public func intercept(
+        _ request: inout URLRequest,
+        authentication: CYAuthenticationPolicy
+    ) async throws {
+        guard authentication != .none else { return }
+        guard let header = await authorizationHeaderProvider() else {
+            if authentication == .required { throw CYNetworkError.credentialUnavailable }
+            return
         }
+        request.setValue(header, forHTTPHeaderField: "Authorization")
     }
 }
 
-// MARK: - Token 自动刷新拦截器
+// MARK: - 凭证恢复
 
-/// Token 自动刷新拦截器
-///
-/// 当收到 401 响应时，自动使用 RefreshToken 换取新 AccessToken 并重试请求。
-/// 内置并发锁防止多个请求同时刷新 Token。
-///
-/// 用法：
-/// ```swift
-/// let refreshInterceptor = CYTokenRefreshInterceptor(
-///     refreshTokenProvider: { [weak session] in session?.refreshToken },
-///     onTokenRefreshed: { [weak session] newToken in
-///         await session?.updateToken(newToken)
-///     },
-///     refreshAction: { refreshToken in
-///         try await authService.refreshToken(refreshToken)
-///     },
-///     onRefreshFailed: { [weak session] in
-///         await session?.clear()  // 刷新失败，强制登出
-///     }
-/// )
-/// ```
-public struct CYTokenRefreshInterceptor: Sendable {
-    
-    /// 获取当前 RefreshToken
-    private let refreshTokenProvider: @Sendable () -> String?
-    
-    /// Token 刷新成功回调
-    private let onTokenRefreshed: @Sendable (TokenPair) async -> Void
-    
-    /// 执行刷新动作（调用 API）
-    private let refreshAction: @Sendable (String) async throws -> TokenPair
-    
-    /// 刷新失败回调（通常执行登出）
-    private let onRefreshFailed: @Sendable () async -> Void
-    
+/// 宿主提供的中性凭证恢复动作。成功后，Network 会重新读取凭证并重放一次请求。
+public struct CYCredentialRecovery: Sendable {
+    private let action: @Sendable () async throws -> Bool
+    private let onFailure: @Sendable () async -> Void
+
     public init(
-        refreshTokenProvider: @escaping @Sendable () -> String?,
-        onTokenRefreshed: @escaping @Sendable (TokenPair) async -> Void,
-        refreshAction: @escaping @Sendable (String) async throws -> TokenPair,
-        onRefreshFailed: @escaping @Sendable () async -> Void
+        action: @escaping @Sendable () async throws -> Bool,
+        onFailure: @escaping @Sendable () async -> Void = {}
     ) {
-        self.refreshTokenProvider = refreshTokenProvider
-        self.onTokenRefreshed = onTokenRefreshed
-        self.refreshAction = refreshAction
-        self.onRefreshFailed = onRefreshFailed
+        self.action = action
+        self.onFailure = onFailure
     }
-    
-    /// 尝试刷新 Token
-    ///
-    /// - Returns: 新的 TokenPair（刷新成功），nil（无 RefreshToken 或刷新失败）
-    ///
-    /// 注意：并发安全由 `CYTokenRefreshCoordinator` 保证，
-    /// 多个请求同时 401 时只有第一个真正发起刷新，其余复用同一次结果。
-    public func attemptRefresh() async -> TokenPair? {
-        guard let refreshToken = refreshTokenProvider() else {
-            await onRefreshFailed()
-            return nil
-        }
-        
+
+    public func attemptRecovery() async -> Bool {
         do {
-            let newToken = try await refreshAction(refreshToken)
-            await onTokenRefreshed(newToken)
-            return newToken
+            let recovered = try await action()
+            if !recovered { await onFailure() }
+            return recovered
         } catch {
-            CYLogger.shared.error("Token 刷新失败", error: error)
-            await onRefreshFailed()
-            return nil
+            CYLogger.shared.error("Credential recovery failed", error: error)
+            await onFailure()
+            return false
         }
     }
 }
 
-// MARK: - Token 刷新并发协调器
+/// 对并发认证失败执行 single-flight，避免重复恢复同一凭证。
+public actor CYCredentialRecoveryCoordinator {
+    private var recoveryTask: Task<Bool, Never>?
+    private let recovery: CYCredentialRecovery
 
-/// 401 并发刷新协调器（actor 保证线程安全）
-///
-/// 多个请求同时收到 401 时，仅第一个请求真正调用 `attemptRefresh()`，
-/// 其余请求挂起并复用同一个刷新结果，避免并发刷新导致 RefreshToken 被多次消费。
-///
-/// 由 `CYNetworkClient.setTokenRefreshInterceptor(_:)` 内部创建并持有。
-public actor CYTokenRefreshCoordinator {
-    private var refreshTask: Task<TokenPair?, Never>?
-    private let interceptor: CYTokenRefreshInterceptor
-    
-    public init(interceptor: CYTokenRefreshInterceptor) {
-        self.interceptor = interceptor
+    public init(recovery: CYCredentialRecovery) {
+        self.recovery = recovery
     }
-    
-    /// 触发一次刷新（并发去重）。
-    /// - Returns: 新的 TokenPair（刷新成功），nil（无 RefreshToken 或刷新失败）
-    public func refreshIfNeeded() async -> TokenPair? {
-        if let existing = refreshTask {
-            return await existing.value
-        }
-        let task = Task { await interceptor.attemptRefresh() }
-        refreshTask = task
+
+    public func recoverIfNeeded() async -> Bool {
+        if let existing = recoveryTask { return await existing.value }
+        let task = Task { await recovery.attemptRecovery() }
+        recoveryTask = task
         let result = await task.value
-        refreshTask = nil
+        recoveryTask = nil
         return result
     }
 }
 
-// MARK: - 401 自动登出拦截器
+/// 将终态 401 报告给宿主。如何清理凭证或改变界面状态由宿主决定。
+public struct CYAuthenticationFailureInterceptor: CYResponseInterceptor, Sendable {
+    private let onAuthenticationFailure: @Sendable () async -> Void
 
-/// 401 自动登出拦截器
-///
-/// 收到 401 Unauthorized 响应时自动触发登出流程。
-/// 配合 CYTokenRefreshInterceptor 使用：
-/// 1. 先尝试 RefreshInterceptor 刷新 Token
-/// 2. 如果刷新也失败，AutoLogoutInterceptor 触发登出
-///
-/// 用法：
-/// ```swift
-/// let autoLogout = CYAutoLogoutInterceptor(
-///     onUnauthorized: { [weak appState] in
-///         await appState?.setLoggedIn(false)
-///         await appState?.selectedTab = .home
-///     }
-/// )
-/// ```
-public struct CYAutoLogoutInterceptor: CYResponseInterceptor, Sendable {
-    
-    private let onUnauthorized: @Sendable () async -> Void
-    
-    public init(onUnauthorized: @escaping @Sendable () async -> Void) {
-        self.onUnauthorized = onUnauthorized
+    public init(onAuthenticationFailure: @escaping @Sendable () async -> Void) {
+        self.onAuthenticationFailure = onAuthenticationFailure
     }
-    
+
     public func intercept(_ response: URLResponse?, data: Data?) async throws {
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 401 else { return }
-        
-        CYLogger.shared.error("收到 401，触发自动登出")
-        await onUnauthorized()
+        guard let response = response as? HTTPURLResponse, response.statusCode == 401 else { return }
+        await onAuthenticationFailure()
     }
 }

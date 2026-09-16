@@ -12,24 +12,15 @@ import CYAppUI
 @main
 struct DemoApp: App {
     init() {
-        CYAppConfiguration.configure(
-            environment: .development,
-            baseURL: "https://dev-api.example.com",
-            defaultHeaders: ["X-App-Platform": "iOS"],
-            timeoutInterval: 30
-        )
-
-        CYAppImageConfig.configure()
-
-        CYFeedbackConfiguration.configure(
-            toastStyle: CYToastStyle(position: .center),
-            loadingStyle: .default
-        )
+        AppBootstrap.start(with: .default)
         CYToastManager.shared.queueMode = .replace
     }
 
     @State private var appState = CYAppState()
-    @State private var router = CYAppRouter.shared
+    @State private var router = CYAppRouter(
+        tabs: AppTab.allCases.map(\.id),
+        selectedTab: AppTab.home.id
+    )
 
     var body: some Scene {
         WindowGroup {
@@ -44,12 +35,12 @@ struct DemoApp: App {
 struct RootView: View {
     @Environment(CYAppState.self) private var appState
     @Environment(CYAppRouter.self) private var router
+    @State private var selectedTab = AppTab.home
 
     var body: some View {
-        @Bindable var appState = self.appState
-        TabView(selection: $appState.selectedTab) {
-            ForEach(CYAppTab.allCases, id: \.self) { tab in
-                NavigationStack(path: router.binding(for: tab)) {
+        TabView(selection: $selectedTab) {
+            ForEach(AppTab.allCases) { tab in
+                NavigationStack(path: router.binding(for: tab.id)) {
                     tabRoot(tab)
                         .navigationDestination(for: String.self) { route in
                             CYBaseView {
@@ -62,12 +53,13 @@ struct RootView: View {
                 .tag(tab)
             }
         }
-        .onAppear { router.bind(to: appState) }
+        .onAppear { router.selectTab(selectedTab.id) }
+        .onChange(of: selectedTab) { _, tab in router.selectTab(tab.id) }
         .feedbackOverlay()
     }
 
     @ViewBuilder
-    private func tabRoot(_ tab: CYAppTab) -> some View {
+    private func tabRoot(_ tab: AppTab) -> some View {
         switch tab {
         case .home: HomeDemoView()
         case .explore: ExploreDemoView()

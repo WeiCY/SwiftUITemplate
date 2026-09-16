@@ -31,16 +31,6 @@ extension Container {
         self { CYLogger.shared }
     }
     
-    /// 用户会话
-    public var userSession: Factory<UserSessionProtocol> {
-        self { CYUserSession() }.singleton
-    }
-    
-    /// 认证服务
-    public var authService: Factory<AuthServiceProtocol> {
-        self { CYAuthService(userSession: self.userSession()) }
-    }
-    
     /// 分析服务
     public var analyticsService: Factory<CYAnalyticsServiceProtocol> {
         self { CYAnalyticsService() }
@@ -108,8 +98,6 @@ public final class CYFactoryContainer: DIContainerProtocol, @unchecked Sendable 
     public var networkClient: CYNetworkClientProtocol { container.networkClient() }
     public var cacheManager: CYCacheManager { container.cacheManager() }
     public var logger: CYLogger { container.logger() }
-    public var userSession: UserSessionProtocol { container.userSession() }
-    public var authService: AuthServiceProtocol { container.authService() }
     public var analyticsService: CYAnalyticsServiceProtocol { container.analyticsService() }
     public var imageLoader: CYImageLoaderProtocol { container.imageLoader() }
     public var permissionManager: CYPermissionManager { container.permissionManager() }

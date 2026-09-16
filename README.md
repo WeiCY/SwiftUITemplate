@@ -8,6 +8,10 @@ iOS SwiftUI 工程模板 —— 协议驱动、按需引入、Swift 6 并发安�
 
 ## 快速开始
 
+启动配置建议集中在宿主 App 的 `AppConfig` / `AppBootstrap` 中。`CYCoreBootstrap`
+只负责 Core 配置；Network、Image 和 Feedback 仍由宿主按需调用已有配置入口，因此
+完全离线的 App 不需要导入 `CYAppNetwork`。
+
 先阅读 [模板开发规范](docs/TEMPLATE_RULES.md) 与 [完整接入指南](docs/GETTING_STARTED.md)，确认当前项目是否需要核心模块、UI 模块和可选模块，再执行接入。
 
 ### 安装
@@ -23,22 +27,13 @@ https://github.com/your-org/CYSwiftTemplate
 ```swift
 import SwiftUI
 import CYAppCore
-import CYAppNetwork
 import CYFeedbackStyle
 import CYAppUI
 
 @main
 struct MyApp: App {
     init() {
-        CYAppConfiguration.configure(
-            environment: .production,
-            baseURL: "https://api.your-domain.com"
-        )
-
-        CYBusinessCodePolicy.configure {
-            $0.successCodes = [0, 200]
-            $0.tokenExpiredCodes = [401, 10001]
-        }
+        CYCoreBootstrap.configure(CYAppConfig(environment: .production))
 
         CYFeedbackConfiguration.configure(
             toastStyle: CYToastStyle(position: .center),
@@ -61,6 +56,10 @@ struct MyApp: App {
     }
 }
 ```
+
+完整组合示例见 `ExampleApp/Sources/AppConfig.swift` 和
+`ExampleApp/Sources/AppBootstrap.swift`。旧的 `CYAppConfiguration` 网络命名空间仍保留
+为兼容 API，新代码应使用 `CYNetworkConfiguration`。
 
 > 完整接入说明（网络 / 缓存 / Keychain / 主题 / 特异化等）请阅读 [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)。
 
@@ -106,7 +105,7 @@ Layer 2  CYAppUI (AppState/Router/反馈视图)
 
 - **类型安全网络**：`CYEndpoint` 协议 + `Codable` 替代 MJExtension，编译时检查
 - **业务码可配置**：`CYBusinessCodePolicy` 避免全局硬编码 `code == 0`
-- **Token 自动刷新**：Actor 隔离并发安全，HTTP 401 + 业务码双链路，自动重放
+- **可选凭证机制**：公开/可选/强制鉴权按端点声明，宿主决定凭证格式与恢复逻辑
 - **请求去重**：Actor 隔离，防止快速点击重复请求
 - **协议驱动 DI**：基于 Factory，所有服务可替换，全套 Mock 实现
 - **Swift 6 并发安全**：全量 `Sendable`、`@MainActor`、`actor` 隔离
@@ -119,7 +118,7 @@ Layer 2  CYAppUI (AppState/Router/反馈视图)
 | 项目 | 结果 |
 |---|---|
 | SPM 构建 | ✅ 通过（macOS 宿主；本机沙箱环境需 `--disable-sandbox`） |
-| 单元测试 | ✅ 156/156 通过（AppState 测试已隔离 UserDefaults 持久化，跨运行可复现） |
+| 单元测试 | ✅ 147/147 通过（2026-09-16 本机验证） |
 | iOS Simulator 构建 | ✅ 通过（`swift build` 交叉编译验证全部目标，无需 `.xcodeproj`；CI 步骤已同步修复） |
 | 平台 | iOS 18+, macOS 15+ |
 | Swift | 6.0 (strict concurrency) |
@@ -131,10 +130,11 @@ Layer 2  CYAppUI (AppState/Router/反馈视图)
 | 文档 | 说明 |
 |---|---|
 | [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) | 完整接入指南：网络、缓存、Keychain、主题、路由、特异化 |
-| [docs/NETWORK_GUIDE.md](docs/NETWORK_GUIDE.md) | 网络框架使用指南：请求/上传/下载/Token 刷新/业务码/去重/Mock |
+| [docs/NETWORK_GUIDE.md](docs/NETWORK_GUIDE.md) | 网络框架使用指南：请求、上传下载、可选凭证、业务码、去重与 Mock |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架构设计：模块依赖、DI、状态管理、网络层、扩展方式 |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | 路线图：版本规划与后续开发计划 |
 | [docs/TEMPLATE_RULES.md](docs/TEMPLATE_RULES.md) | 模板开发规范：适用场景、分层、接入、文档与测试规则 |
+| [docs/APP_FACTORY_GUIDE.md](docs/APP_FACTORY_GUIDE.md) | 新 App 模块选择、Bootstrap、离线/网络组合与边界 |
 | [docs/REVIEW.md](docs/REVIEW.md) | 评测快照：代码审查与评分（2026-08-13） |
 | [CHANGELOG.md](CHANGELOG.md) | 已发布版本变更记录 |
 | [ExampleApp](ExampleApp/Sources/ExampleApp.swift) | 可运行 Demo（3 Tab 示例） |

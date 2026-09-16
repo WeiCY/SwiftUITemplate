@@ -57,7 +57,6 @@ enum AppStateTestSupport {
     static func resetPersistedPreferences() {
         let defaults = UserDefaults.standard
         defaults.removeObject(forKey: CYAppConstants.keyThemePreference)
-        defaults.removeObject(forKey: CYAppConstants.keyOnboardingShown)
         defaults.removeObject(forKey: CYAppConstants.keyLanguagePreference)
         defaults.removeObject(forKey: "AppleLanguages")
     }

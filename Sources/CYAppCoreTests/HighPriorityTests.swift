@@ -14,26 +14,20 @@ final class HighPriorityTests: XCTestCase {
         super.tearDown()
     }
 
-    // MARK: - Token 刷新并发单飞（P0 #9 核心）
+    // MARK: - 凭证恢复并发单飞
 
     func testTokenRefreshCoordinatorSingleFlight() async {
         let counter = OSAllocatedUnfairLock(initialState: 0)
-        let interceptor = CYTokenRefreshInterceptor(
-            refreshTokenProvider: { "refresh" },
-            onTokenRefreshed: { _ in },
-            refreshAction: { _ in
+        let recovery = CYCredentialRecovery(action: {
                 counter.withLock { $0 += 1 }
-                // 模拟刷新耗时，制造并发窗口
                 try? await Task.sleep(nanoseconds: 50_000_000)
-                return TokenPair(accessToken: "a", refreshToken: "r")
-            },
-            onRefreshFailed: {}
-        )
-        let coordinator = CYTokenRefreshCoordinator(interceptor: interceptor)
+                return true
+        })
+        let coordinator = CYCredentialRecoveryCoordinator(recovery: recovery)
 
-        await withTaskGroup(of: TokenPair?.self) { group in
+        await withTaskGroup(of: Bool.self) { group in
             for _ in 0..<10 {
-                group.addTask { await coordinator.refreshIfNeeded() }
+                group.addTask { await coordinator.recoverIfNeeded() }
             }
             var results = 0
             for await _ in group { results += 1 }
@@ -44,19 +38,48 @@ final class HighPriorityTests: XCTestCase {
         XCTAssertEqual(counter.withLock { $0 }, 1, "并发 401 应只刷新一次")
     }
 
-    func testTokenRefreshCoordinatorNoRefreshToken() async {
-        let interceptor = CYTokenRefreshInterceptor(
-            refreshTokenProvider: { nil },
-            onTokenRefreshed: { _ in },
-            refreshAction: { _ in
-                XCTFail("无 refreshToken 不应调用刷新")
-                return TokenPair(accessToken: "a", refreshToken: "r")
-            },
-            onRefreshFailed: {}
+    func testCredentialRecoveryFailure() async {
+        let coordinator = CYCredentialRecoveryCoordinator(
+            recovery: CYCredentialRecovery(action: { false })
         )
-        let coordinator = CYTokenRefreshCoordinator(interceptor: interceptor)
-        let result = await coordinator.refreshIfNeeded()
-        XCTAssertNil(result, "无 refreshToken 时刷新应返回 nil")
+        let result = await coordinator.recoverIfNeeded()
+        XCTAssertFalse(result)
+    }
+
+    func testCredentialInterceptorNeverInjectsForPublicEndpoint() async throws {
+        let interceptor = CYCredentialInterceptor(authorizationHeaderProvider: { "Bearer secret" })
+        var request = URLRequest(url: URL(string: "https://example.test")!)
+        try await interceptor.intercept(&request, authentication: .none)
+        XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+    }
+
+    func testCredentialInterceptorAllowsMissingOptionalCredential() async throws {
+        let interceptor = CYCredentialInterceptor(authorizationHeaderProvider: { nil })
+        var request = URLRequest(url: URL(string: "https://example.test")!)
+        try await interceptor.intercept(&request, authentication: .optional)
+        XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+    }
+
+    func testCredentialInterceptorRequiresCredential() async {
+        let interceptor = CYCredentialInterceptor(authorizationHeaderProvider: { nil })
+        var request = URLRequest(url: URL(string: "https://example.test")!)
+        do {
+            try await interceptor.intercept(&request, authentication: .required)
+            XCTFail("Required endpoint should reject a missing credential")
+        } catch let error as CYNetworkError {
+            guard case .credentialUnavailable = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testCredentialInterceptorInjectsHostProvidedHeader() async throws {
+        let interceptor = CYCredentialInterceptor(authorizationHeaderProvider: { "ApiKey custom" })
+        var request = URLRequest(url: URL(string: "https://example.test")!)
+        try await interceptor.intercept(&request, authentication: .required)
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "ApiKey custom")
     }
 
     // MARK: - CYEndpoint 默认 snake_case 策略（P0 #10）
@@ -175,10 +198,10 @@ final class HighPriorityTests: XCTestCase {
         }
     }
 
-    func testNetworkErrorRequiresTokenRefresh() {
-        XCTAssertTrue(CYNetworkError.tokenExpired(code: 10001, message: "x").requiresTokenRefresh)
-        XCTAssertTrue(CYNetworkError.httpError(statusCode: 401, data: nil).requiresTokenRefresh)
-        XCTAssertFalse(CYNetworkError.businessError(code: 500, message: "x").requiresTokenRefresh)
+    func testNetworkErrorRequiresCredentialRecovery() {
+        XCTAssertTrue(CYNetworkError.tokenExpired(code: 10001, message: "x").requiresCredentialRecovery)
+        XCTAssertTrue(CYNetworkError.httpError(statusCode: 401, data: nil).requiresCredentialRecovery)
+        XCTAssertFalse(CYNetworkError.businessError(code: 500, message: "x").requiresCredentialRecovery)
     }
 
     func testNetworkErrorDisplayKind() {

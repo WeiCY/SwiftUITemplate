@@ -2,11 +2,11 @@ import Foundation
 import FactoryKit
 import CYAppCore
 
-/// 由宿主 App 在启动时注入的全局配置。
+/// 由宿主 App 在启动时注入的网络配置。
 ///
 /// 在首次访问 `CYAppContainer.shared` 前调用一次：
 /// ```swift
-/// CYAppConfiguration.configure(
+/// CYNetworkConfiguration.configure(
 ///     environment: .development,
 ///     baseURL: "https://dev-api.example.com",
 ///     defaultHeaders: ["X-App-Version": "1.0.0"],
@@ -14,7 +14,7 @@ import CYAppCore
 /// )
 /// ```
 @MainActor
-public enum CYAppConfiguration {
+public enum CYNetworkConfiguration {
     private static let lock = NSLock()
     private static var didConfigure = false
 
@@ -32,7 +32,7 @@ public enum CYAppConfiguration {
         lock.lock()
         defer { lock.unlock() }
 
-        precondition(!didConfigure, "CYAppConfiguration.configure(_:) 只能在应用启动时调用一次")
+        precondition(!didConfigure, "CYNetworkConfiguration.configure(_:) 只能在应用启动时调用一次")
 
         let effectiveTimeout = timeoutInterval ?? (environment.isDebugLoggingEnabled ? 60 : 30)
         let client = CYNetworkClient(
@@ -47,3 +47,7 @@ public enum CYAppConfiguration {
         didConfigure = true
     }
 }
+
+/// Compatibility namespace for the former network configuration API.
+@available(*, deprecated, renamed: "CYNetworkConfiguration")
+public typealias CYAppConfiguration = CYNetworkConfiguration

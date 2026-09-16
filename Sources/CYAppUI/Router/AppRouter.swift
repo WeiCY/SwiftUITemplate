@@ -21,11 +21,11 @@ import CYAppCore
 // // 2. App 入口使用
 // struct RootView: View {
 //     @State private var router = CYAppRouter.shared
-//     @Environment(CYAppState.self) private var appState
+//     @State private var selectedTab: CYTabID = "home"
 //
 //     var body: some View {
-//         TabView(selection: $appState.selectedTab) {
-//             ForEach(CYAppTab.allCases, id: \.self) { tab in
+//         TabView(selection: $selectedTab) {
+//             ForEach(tabs, id: \.self) { tab in
 //                 NavigationStack(path: router.binding(for: tab)) {
 //                     tab.rootView
 //                         .navigationDestination(for: Route.self) { route in
@@ -36,7 +36,7 @@ import CYAppCore
 //                 .tag(tab)
 //             }
 //         }
-//         .onAppear { router.bind(to: appState) }
+//         .onChange(of: selectedTab) { _, tab in router.selectTab(tab) }
 //         .sheet(item: $router.sheetItem) { item in
 //             item.content
 //         }
@@ -71,38 +71,31 @@ public struct CYSheetItem: Identifiable {
 public final class CYAppRouter {
     public static let shared = CYAppRouter()
     
-    /// 每个 Tab 独立的导航路径栈
-    public var paths: [CYAppTab: NavigationPath]
+    /// 每个宿主 Tab 独立的导航路径栈
+    public var paths: [CYTabID: NavigationPath]
+
+    /// 当前选中的宿主 Tab。
+    public private(set) var selectedTab: CYTabID
     
     /// 当前 Sheet 弹出项
     public var sheetItem: CYSheetItem?
     
-    /// 关联的 AppState（用于获取/切换当前 Tab）
-    /// 使用强引用以避免「替换 appState 时弱引用静默失效」的问题；
-    /// AppState 由 Environment 持有，不会与 Router 形成循环引用。
-    @ObservationIgnored
-    private var appState: CYAppState?
-    
-    public init(appState: CYAppState? = nil) {
-        self.appState = appState
-        var p: [CYAppTab: NavigationPath] = [:]
-        for tab in CYAppTab.allCases {
+    public init(tabs: [CYTabID] = ["root"], selectedTab: CYTabID? = nil) {
+        precondition(!tabs.isEmpty, "CYAppRouter requires at least one tab identifier")
+        var p: [CYTabID: NavigationPath] = [:]
+        for tab in tabs {
             p[tab] = NavigationPath()
         }
         self.paths = p
+        self.selectedTab = selectedTab ?? tabs[0]
     }
-    
-    /// 绑定 AppState（在 App 入口的 .onAppear 中调用，或直接在 init 中注入）
-    ///
-    /// ```swift
-    /// // 方式 1：init 注入（推荐）
-    /// @State private var router = CYAppRouter(appState: appState)
-    ///
-    /// // 方式 2：onAppear 绑定
-    /// .onAppear { router.bind(to: appState) }
-    /// ```
-    public func bind(to appState: CYAppState) {
-        self.appState = appState
+
+    /// 同步宿主 `TabView` 的选中项。
+    public func selectTab(_ tab: CYTabID) {
+        if paths[tab] == nil {
+            paths[tab] = NavigationPath()
+        }
+        selectedTab = tab
     }
     
     // MARK: - 获取指定 Tab 的 Binding
@@ -112,7 +105,7 @@ public final class CYAppRouter {
     /// ```swift
     /// NavigationStack(path: router.binding(for: .home)) { ... }
     /// ```
-    public func binding(for tab: CYAppTab) -> Binding<NavigationPath> {
+    public func binding(for tab: CYTabID) -> Binding<NavigationPath> {
         Binding(
             get: { self.paths[tab] ?? NavigationPath() },
             set: { self.paths[tab] = $0 }
@@ -126,7 +119,7 @@ public final class CYAppRouter {
     /// - Parameters:
     ///   - destination: 目标路由（必须 Hashable）
     ///   - tab: 目标 Tab，nil 表示当前 Tab
-    public func navigate(to destination: some Hashable, on tab: CYAppTab? = nil) {
+    public func navigate(to destination: some Hashable, on tab: CYTabID? = nil) {
         let targetTab = tab ?? currentTab
         paths[targetTab, default: NavigationPath()].append(destination)
         
@@ -139,7 +132,7 @@ public final class CYAppRouter {
     /// 返回上一页
     ///
     /// - Parameter tab: 目标 Tab，nil 表示当前 Tab
-    public func pop(on tab: CYAppTab? = nil) {
+    public func pop(on tab: CYTabID? = nil) {
         let targetTab = tab ?? currentTab
         guard var path = paths[targetTab], !path.isEmpty else { return }
         path.removeLast()
@@ -149,7 +142,7 @@ public final class CYAppRouter {
     /// 返回首页 / 清空导航栈
     ///
     /// - Parameter tab: 目标 Tab，nil 清空所有 Tab
-    public func popToRoot(on tab: CYAppTab? = nil) {
+    public func popToRoot(on tab: CYTabID? = nil) {
         if let tab {
             paths[tab] = NavigationPath()
         } else {
@@ -160,7 +153,7 @@ public final class CYAppRouter {
     }
     
     /// 替换当前页面（移除最后一个，添加新的）
-    public func replace(with destination: some Hashable, on tab: CYAppTab? = nil) {
+    public func replace(with destination: some Hashable, on tab: CYTabID? = nil) {
         let targetTab = tab ?? currentTab
         var path = paths[targetTab] ?? NavigationPath()
         if !path.isEmpty {
@@ -189,17 +182,17 @@ public final class CYAppRouter {
     // MARK: - 查询
     
     /// 获取指定 Tab 当前导航栈深度
-    public func depth(for tab: CYAppTab) -> Int {
+    public func depth(for tab: CYTabID) -> Int {
         paths[tab]?.count ?? 0
     }
     
     // MARK: - 私有
     
-    private var currentTab: CYAppTab {
-        appState?.selectedTab ?? .home
+    private var currentTab: CYTabID {
+        selectedTab
     }
-    
-    private func switchTab(_ tab: CYAppTab) {
-        appState?.selectedTab = tab
+
+    private func switchTab(_ tab: CYTabID) {
+        selectTab(tab)
     }
 }

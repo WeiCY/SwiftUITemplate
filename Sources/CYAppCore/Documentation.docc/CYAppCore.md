@@ -47,6 +47,9 @@ CYToastManager.shared.show("操作成功", type: .success)
 - ``CYAPIResponse``
 - ``CYBusinessCodePolicy``
 - ``CYNetworkError``
+- ``CYAuthenticationPolicy``
+- ``CYCredentialInterceptor``
+- ``CYCredentialRecovery``
 - ``CYRequestInterceptor``
 - ``CYResponseInterceptor``
 - ``CYRequestDeduplicator``
@@ -54,15 +57,8 @@ CYToastManager.shared.show("操作成功", type: .success)
 
 ### 服务
 
-- ``CYAuthService``
-- ``AuthServiceProtocol``
-- ``CYUserSession``
-- ``UserSessionProtocol``
 - ``CYAnalyticsService``
 - ``CYAnalyticsServiceProtocol``
-- ``TokenPair``
-- ``User``
-- ``UserRole``
 
 ### 依赖注入
 
@@ -119,7 +115,7 @@ CYToastManager.shared.show("操作成功", type: .success)
 ### 全局状态
 
 - ``CYAppError``
-- ``CYAppTab``
+- ``CYTabID``
 - ``CYAppTheme``
 - ``CYThemeManaging``
 - ``CYThemeManager``

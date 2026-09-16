@@ -8,11 +8,11 @@ import SwiftData
 //
 // ## 基本用法
 // ```swift
-// struct CYBookmarkRepository: CYRepositoryProtocol {
-//     typealias Entity = CYBookmarkItem
+// struct ItemRepository: CYRepositoryProtocol {
+//     typealias Entity = AppItem
 //     let context: ModelContext
 //
-//     func fetch(predicate: Predicate<CYBookmarkItem>?) throws -> [CYBookmarkItem] {
+//     func fetch(predicate: Predicate<AppItem>?) throws -> [AppItem] {
 //         try context.fetch(FetchDescriptor(predicate: predicate))
 //     }
 // }
@@ -21,9 +21,9 @@ import SwiftData
 // ## ViewModel 中使用
 // ```swift
 // @Observable
-// final class BookmarkViewModel: CYBaseViewModel {
-//     var items: [CYBookmarkItem] = []
-//     private let repo: CYBookmarkRepository
+// final class ItemViewModel: CYBaseViewModel {
+//     var items: [AppItem] = []
+//     private let repo: ItemRepository
 //
 //     func load() async {
 //         await executeTask {

@@ -3,6 +3,8 @@ import Foundation
 /// 统一网络错误体系
 /// 覆盖 HTTP 层 + 业务层 + 系统层三类错误
 public enum CYNetworkError: Error, LocalizedError, Sendable {
+    /// `.required` 端点发送前没有可用凭证。
+    case credentialUnavailable
     
     // MARK: - HTTP 层错误
     
@@ -70,6 +72,8 @@ public enum CYNetworkError: Error, LocalizedError, Sendable {
     
     public var errorDescription: String? {
         switch self {
+        case .credentialUnavailable:
+            return "缺少请求所需的身份凭证"
         case .invalidURL:
             return "network_invalid_url".cyLocalized
         case .timeout:
@@ -117,7 +121,7 @@ public enum CYNetworkError: Error, LocalizedError, Sendable {
     }
 
     /// 是否需要触发 Token 刷新 + 重放（HTTP 401 或响应体 code 命中 Token 过期策略）
-    public var requiresTokenRefresh: Bool {
+    public var requiresCredentialRecovery: Bool {
         if isUnauthorized { return true }
         if case .tokenExpired = self { return true }
         return false

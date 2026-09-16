@@ -111,6 +111,8 @@ public struct CYEmptyStateView: View {
     let systemImage: String
     let title: String
     let message: String
+    let iconSize: CGFloat
+    let iconColor: Color
     let actionTitle: String?
     let action: (() -> Void)?
 
@@ -118,12 +120,16 @@ public struct CYEmptyStateView: View {
         systemImage: String = "tray",
         title: String,
         message: String,
+        iconSize: CGFloat = 54,
+        iconColor: Color = CYAppColor.textTertiary,
         actionTitle: String? = nil,
         action: (() -> Void)? = nil
     ) {
         self.systemImage = systemImage
         self.title = title
         self.message = message
+        self.iconSize = iconSize
+        self.iconColor = iconColor
         self.actionTitle = actionTitle
         self.action = action
     }
@@ -131,8 +137,8 @@ public struct CYEmptyStateView: View {
     public var body: some View {
         VStack(spacing: CYAppDimens.marginM) {
             Image(systemName: systemImage)
-                .font(.system(size: 54, weight: .regular))
-                .foregroundStyle(CYAppColor.textTertiary)
+                .font(.system(size: iconSize, weight: .regular))
+                .foregroundStyle(iconColor)
 
             Text(title)
                 .font(CYAppFont.h4)

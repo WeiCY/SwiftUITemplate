@@ -3,7 +3,7 @@ import Foundation
 /// App 运行环境。
 ///
 /// 模板只定义开发和生产两个语义环境；实际服务地址和请求配置由宿主 App
-/// 在启动时通过 `CYAppConfiguration.configure(_:)` 注入。
+/// 在启动时通过宿主 AppConfig 注入；网络模块使用 `CYNetworkConfiguration` 消费该值。
 public enum CYAppEnvironment: String, CaseIterable, Sendable {
     case development
     case production
