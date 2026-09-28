@@ -25,7 +25,7 @@ public protocol CYResponseInterceptor: Sendable {
 /// → POST https://api.example.com/auth/login
 ///   Headers: [Content-Type: application/json]
 ///   Body: {"username":"john","password":"***"}
-/// ← 200 https://api.example.com/auth/login (245ms)
+/// ✅ ← 200 https://api.example.com/auth/login
 ///   Body: {"code":0,"data":{...},"message":"success"}
 /// ```
 public struct CYLoggingInterceptor: CYRequestInterceptor, CYResponseInterceptor, Sendable {

@@ -133,3 +133,45 @@ extension CYEndpoint {
         return components.joined(separator: ":")
     }
 }
+
+// MARK: - 网络客户端去重便捷 API
+
+public extension CYNetworkClientProtocol {
+
+    /// 带去重的网络请求
+    ///
+    /// 相同 `deduplicationKey` 的并发请求只执行一次，复用同一结果。
+    /// ```swift
+    /// let user: User = try await networkClient.requestWithDeduplication(
+    ///     UserEndpoint.profile, deduplicator: deduplicator
+    /// )
+    /// ```
+    func requestWithDeduplication<T: Decodable & Sendable>(
+        _ endpoint: CYEndpoint,
+        deduplicator: CYRequestDeduplicator
+    ) async throws -> T {
+        try await deduplicator.execute(key: endpoint.deduplicationKey) {
+            try await self.request(endpoint)
+        }
+    }
+
+    /// 带去重的 POST（Encodable body 纳入去重键）
+    ///
+    /// 默认 `deduplicationKey` 只覆盖 `endpoint.body` 字典参数；
+    /// 本方法额外将 Encodable body 的确定性指纹拼入去重键，避免不同 body 被错误合并。
+    func requestWithDeduplication<B: Encodable & Sendable, T: Decodable & Sendable>(
+        _ endpoint: CYEndpoint,
+        body: B,
+        deduplicator: CYRequestDeduplicator
+    ) async throws -> T {
+        try await deduplicator.execute(key: endpoint.deduplicationKey + ":body=" + bodyFingerprint(body)) {
+            try await self.request(endpoint, body: body)
+        }
+    }
+}
+
+/// 生成 Encodable body 的确定性指纹（纳入去重键）
+private func bodyFingerprint<B: Encodable>(_ body: B) -> String {
+    guard let data = try? JSONEncoder().encode(body) else { return "?" }
+    return data.base64EncodedString()
+}

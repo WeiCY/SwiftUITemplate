@@ -171,6 +171,8 @@ try await networkClient.requestVoid(UserEndpoint.delete(id: 123))
 let imageData: Data = try await networkClient.requestData(ImageEndpoint.fetch)
 ```
 
+> ⚠️ raw 语义：`requestData` 返回原始二进制，不参与 envelope 业务码判定，**不触发凭证恢复与重放，也不参与请求去重**。若下载资源需要携带最新凭证，请自行确保凭证有效。
+
 ---
 
 ## 5. send + 响应策略（底层统一入口）
@@ -187,7 +189,8 @@ let response: CYAPIResponse<User> = try await networkClient.send(UserEndpoint.pr
 // .direct：响应体直接就是 T（无 envelope，适合第三方/OpenAPI）
 let status: ThirdPartyStatus = try await networkClient.send(OpenAPI.status, strategy: .direct)
 
-// .empty：空响应体（204/205），仅 CYEmptyResponse 可用（等价 requestVoid 的底层）
+// .empty：显式空响应策略（204/205），仅 CYEmptyResponse 可用
+// 注意：requestVoid 实际走的是 .envelope + CYEmptyResponse，而非 .empty
 let _: CYEmptyResponse = try await networkClient.send(UserEndpoint.delete, strategy: .empty)
 
 // .data：请使用 requestData（send 会明确抛错提示）
@@ -403,6 +406,21 @@ let data: Data = try await mock.requestData(ImageEndpoint.fetch)       // 注册
 ```
 
 Mock 只需实现 `send`×2 / `requestData` / `upload` / `download` 五个核心方法，其余 API 由协议扩展自动提供。
+
+### 断言请求参数
+
+`MockNetworkClient` 会记录收到的每个请求，可在测试中断言方法、路径、Body 与上传分片：
+
+```swift
+_ = try await mock.request(UserEndpoint.update, body: UpdateBody(name: "new"))
+let record = mock.recordedRequests.last
+let body = record?.body                        // Encodable body 或 endpoint.body 字典的 JSON
+try JSONDecoder().decode(UpdateBody.self, from: body!)  // 断言实际发送内容
+
+mock.clearRecordedRequests()                   // 清空记录（保留已注册响应）
+```
+
+记录包含失败的调用（`shouldFail` 或注册错误），便于验证「请求已发出但失败」。
 
 ---
 

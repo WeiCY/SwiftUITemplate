@@ -119,12 +119,17 @@ Layer 2 — UI 功能
 
 ### CYAppNetwork（Layer 0 — 网络实现）
 
-Alamofire 桥接层。
+Alamofire 桥接层，按职责拆分为多个文件：
 
 | 文件 | 职责 |
 |---|---|
-| `AppConfiguration.swift` | `CYAppConfiguration` — 启动配置器，构建 `CYNetworkClient` 并注册到 Factory |
-| `Network/NetworkClient.swift` | `CYNetworkClient` — 实现 `CYNetworkClientProtocol`，包含拦截器链、可选凭证恢复、响应策略解码、上传/下载进度与取消传播 |
+| `AppConfiguration.swift` | `CYNetworkConfiguration` — 启动配置器，构建 `CYNetworkClient` 并注册到 Factory |
+| `Network/NetworkClient.swift` | `CYNetworkClient` 类核心：`Mutex` 可变状态、拦截器管理、凭证恢复、`send` 分发 |
+| `Network/NetworkClient+Request.swift` | URL/URLRequest 构建、JSON 编解码器、请求/响应拦截器应用、失败日志 |
+| `Network/NetworkClient+Response.swift` | 发送/解码、业务码解析、Alamofire 错误映射、`requestData` |
+| `Network/NetworkClient+Upload.swift` | 多文件上传与下载（进度回调、取消传播） |
+
+`CYNetworkClient` 的可变状态（拦截器、刷新协调器）由 `Mutex`（iOS 18 `Synchronization`）保护，类型满足 `Sendable`，不使用 `@unchecked Sendable`。请求去重便捷 API（`requestWithDeduplication`）定义在 `CYAppCore` 的 `CYNetworkClientProtocol` 扩展上，因此生产客户端与 `MockNetworkClient` 均可使用。
 
 ### CYAppImage（Layer 0 — 图片实现）
 
@@ -393,7 +398,7 @@ CYAppError（视图层，粗粒度）
 
 | API | 说明 |
 |---|---|
-| `requestVoid(_:)` | 无需返回值的接口（内部走 `.empty`） |
+| `requestVoid(_:)` | 无需返回值的接口（内部走 `.envelope` + `CYEmptyResponse`） |
 | `requestData(_:)` | 直接返回 `Data`（内部走 `.data`） |
 | `request<T>(body:strategy:)` | 泛型请求，支持 `Encodable` body 编码 |
 | `upload(_:fileData:...)` / `upload(parts:)` | 单/多文件 multipart 上传，支持进度回调 |
@@ -558,8 +563,12 @@ CYSwiftTemplate/
 │   │   ├── Mock/                  #   Mock 5 件套
 │   │   └── ...
 │   ├── CYAppNetwork/                # Layer 0: 网络实现（+Alamofire），可选
-│   │   ├── NetworkClient.swift    #   Alamofire 桥接实现
-│   │   └── AppConfiguration.swift #   启动配置（注册 networkClient）
+│   │   ├── AppConfiguration.swift #   启动配置（注册 networkClient）
+│   │   └── Network/               #   按职责拆分的实现文件
+│   │       ├── NetworkClient.swift          # 类核心 / 拦截器 / 凭证恢复 / send
+│   │       ├── NetworkClient+Request.swift  # URL 构建 / 编解码 / 拦截器应用
+│   │       ├── NetworkClient+Response.swift # 发送解码 / 业务码 / 错误映射
+│   │       └── NetworkClient+Upload.swift   # 上传 / 下载
 │   ├── CYAppImage/                  # Layer 0: 图片实现（+Kingfisher），可选
 │   │   └── ImageLoader.swift      #   Kingfisher 桥接实现
 │   ├── CYFeedbackStyle/            # Layer 0 UI: 样式定义

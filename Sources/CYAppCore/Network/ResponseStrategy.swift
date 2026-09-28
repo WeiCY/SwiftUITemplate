@@ -27,8 +27,8 @@ public enum CYResponseStrategy: Sendable, Equatable {
     /// 适用于 OpenAPI / 第三方接口等非统一包装响应
     case direct
 
-    /// 空响应体（204/205），仅 `CYEmptyResponse` 可用
-    /// 对应 `requestVoid`：只关心成功与否
+    /// 显式空响应体策略（204/205），仅 `CYEmptyResponse` 可用
+    /// 注意：`requestVoid` 走的是 `.envelope` + `CYEmptyResponse`，不使用本策略
     case empty
 
     /// 原始响应体 `Data`（不参与解码）

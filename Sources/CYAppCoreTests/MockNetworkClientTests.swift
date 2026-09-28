@@ -107,6 +107,105 @@ final class MockNetworkClientTests: XCTestCase {
         XCTAssertEqual(user.name, "E")
     }
 
+    // MARK: - 请求记录
+
+    func testMockRecordsEncodableBody() async throws {
+        struct LoginBody: Encodable, Sendable {
+            let username: String
+            let password: String
+        }
+        let mock = makeMock()
+        mock.registerResponse(MockTestUser(id: 6, name: "F"))
+        let _: MockTestUser = try await mock.send(
+            MockTestEndpoint(path: "/login"),
+            strategy: .envelope,
+            body: LoginBody(username: "john", password: "secret")
+        )
+        let record = try XCTUnwrap(mock.recordedRequests.last)
+        XCTAssertEqual(record.method, .get)
+        XCTAssertEqual(record.path, "/login")
+        let json = try XCTUnwrap(record.body.flatMap { try JSONSerialization.jsonObject(with: $0) as? [String: Any] })
+        XCTAssertEqual(json["username"] as? String, "john")
+        XCTAssertEqual(json["password"] as? String, "secret")
+    }
+
+    func testMockRecordsEndpointDictionaryBody() async throws {
+        struct BodyEndpoint: CYEndpoint {
+            var path: String { "/update" }
+            var method: CYHTTPMethod { .post }
+            var body: CYRequestParams? { ["age": .int(25), "vip": true] }
+        }
+        let mock = makeMock()
+        mock.registerResponse(MockTestUser(id: 7, name: "G"))
+        let _: MockTestUser = try await mock.request(BodyEndpoint())
+        let record = try XCTUnwrap(mock.recordedRequests.last)
+        XCTAssertEqual(record.path, "/update")
+        let json = try XCTUnwrap(record.body.flatMap { try JSONSerialization.jsonObject(with: $0) as? [String: Any] })
+        XCTAssertEqual(json["age"] as? Int, 25)
+        XCTAssertEqual(json["vip"] as? Bool, true)
+    }
+
+    func testMockUploadRecordsPartsAndHonorsShouldFail() async throws {
+        let part = CYMultipartPart(
+            data: Data("x".utf8),
+            mimeType: "text/plain",
+            fileName: "a.txt",
+            paramName: "file"
+        )
+        let mock = makeMock()
+        mock.shouldFail = true
+        do {
+            let _: MockTestUser = try await mock.upload(
+                MockTestEndpoint(path: "/upload"),
+                parts: [part],
+                additionalParams: ["scene": "profile"],
+                progress: nil
+            )
+            XCTFail("shouldFail 时 upload 应抛错")
+        } catch {
+            // 预期抛错
+        }
+
+        mock.shouldFail = false
+        mock.registerResponse(MockTestUser(id: 9, name: "U"))
+        let user: MockTestUser = try await mock.upload(
+            MockTestEndpoint(path: "/upload"),
+            parts: [part],
+            additionalParams: ["scene": "profile"],
+            progress: nil
+        )
+        XCTAssertEqual(user.id, 9)
+
+        let record = try XCTUnwrap(mock.recordedRequests.last)
+        XCTAssertEqual(record.parts.first?.fileName, "a.txt")
+        XCTAssertEqual(record.parts.first?.paramName, "file")
+        XCTAssertEqual(record.additionalParams?["scene"], "profile")
+    }
+
+    func testMockSupportsProtocolDeduplication() async throws {
+        let mock = makeMock()
+        mock.registerResponse(MockTestUser(id: 42, name: "Z"))
+        let deduplicator = CYRequestDeduplicator()
+        async let first: MockTestUser = mock.requestWithDeduplication(
+            MockTestEndpoint(path: "/user"), deduplicator: deduplicator
+        )
+        async let second: MockTestUser = mock.requestWithDeduplication(
+            MockTestEndpoint(path: "/user"), deduplicator: deduplicator
+        )
+        let (a, b) = try await (first, second)
+        XCTAssertEqual(a, b)
+        XCTAssertEqual(a.id, 42)
+    }
+
+    func testMockClearRecordedRequests() async throws {
+        let mock = makeMock()
+        mock.registerResponse(MockTestUser(id: 8, name: "H"))
+        let _: MockTestUser = try await mock.request(MockTestEndpoint(path: "/user"))
+        XCTAssertEqual(mock.recordedRequests.count, 1)
+        mock.clearRecordedRequests()
+        XCTAssertTrue(mock.recordedRequests.isEmpty)
+    }
+
     // MARK: - shouldFail
 
     func testMockShouldFail() async {
