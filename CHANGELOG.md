@@ -1,12 +1,66 @@
 # 变更记录
 
-> 本文档仅记录已发布的版本变更。未来计划请查看 [docs/ROADMAP.md](docs/ROADMAP.md)。
+> 已发布版本的变更记录在下方；尚未发布的进行中变更统一放在 [Unreleased] 小节。未来计划请查看 [docs/ROADMAP.md](docs/ROADMAP.md)。
 >
 > 版本号遵循 [语义化版本（Semantic Versioning）](https://semver.org/lang/zh-CN/) 规范：`MAJOR.MINOR.PATCH`
 
 ---
 
 ## 版本历史
+
+## [Unreleased]
+
+> 网络层与组件库专项优化，尚未打 tag。正式发布时请按语义化版本重命名（含破坏性变更，建议 MAJOR）。
+
+### 网络层（CYAppCore + CYAppNetwork）
+
+#### 修复与一致性
+- 删除未被调用的 `fetchRaw` 重载（死代码）
+- `NetworkFailure` 标注 `Sendable`，消除跨并发边界的隐性隐患
+- 文档修正：`requestVoid` 实际走 `.envelope` + `CYEmptyResponse`（并非 `.empty`）；补充 `requestData` 的 raw 语义（不触发凭证恢复、不参与去重）
+- `CYLoggingInterceptor` 文档示例与实际输出对齐（去除不存在的耗时）
+
+#### 结构重构（行为不变）
+- `CYNetworkClient`（原 734 行）拆分为 `NetworkClient` / `+Request` / `+Response` / `+Upload`
+- `NSLock` + `@unchecked Sendable` → `Mutex`（iOS 18 `Synchronization`）；`CYNetworkClient` 与 `MockNetworkClient` 现为真正的 `Sendable`
+- `requestWithDeduplication` 提升到 `CYNetworkClientProtocol` 扩展，生产客户端与 Mock 通用
+- 删除未使用的 `CYHTTPMethod.alamofireMethod` 桥接
+
+#### 新增
+- `MockNetworkClient` 请求记录：`recordedRequests` / `CYMockRequestRecord` / `clearRecordedRequests()`，可断言方法、路径、Body 与上传分片
+
+### 组件库（CYAppDesignSystem）
+
+#### 修复
+- `CYFlowLayout`（由私有 `FlowLayout` 抽取）：修复宽度未指定时返回无限宽的布局缺陷
+- `ShimmerModifier` 尊重 `accessibilityReduceMotion`
+
+#### 新增 / 扩展
+- `CYAppColor.configure(primary:accent:)` 与 `reset()`：品牌色可配置，零源码修改换主色
+- 公共 `CYFlowLayout`（标签 / 筛选换行布局）
+- `CYTextField` 增强：`submitLabel` / `autocorrectionDisabled` / `showsClearButton` / `onSubmit`；iOS 专属重载支持 `keyboardType` / `textContentType` / `textInputAutocapitalization`
+- `CardView` 支持自定义 `padding` / `cornerRadius` / `backgroundColor` / `appliesShadow`
+- `CYListRow` 无 `action` 时不再渲染为 `Button`
+- 新增 `clear` 本地化键（en / zh-Hans）
+- 设计系统预览新增暗黑模式、大字号变体
+
+#### 现代化
+- `.foregroundColor` → `.foregroundStyle`（30 处）
+- `.cornerRadius` → `.clipShape(.rect(cornerRadius:))`（10 处，外观等价）
+
+#### 破坏性变更与迁移
+
+| 移除项 | 替代写法 |
+|---|---|
+| `EmptyStateView`（旧名弃用包装） | `CYEmptyStateView(systemImage:title:message:...)` |
+| `CYAppDimens.radiusFull` | `.clipShape(.capsule)` |
+
+### 文档
+- 同步 `ARCHITECTURE.md`（网络文件拆分、组件清单、品牌色配置）
+- 同步 `NETWORK_GUIDE.md`（`requestData` raw 语义、`.empty` 说明、Mock 请求记录）
+- 同步 `GETTING_STARTED.md`（品牌色配置、业务码策略 API 名修正）
+
+---
 
 ### [1.1.0] - 2026-08-23
 

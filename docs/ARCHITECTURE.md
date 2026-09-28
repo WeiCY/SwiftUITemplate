@@ -516,7 +516,8 @@ CYPersistenceController
 | 零代码配置 | `.configure(...)` | 切换环境、样式、业务码、默认常量 |
 | 协议实现 | 实现 `*Protocol` + DI 注册 | 替换网络、认证、分析、管理器 |
 | 注入实例 | AppState init 参数 | 替换主题/语言管理策略 |
-| 静态覆盖 | `AppColors.*` / `AppFonts.*` | 品牌色/字体定制 |
+| 品牌色配置 | `CYAppColor.configure(primary:accent:)` | 零源码修改换主色 |
+| 静态覆盖 | `CYAppFont.*` / 扩展 `CYAppColor` | 字体/衍生色定制 |
 
 ### 新增模块
 
@@ -574,7 +575,7 @@ CYSwiftTemplate/
 │   ├── CYFeedbackStyle/            # Layer 0 UI: 样式定义
 │   │   └── FeedbackConfiguration  #   CYToastStyle, CYLoadingStyle, CYFeedbackConfiguration
 │   ├── CYAppDesignSystem/          # Layer 1: SwiftUI 设计系统
-│   │   ├── Theme/                 #   AppColors, AppFonts, AppDimens, Color扩展
+│   │   ├── Theme/                 #   CYAppColor(可配置), CYAppFont, CYAppDimens, Color扩展
 │   │   └── Components/            #   BaseView, Buttons, Cards, Shimmer, PaginatedList
 │   ├── CYAppUI/                    # Layer 2: SwiftUI 功能组件
 │   │   ├── AppState.swift         #   全局状态（可注入 ThemeManager/LocalizationManager）

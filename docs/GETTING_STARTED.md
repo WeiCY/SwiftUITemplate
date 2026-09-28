@@ -133,8 +133,8 @@ struct MyApp: App {
         CYBusinessCodePolicy.configure {
             $0.successCodes = [0, 200]
             $0.tokenExpiredCodes = [401, 10001]
-            $0.needReLoginCodes = [403]
-            $0.displayMode = .toast
+            $0.reLoginCodes = [403]
+            $0.silentCodes = [90001]   // 静默不打扰；默认 Toast，可用 alertCodes 改为弹窗
         }
 
         // 3. 配置全局反馈样式
@@ -865,8 +865,9 @@ if status == .granted {
 CYBusinessCodePolicy.configure {
     $0.successCodes = [0, 200, 1000]
     $0.tokenExpiredCodes = [401, 10001]
-    $0.needReLoginCodes = [403, 10003]
-    $0.displayMode = .toast
+    $0.reLoginCodes = [403, 10003]
+    $0.silentCodes = [20005]   // 静默忽略
+    $0.alertCodes = [50000]    // 弹窗强提示
 }
 ```
 
@@ -979,13 +980,24 @@ Container.shared.localizationManager.register { RemoteLocalizationManager() }
 )
 ```
 
-### 主题色彩特异化
+### 品牌色特异化
+
+`CYAppColor` 提供线程安全的品牌色覆盖入口，无需修改模板源码：
 
 ```swift
-// 直接覆盖静态颜色定义（App 启动时）
-AppColors.primary = .indigo
-AppColors.accent = .mint
-AppColors.background = Color(uiColor: .systemGroupedBackground)
+// App 启动时调用一次（通常在 AppBootstrap 中）
+CYAppColor.configure(
+    primary: Color(hex: "#FF6B00"),   // 主色（默认 .indigo）
+    accent: Color(hex: "#00A3FF")     // 强调色（默认系统 AccentColor）
+)
+```
+
+`background` / `textPrimary` / `separator` 等语义色基于系统语义色，自动适配深浅色，只读；如需品牌衍生色，在业务侧扩展：
+
+```swift
+extension CYAppColor {
+    static var brandSurface: Color { primary.opacity(0.08) }
+}
 ```
 
 ### Toast/Loading/Alert 特异化
@@ -1030,9 +1042,9 @@ ContentView()
 CYBusinessCodePolicy.configure {
     $0.successCodes = [0, 200, 1000]
     $0.tokenExpiredCodes = [401, 10001]
-    $0.needReLoginCodes = [403]
+    $0.reLoginCodes = [403]
     $0.silentCodes = [20005]  // 静默忽略的错误码
-    $0.displayMode = .toast
+    $0.alertCodes = [50000]   // 弹窗强提示
 }
 ```
 
@@ -1055,7 +1067,8 @@ Container.shared.loadingManager.register { MockLoadingManager() }
 | 零代码配置 | `.configure(...)` | 切换环境、样式、业务码 |
 | 协议实现 | 实现 `*Protocol` + DI 注册 | 替换网络、认证、分析、管理器 |
 | 注入实例 | AppState init 参数 | 替换主题/语言管理策略 |
-| 静态覆盖 | `AppColors.*` / `AppFonts.*` | 品牌色/字体定制 |
+| 品牌色配置 | `CYAppColor.configure(primary:accent:)` | 零源码修改换主色 |
+| 静态覆盖 | `CYAppFont.*` / 扩展 `CYAppColor` | 字体/衍生色定制 |
 
 ---
 
