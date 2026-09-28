@@ -154,8 +154,8 @@ Kingfisher 桥接层。
 
 | 子目录 | 关键类型 |
 |---|---|
-| `Theme/` | `CYAppColor`, `CYAppFont`, `CYAppDimens`, Color+Hex 扩展 |
-| `Components/` | `CYBaseView`, `CYLoadingIndicator`, `PrimaryButton`/`SecondaryButton`/`CYScaledButtonStyle`, `CardView`, `EmptyStateView`, `CYTextField`/`CYSearchBar`/`CYVerificationCodeInput`, `CYListRow`/`CYSectionHeader`, `CYPaginatedListView`, `CYBadge`/`CYTag`, `ShimmerModifier`/`SkeletonRow`, `CYBottomSheetModifier`/`CYSnackBar` |
+| `Theme/` | `CYAppColor`（品牌色可经 `CYAppColor.configure(primary:accent:)` 零源码覆盖）、`CYAppFont`、`CYAppDimens`、Color+Hex 扩展 |
+| `Components/` | `CYBaseView`, `CYLoadingIndicator`, `PrimaryButton`/`SecondaryButton`/`CYScaledButtonStyle`, `CardView`（可定制内边距/圆角/背景/阴影）, `CYEmptyStateView`, `CYTextField`/`CYSearchBar`/`CYVerificationCodeInput`, `CYListRow`/`CYSectionHeader`, `CYPaginatedListView`, `CYBadge`/`CYTag`/`CYFlowLayout`, `ShimmerModifier`/`SkeletonRow`, `CYBottomSheetModifier`/`CYSnackBar` |
 
 ### CYAppUI（Layer 2 — UI 功能）
 

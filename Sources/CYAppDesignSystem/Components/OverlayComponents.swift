@@ -125,7 +125,7 @@ public struct CYSnackBar: View {
         HStack(spacing: CYAppDimens.marginM) {
             Text(message)
                 .font(CYAppFont.bodyMedium)
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
                 .lineLimit(2)
 
             Spacer()
@@ -135,12 +135,12 @@ public struct CYSnackBar: View {
                     action()
                 }
                 .font(CYAppFont.button)
-                .foregroundColor(CYAppColor.accent)
+                .foregroundStyle(CYAppColor.accent)
             }
         }
         .padding(CYAppDimens.marginM)
         .background(Color.black.opacity(0.88))
-        .cornerRadius(CYAppDimens.radiusM)
+        .clipShape(.rect(cornerRadius: CYAppDimens.radiusM))
         .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
         .padding(.horizontal, CYAppDimens.marginL)
         .padding(.bottom, CYAppDimens.marginXL)

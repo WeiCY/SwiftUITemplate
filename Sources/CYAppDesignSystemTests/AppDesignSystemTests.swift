@@ -33,6 +33,36 @@ final class AppDesignSystemTests: XCTestCase {
         XCTAssertEqual(Color(hex: "ZZ"), sRGBClear)
     }
 
+    // MARK: - CYAppColor 品牌色配置
+
+    private let sRGBBlue = Color(.sRGB, red: 0, green: 0, blue: 1, opacity: 1)
+
+    func testAppColorConfigureOverridesPrimaryAndAccent() {
+        defer { CYAppColor.reset() }
+
+        CYAppColor.configure(primary: sRGBRed, accent: sRGBBlue)
+
+        XCTAssertEqual(CYAppColor.primary, sRGBRed)
+        XCTAssertEqual(CYAppColor.accent, sRGBBlue)
+    }
+
+    func testAppColorConfigurePartialKeepsOtherValue() {
+        defer { CYAppColor.reset() }
+
+        CYAppColor.configure(accent: sRGBBlue)
+
+        XCTAssertEqual(CYAppColor.accent, sRGBBlue)
+        XCTAssertEqual(CYAppColor.primary, Color.indigo, "未传入的 primary 应保持默认")
+    }
+
+    func testAppColorResetRestoresDefaults() {
+        CYAppColor.configure(primary: sRGBRed, accent: sRGBGreen)
+        CYAppColor.reset()
+
+        XCTAssertEqual(CYAppColor.primary, Color.indigo)
+        XCTAssertEqual(CYAppColor.accent, Color.accentColor)
+    }
+
     #if canImport(AppKit)
     func testColorHexRRGGBBAAAlphaValue() {
         // 8 位按 RRGGBBAA 解析：FF000080 -> r=FF, g=00, b=00, a=0x80(~0.5)

@@ -81,28 +81,34 @@ public struct CYListRow: View {
     }
 
     public var body: some View {
-        Button {
-            action?()
-        } label: {
-            HStack(spacing: CYAppDimens.marginM) {
-                leadingView
-
-                textContent
-
-                Spacer(minLength: CYAppDimens.marginS)
-
-                trailingView
-
-                if showDisclosure {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(CYAppColor.textTertiary)
-                }
+        if let action {
+            Button(action: action) {
+                row
             }
-            .padding(.vertical, CYAppDimens.marginS)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+        } else {
+            row
         }
-        .buttonStyle(.plain)
+    }
+
+    private var row: some View {
+        HStack(spacing: CYAppDimens.marginM) {
+            leadingView
+
+            textContent
+
+            Spacer(minLength: CYAppDimens.marginS)
+
+            trailingView
+
+            if showDisclosure {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(CYAppColor.textTertiary)
+            }
+        }
+        .padding(.vertical, CYAppDimens.marginS)
+        .contentShape(Rectangle())
     }
 
     @ViewBuilder
@@ -118,13 +124,13 @@ public struct CYListRow: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(CYAppFont.bodyMedium)
-                .foregroundColor(CYAppColor.textPrimary)
+                .foregroundStyle(CYAppColor.textPrimary)
                 .lineLimit(1)
 
             if let subtitle {
                 Text(subtitle)
                     .font(CYAppFont.bodySmall)
-                    .foregroundColor(CYAppColor.textSecondary)
+                    .foregroundStyle(CYAppColor.textSecondary)
                     .lineLimit(1)
             }
         }
@@ -154,7 +160,7 @@ public extension CYListRow {
                 leading: {
                     Image(systemName: icon)
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundStyle(.white)
                         .frame(width: 32, height: 32)
                         .background(iconColor)
                         .clipShape(RoundedRectangle(cornerRadius: CYAppDimens.radiusS))
@@ -195,7 +201,7 @@ public struct CYSectionHeader: View {
         HStack {
             Text(title)
                 .font(CYAppFont.bodyMedium)
-                .foregroundColor(CYAppColor.textSecondary)
+                .foregroundStyle(CYAppColor.textSecondary)
 
             Spacer()
 
@@ -203,7 +209,7 @@ public struct CYSectionHeader: View {
                 Button(action: action) {
                     Text(actionTitle)
                         .font(CYAppFont.bodySmall)
-                        .foregroundColor(CYAppColor.primary)
+                        .foregroundStyle(CYAppColor.primary)
                 }
             }
         }

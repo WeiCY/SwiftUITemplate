@@ -107,7 +107,7 @@ public struct CYPaginatedListView<Item: Identifiable & Sendable, Row: View, Empt
                     .scaleEffect(0.8)
                 Text("loading".cyLocalized)
                     .font(CYAppFont.caption)
-                    .foregroundColor(CYAppColor.textSecondary)
+                    .foregroundStyle(CYAppColor.textSecondary)
                 Spacer()
             }
             .padding(.vertical, CYAppDimens.marginS)
@@ -116,7 +116,7 @@ public struct CYPaginatedListView<Item: Identifiable & Sendable, Row: View, Empt
                 Spacer()
                 Text("pagination_end".cyLocalized)
                     .font(CYAppFont.caption)
-                    .foregroundColor(CYAppColor.textTertiary)
+                    .foregroundStyle(CYAppColor.textTertiary)
                 Spacer()
             }
             .padding(.vertical, CYAppDimens.marginM)
@@ -171,19 +171,19 @@ public struct CYLoadMoreButton: View {
                     .scaleEffect(0.8)
                 Text("loading".cyLocalized)
                     .font(CYAppFont.bodySmall)
-                    .foregroundColor(CYAppColor.textSecondary)
+                    .foregroundStyle(CYAppColor.textSecondary)
             } else if hasMore {
                 Button {
                     Task { await action() }
                 } label: {
                     Text("load_more".cyLocalized)
                         .font(CYAppFont.label)
-                        .foregroundColor(CYAppColor.accent)
+                        .foregroundStyle(CYAppColor.accent)
                 }
             } else {
                 Text("pagination_end".cyLocalized)
                     .font(CYAppFont.caption)
-                    .foregroundColor(CYAppColor.textTertiary)
+                    .foregroundStyle(CYAppColor.textTertiary)
             }
             Spacer()
         }

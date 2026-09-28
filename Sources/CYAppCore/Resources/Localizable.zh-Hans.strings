@@ -13,6 +13,7 @@
 "album" = "相册";
 "camera" = "拍照";
 "cancel" = "取消";
+"clear" = "清除";
 "camera_unavailable_title" = "无法拍照";
 "camera_unavailable_message" = "当前设备没有可用的相机";
 "image_load_failed" = "图片加载失败";

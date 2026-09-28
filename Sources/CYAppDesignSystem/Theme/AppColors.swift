@@ -1,4 +1,5 @@
 import SwiftUI
+import os
 
 // MARK: - 语义化颜色系统
 //
@@ -33,16 +34,53 @@ import AppKit
 #endif
 
 public struct CYAppColor {
-    
+
+    // MARK: - 可覆盖的品牌色
+
+    /// 可覆盖的品牌色主题。
+    public struct Theme: Sendable {
+        /// 主色调（品牌色）
+        public var primary: Color
+        /// 强调色
+        public var accent: Color
+
+        public init(primary: Color = .indigo, accent: Color = .accentColor) {
+            self.primary = primary
+            self.accent = accent
+        }
+    }
+
+    /// 线程安全的全局品牌色覆盖（默认 `.indigo` / 系统 AccentColor）。
+    private static let theme = OSAllocatedUnfairLock(initialState: Theme())
+
+    /// 覆盖品牌色，无需修改模板源码。
+    ///
+    /// 在 App 启动时调用一次即可（通常在 `AppBootstrap` 中）：
+    /// ```swift
+    /// CYAppColor.configure(primary: Color(hex: "#FF6B00"), accent: Color(hex: "#00A3FF"))
+    /// ```
+    /// 未传入的参数保持当前值。
+    public static func configure(primary: Color? = nil, accent: Color? = nil) {
+        theme.withLock {
+            if let primary { $0.primary = primary }
+            if let accent { $0.accent = accent }
+        }
+    }
+
+    /// 恢复默认品牌色（测试隔离或重置配置时使用）。
+    public static func reset() {
+        theme.withLock { $0 = Theme() }
+    }
+
     // MARK: - 品牌色
-    
-    /// 主色调（品牌色）。
-    /// 使用固定的 `.indigo` 而非 `Color.primary`，避免在深色模式下与白色文字混用导致不可见。
-    public static let primary = Color.indigo
+
+    /// 主色调（品牌色）。默认 `.indigo`，可通过 `configure(primary:)` 覆盖。
+    /// 使用固定色而非 `Color.primary`，避免在深色模式下与白色文字混用导致不可见。
+    public static var primary: Color { theme.withLock { $0.primary } }
     /// 副色调（系统自适应辅助色，用于次要文字/边框）
     public static let secondary = Color.secondary
-    /// 强调色（跟随 App 全局 AccentColor）
-    public static let accent = Color.accentColor
+    /// 强调色（默认跟随 App 全局 AccentColor，可覆盖）
+    public static var accent: Color { theme.withLock { $0.accent } }
     
     // MARK: - 背景色
     

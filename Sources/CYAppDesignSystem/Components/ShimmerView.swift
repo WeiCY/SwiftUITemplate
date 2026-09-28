@@ -5,12 +5,13 @@ import SwiftUI
 
 public struct ShimmerModifier: ViewModifier {
     let isActive: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var phase: CGFloat = -1.5
-    
+
     public func body(content: Content) -> some View {
         content
             .overlay {
-                if isActive {
+                if isActive, !reduceMotion {
                     LinearGradient(
                         colors: [.clear, .white.opacity(0.5), .clear],
                         startPoint: .leading,

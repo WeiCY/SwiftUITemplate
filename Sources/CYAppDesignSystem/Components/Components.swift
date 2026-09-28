@@ -5,8 +5,8 @@ import SwiftUI
 // 容器组件与状态视图。按钮组件已拆分至 Buttons.swift。
 //
 // 包含：
-// - CardView：卡片容器
-// - EmptyStateView：空状态提示
+// - CardView：卡片容器（内边距/圆角/背景/阴影均可定制）
+// - CYEmptyStateView：空状态提示
 // - LoadingView：加载骨架屏
 //
 // 用法：
@@ -15,7 +15,7 @@ import SwiftUI
 // CardView { VStack { Text("Title"); Text("Body") } }
 //
 // // 空状态
-// EmptyStateView(title: "暂无数据", message: "下拉刷新", image: "tray")
+// CYEmptyStateView(title: "暂无数据", message: "下拉刷新", systemImage: "tray")
 //
 // // 加载骨架屏
 // LoadingView()
@@ -23,54 +23,47 @@ import SwiftUI
 
 // MARK: - 容器组件
 
-/// 卡片容器（圆角 + 阴影 + 内边距）
+/// 卡片容器（圆角 + 阴影 + 内边距），各外观项均可定制。
 public struct CardView<Content: View>: View {
     public let content: Content
-    
-    public init(@ViewBuilder content: () -> Content) {
+    let padding: EdgeInsets
+    let cornerRadius: CGFloat
+    let backgroundColor: Color
+    let appliesShadow: Bool
+
+    public init(
+        padding: EdgeInsets = .init(
+            top: CYAppDimens.marginM,
+            leading: CYAppDimens.marginM,
+            bottom: CYAppDimens.marginM,
+            trailing: CYAppDimens.marginM
+        ),
+        cornerRadius: CGFloat = CYAppDimens.radiusL,
+        backgroundColor: Color = CYAppColor.background,
+        appliesShadow: Bool = true,
+        @ViewBuilder content: () -> Content
+    ) {
         self.content = content()
+        self.padding = padding
+        self.cornerRadius = cornerRadius
+        self.backgroundColor = backgroundColor
+        self.appliesShadow = appliesShadow
     }
-    
+
     public var body: some View {
         content
-            .padding(CYAppDimens.marginM)
-            .background(CYAppColor.background)
-            .cornerRadius(CYAppDimens.radiusL)
-            .shadow(color: CYAppColor.shadow, radius: CYAppDimens.shadowRadius, x: 0, y: CYAppDimens.shadowOffset)
+            .padding(padding)
+            .background(backgroundColor, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .shadow(
+                color: appliesShadow ? CYAppColor.shadow : .clear,
+                radius: appliesShadow ? CYAppDimens.shadowRadius : 0,
+                x: 0,
+                y: appliesShadow ? CYAppDimens.shadowOffset : 0
+            )
     }
 }
 
 // MARK: - 状态视图
-
-/// 旧空状态名称的兼容包装。新代码使用 `CYEmptyStateView`。
-@available(*, deprecated, renamed: "CYEmptyStateView")
-public struct EmptyStateView: View {
-    private let content: CYEmptyStateView
-
-    public init(
-        title: String,
-        message: String,
-        image: String,
-        iconSize: CGFloat = 60,
-        iconColor: Color = CYAppColor.textTertiary,
-        actionTitle: String? = nil,
-        action: (() -> Void)? = nil
-    ) {
-        self.content = CYEmptyStateView(
-            systemImage: image,
-            title: title,
-            message: message,
-            iconSize: iconSize,
-            iconColor: iconColor,
-            actionTitle: actionTitle,
-            action: action
-        )
-    }
-    
-    public var body: some View {
-        content
-    }
-}
 
 /// 加载骨架屏视图
 public struct LoadingView: View {
@@ -80,79 +73,98 @@ public struct LoadingView: View {
     }
 }
 
-#Preview("Design System Components") {
-    ScrollView {
-        VStack(spacing: 32) {
-            
-            // MARK: - Buttons Section
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Buttons")
-                    .font(.title2)
-                    .bold()
-                
-                PrimaryButton(title: "Primary Button", action: {})
-                
-                PrimaryButton(title: "Primary Loading", action: {}, isLoading: true)
-                
-                SecondaryButton(title: "Secondary Button", action: {})
-            }
-            .padding(.horizontal)
-            
-            Divider()
-            
-            // MARK: - Cards Section
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Cards")
-                    .font(.title2)
-                    .bold()
-                    .padding(.horizontal)
-                
-                CardView {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Card Title")
-                            .font(CYAppFont.h3)
-                            .foregroundColor(CYAppColor.textPrimary)
-                        
-                        Text("This is a generic card component that can hold any SwiftUI view content. It comes with default styling, shadow, and corner radius.")
-                            .font(CYAppFont.bodyMedium)
-                            .foregroundColor(CYAppColor.textSecondary)
+// MARK: - Showcase
+
+/// 设计系统组件总览（供 Preview 复用）。
+private struct DesignSystemShowcase: View {
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 32) {
+
+                // MARK: - Buttons Section
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Buttons")
+                        .font(.title2)
+                        .bold()
+
+                    PrimaryButton(title: "Primary Button", action: {})
+
+                    PrimaryButton(title: "Primary Loading", action: {}, isLoading: true)
+
+                    SecondaryButton(title: "Secondary Button", action: {})
+                }
+                .padding(.horizontal)
+
+                Divider()
+
+                // MARK: - Cards Section
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Cards")
+                        .font(.title2)
+                        .bold()
+                        .padding(.horizontal)
+
+                    CardView {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Card Title")
+                                .font(CYAppFont.h3)
+                                .foregroundStyle(CYAppColor.textPrimary)
+
+                            Text("This is a generic card component that can hold any SwiftUI view content. It comes with default styling, shadow, and corner radius.")
+                                .font(CYAppFont.bodyMedium)
+                                .foregroundStyle(CYAppColor.textSecondary)
+                        }
+                        .padding()
                     }
-                    .padding()
+                }
+
+                Divider()
+
+                // MARK: - States Section
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Empty States")
+                        .font(.title2)
+                        .bold()
+                        .padding(.horizontal)
+
+                    CYEmptyStateView(
+                        systemImage: "magnifyingglass",
+                        title: "No Items Found",
+                        message: "Try adjusting your search filters to find what you're looking for."
+                    )
+                    .background(Color.gray.opacity(0.05))
+                    .clipShape(.rect(cornerRadius: 12))
+                    .padding(.horizontal)
+                }
+
+                Divider()
+
+                // MARK: - Loading Section
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Loading State")
+                        .font(.title2)
+                        .bold()
+                        .padding(.horizontal)
+
+                    LoadingView()
+                        .padding(.horizontal)
                 }
             }
-            
-            Divider()
-            
-            // MARK: - States Section
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Empty States")
-                    .font(.title2)
-                    .bold()
-                    .padding(.horizontal)
-                
-                CYEmptyStateView(
-                    systemImage: "magnifyingglass",
-                    title: "No Items Found",
-                    message: "Try adjusting your search filters to find what you're looking for."
-                )
-                .background(Color.gray.opacity(0.05))
-                .cornerRadius(12)
-                .padding(.horizontal)
-            }
-            
-            Divider()
-            
-            // MARK: - Loading Section
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Loading State")
-                    .font(.title2)
-                    .bold()
-                    .padding(.horizontal)
-                
-                LoadingView()
-                    .padding(.horizontal)
-            }
+            .padding(.vertical)
         }
-        .padding(.vertical)
     }
+}
+
+#Preview("Design System Components") {
+    DesignSystemShowcase()
+}
+
+#Preview("Design System - Dark") {
+    DesignSystemShowcase()
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Design System - Large Text") {
+    DesignSystemShowcase()
+        .dynamicTypeSize(.accessibility3)
 }

@@ -60,8 +60,8 @@ public struct PrimaryButton: View {
             .frame(maxWidth: .infinity, minHeight: CYAppDimens.buttonHeight)
             .padding(.horizontal, CYAppDimens.marginM)
             .background(CYAppColor.primary.opacity(isInactive ? 0.4 : 1))
-            .foregroundColor(.white.opacity(isDisabled && !isLoading ? 0.6 : 1))
-            .cornerRadius(CYAppDimens.radiusM)
+            .foregroundStyle(.white.opacity(isDisabled && !isLoading ? 0.6 : 1))
+            .clipShape(.rect(cornerRadius: CYAppDimens.radiusM))
         }
         .buttonStyle(CYScaledButtonStyle())
         .disabled(isInactive)
@@ -84,7 +84,7 @@ public struct SecondaryButton: View {
         Button(action: action) {
             Text(title)
                 .font(CYAppFont.button)
-                .foregroundColor(CYAppColor.secondary)
+                .foregroundStyle(CYAppColor.secondary)
                 .frame(maxWidth: .infinity, minHeight: CYAppDimens.buttonHeight)
                 .padding(.horizontal, CYAppDimens.marginM)
                 .overlay(

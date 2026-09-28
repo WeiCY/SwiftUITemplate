@@ -242,7 +242,7 @@ struct CYAlbumListSheet: View {
                     }
                     .frame(width: 72, height: 72)
                     .clipped()
-                    .cornerRadius(CYAppDimens.radiusM)
+                    .clipShape(.rect(cornerRadius: CYAppDimens.radiusM))
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(album.title)

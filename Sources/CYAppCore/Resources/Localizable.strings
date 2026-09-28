@@ -13,6 +13,7 @@
 "album" = "Album";
 "camera" = "Camera";
 "cancel" = "Cancel";
+"clear" = "Clear";
 "camera_unavailable_title" = "Cannot take photo";
 "camera_unavailable_message" = "This device has no available camera";
 "image_load_failed" = "Image failed to load";

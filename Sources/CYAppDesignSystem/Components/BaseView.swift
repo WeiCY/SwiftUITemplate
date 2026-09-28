@@ -142,13 +142,13 @@ public struct CYDefaultErrorView: View {
                         .foregroundStyle(style.retryForegroundColor)
                         .padding(style.retryPadding)
                         .background(style.retryBackgroundColor)
-                        .cornerRadius(style.retryCornerRadius)
+                        .clipShape(.rect(cornerRadius: style.retryCornerRadius))
                 }
             }
         }
         .padding(style.padding)
         .background(style.backgroundColor)
-        .cornerRadius(style.cornerRadius)
+        .clipShape(.rect(cornerRadius: style.cornerRadius))
         .shadow(
             color: style.shadow.color,
             radius: style.shadow.radius,
@@ -205,7 +205,7 @@ public struct CYDefaultErrorView: View {
         }
         .padding(40)
         .background(.regularMaterial)
-        .cornerRadius(16)
+        .clipShape(.rect(cornerRadius: 16))
     }
 }
 

@@ -99,7 +99,7 @@ extension View {
             ZStack {
                 Rectangle().stroke(color)
                 Text("\(Int(geo.size.width))x\(Int(geo.size.height))")
-                    .foregroundColor(color)
+                    .foregroundStyle(color)
                     .font(.caption)
             }
         })

@@ -7,7 +7,7 @@ import SwiftUI
 // 用法：
 // ```swift
 // .padding(CYAppDimens.marginM)          // 16pt
-// .cornerRadius(CYAppDimens.radiusL)     // 12pt
+// .clipShape(.rect(cornerRadius: CYAppDimens.radiusL)) // 12pt
 // .frame(height: CYAppDimens.buttonHeight) // 48pt
 // ```
 
@@ -40,8 +40,6 @@ public struct CYAppDimens {
     public static let radiusXL: CGFloat = 20.0
     /// 卡片圆角（16pt，Loading 弹窗等）
     public static let radiusCard: CGFloat = 16.0
-    /// 全圆角（胶囊形）
-    public static let radiusFull: CGFloat = .infinity
     
     // MARK: - UI 元素
     
