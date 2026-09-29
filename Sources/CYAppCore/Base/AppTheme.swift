@@ -59,9 +59,9 @@ public enum CYAppTheme: String, CaseIterable, Sendable {
     /// 显示名称（用于设置页面 UI）
     public var displayName: String {
         switch self {
-        case .system: return "跟随系统"
-        case .light: return "浅色"
-        case .dark: return "深色"
+        case .system: return "theme_system".cyLocalized
+        case .light: return "theme_light".cyLocalized
+        case .dark: return "theme_dark".cyLocalized
         }
     }
 }

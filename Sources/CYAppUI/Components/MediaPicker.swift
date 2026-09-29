@@ -226,6 +226,7 @@ public struct CYMediaPicker<Label: View>: View {
             photoLibrary: .shared()
         )
         .onChange(of: photoItems) { _, newItems in
+            guard !newItems.isEmpty else { return }
             Task {
                 var images: [CYMediaItem] = []
                 for item in newItems {
@@ -237,6 +238,8 @@ public struct CYMediaPicker<Label: View>: View {
                 if !images.isEmpty {
                     onPicked(images)
                 }
+                // 清空选择，允许重复选择同一张图片再次触发回调
+                photoItems = []
             }
         }
     }

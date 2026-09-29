@@ -23,24 +23,20 @@ import Foundation
 ///     CYDeepLinkHandler.shared.handle(url: url)
 /// }
 /// ```
-    private struct HandlerEntry {
-        let scheme: String?
-        let host: String?
-        let handler: (URL) -> Void
-    }
+@MainActor
+public final class CYDeepLinkHandler {
 
-    @MainActor
-    public final class CYDeepLinkHandler {
-    
     public static let shared = CYDeepLinkHandler()
-    
+
     /// 最后一次处理的 URL（用于调试）
     public var lastHandledURL: URL?
-    
+
     private var handlers: [HandlerEntry] = []
-    
+
     private init() {}
-    
+
+    // MARK: - 注册
+
     /// 注册深链接处理逻辑
     /// - 参数：
     ///   - scheme: URL Scheme（如 "myapp"），nil 匹配所有 scheme
@@ -49,13 +45,15 @@ import Foundation
     public func register(scheme: String? = nil, host: String? = nil, handler: @escaping (URL) -> Void) {
         handlers.append(HandlerEntry(scheme: scheme, host: host, handler: handler))
     }
-    
+
+    // MARK: - 处理
+
     /// 处理收到的 URL
     /// - Returns: true 如果找到匹配的处理逻辑
     @discardableResult
     public func handle(url: URL) -> Bool {
         lastHandledURL = url
-        
+
         for entry in handlers {
             let schemeMatch = entry.scheme == nil || entry.scheme == url.scheme
             let hostMatch = entry.host == nil || entry.host == url.host
@@ -64,13 +62,21 @@ import Foundation
                 return true
             }
         }
-        
+
         return false
     }
-    
+
     /// 清除所有已注册的处理逻辑
     public func clearAll() {
         handlers.removeAll()
+    }
+
+    // MARK: - Handler Entry
+
+    private struct HandlerEntry {
+        let scheme: String?
+        let host: String?
+        let handler: (URL) -> Void
     }
 }
 
@@ -82,7 +88,7 @@ extension URL {
     public var queryParameters: [String: String] {
         guard let components = URLComponents(url: self, resolvingAgainstBaseURL: false),
               let queryItems = components.queryItems else { return [:] }
-        
+
         var params = [String: String]()
         for item in queryItems {
             params[item.name] = item.value ?? ""

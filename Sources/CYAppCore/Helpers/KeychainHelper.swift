@@ -37,7 +37,7 @@ public enum CYKeychainAccessibility: Sendable {
     }
 }
 
-public final class CYKeychainHelper: @unchecked Sendable {
+public final class CYKeychainHelper: Sendable {
     public static let standard = CYKeychainHelper()
     
     private init() {}

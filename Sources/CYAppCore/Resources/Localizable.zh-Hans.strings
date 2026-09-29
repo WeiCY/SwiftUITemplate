@@ -25,6 +25,16 @@
 "error_title" = "错误";
 "warning_title" = "警告";
 
+/* Bundle Decoding */
+"bundle_file_not_found" = "找不到 Bundle 文件：%@";
+"bundle_file_load_failed" = "读取 Bundle 文件失败：%@";
+"bundle_file_decode_failed" = "解析 Bundle 文件失败：%@";
+
+/* Theme */
+"theme_system" = "跟随系统";
+"theme_light" = "浅色";
+"theme_dark" = "深色";
+
 /* Network Errors */
 "network_invalid_url" = "请求地址无效";
 "network_timeout" = "请求超时，请检查网络后重试";

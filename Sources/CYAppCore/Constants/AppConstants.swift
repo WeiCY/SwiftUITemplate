@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// 宿主 App 在启动时可注入的核心默认值。
 ///
@@ -34,17 +35,16 @@ public struct CYAppConfigurationValues: Sendable {
 // MARK: - 全局常量
 
 public enum CYAppConstants {
-    private static let configurationLock = NSLock()
-    nonisolated(unsafe) private static var configurationValues = CYAppConfigurationValues()
+    private static let configurationLock = OSAllocatedUnfairLock(initialState: CYAppConfigurationValues())
 
     /// 配置核心默认值。应只在 App 启动阶段调用。
     public static func configure(_ values: CYAppConfigurationValues) {
-        configurationLock.withLock { configurationValues = values }
+        configurationLock.withLock { $0 = values }
     }
 
     /// 当前配置快照，便于将同一配置传递给自定义服务。
     public static var configuration: CYAppConfigurationValues {
-        configurationLock.withLock { configurationValues }
+        configurationLock.withLock { $0 }
     }
 
     public static let appName = "SwiftUITemplate"

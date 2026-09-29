@@ -68,6 +68,8 @@ extension UIImage {
     // MARK: - Color Overlay
 
     public func withTintColor(_ color: UIColor) -> UIImage {
+        // CIImage 背书 / 无 CGImage 的图片无法做 mask 着色，安全回退为原图，避免崩溃
+        guard let cgImage else { return self }
         let renderer = UIGraphicsImageRenderer(size: size)
         return renderer.image { ctx in
             color.setFill()
@@ -75,7 +77,7 @@ extension UIImage {
             ctx.cgContext.scaleBy(x: 1.0, y: -1.0)
             ctx.cgContext.setBlendMode(.normal)
             let rect = CGRect(origin: .zero, size: size)
-            ctx.cgContext.clip(to: rect, mask: cgImage!)
+            ctx.cgContext.clip(to: rect, mask: cgImage)
             ctx.cgContext.fill(rect)
         }
     }

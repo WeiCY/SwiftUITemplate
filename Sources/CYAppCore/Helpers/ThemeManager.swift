@@ -30,7 +30,7 @@ public protocol CYThemeManaging: AnyObject, Sendable {
 /// // 注册到 DI（App 启动时）
 /// Container.shared.themeManager.register { CloudThemeManager() }
 /// ```
-public final class CYThemeManager: CYThemeManaging, @unchecked Sendable {
+public final class CYThemeManager: CYThemeManaging, Sendable {
     public static let shared = CYThemeManager()
 
     private init() {}

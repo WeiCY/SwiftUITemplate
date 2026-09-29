@@ -55,6 +55,47 @@
 | `EmptyStateView`（旧名弃用包装） | `CYEmptyStateView(systemImage:title:message:...)` |
 | `CYAppDimens.radiusFull` | `.clipShape(.capsule)` |
 
+### UI 层（CYAppUI）
+
+#### 修复
+- `CYRemoteImageView` 删除从未被读取的 `isLoading` 死状态
+- 引导页 `CYOnboardingView`：`pages` 为空时不再错乱（自动视为已完成），并修正「下一页」按钮越界逻辑
+- `CYMediaPicker`（`.system` 样式）：选择后清空 `photoItems`，重复选择同一张可再次触发回调
+- `CYPhotoAssetLoader`：Photos 回调补充取消/错误分支，避免 continuation 挂起
+- `CYView+Gradient`：删除与系统同名、且语义错误的私有 `strokeBorder`（内描边改为系统实现）
+
+#### 无障碍
+- 网格拍照按钮、预览关闭按钮补充 `accessibilityLabel`
+- `TypewriterModifier` 尊重 `accessibilityReduceMotion`
+
+#### 跨平台 / 一致性
+- `CYRemoteImageView` 支持 iOS / macOS（`UIImage` / `NSImage` 双平台）
+- `CYOnboardingPage` 标注 `Sendable`，移除 `nonisolated(unsafe)`
+- `CYAppRouter.shared` 补充单例语义说明（避免与 `init(tabs:)` 实例混用）
+
+#### 测试
+- 新增 Router 边界测试：`replace`、空栈 `pop`、跨 Tab `popToRoot`、`selectTab` 补建路径、Sheet 展示/关闭
+
+### 核心工具层（CYAppCore）
+
+#### 修复
+- `UIImage.withTintColor`：`cgImage` 缺失时强制解包会崩溃，改为安全回退原图
+- `String.urlEncoded`：在 `.urlQueryAllowed` 基础上额外转义 `& = + ? /`，避免 query 值破坏参数结构（`Dictionary.queryString` 同受益）
+- `Dictionary.prettyJSON`：此前输出紧凑 JSON，改为真正缩进输出（与 `Data.prettyJSON` 一致）
+- `Task.retry`：退避改用亚秒精度，修复延迟 < 1s 时退避被截断为 0 的问题
+- `CYAppTheme.displayName` / `ImageLoaderError.errorDescription`：由硬编码中文改为 `.cyLocalized`（新增 `theme_system` / `theme_light` / `theme_dark` 本地化键）
+
+#### 结构与一致性
+- `DeepLinkHandler.swift`：修正结构错位（`HandlerEntry` 由文件作用域移入类内，文档注释归位）
+- 删除 `Sequence.count(where:)`（Swift 6 标准库已提供，属冗余）
+- `CYBundleDecodingError` 补充 `LocalizedError` 与 `Sendable`，并提供本地化 `errorDescription`（新增 `bundle_file_*` 键）
+
+#### 并发现代化
+- 一批无状态类由 `@unchecked Sendable` 收敛为编译器校验的 `Sendable`：`CYKeychainHelper`、`CYLogger`、`CYThemeManager`、`CYFactoryContainer`、`CYAppContainer`
+- `CYAppConstants` 的配置存储改用 `OSAllocatedUnfairLock`（移除 `NSLock` + `nonisolated(unsafe)`）
+- `Date` 的 `DateFormatter` 缓存改用 `OSAllocatedUnfairLock`，并将格式化放入锁内执行，消除共享 `DateFormatter` 并发调用的线程安全不确定性
+- 移除 `CYCacheManager` 上无观察状态的 `@Observable`
+
 ### 文档
 - 同步 `ARCHITECTURE.md`（网络文件拆分、组件清单、品牌色配置）
 - 同步 `NETWORK_GUIDE.md`（`requestData` raw 语义、`.empty` 说明、Mock 请求记录）

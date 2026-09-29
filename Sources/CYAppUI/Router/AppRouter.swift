@@ -69,6 +69,11 @@ public struct CYSheetItem: Identifiable {
 @Observable
 @MainActor
 public final class CYAppRouter {
+    /// 默认共享实例，独立于通过 `init(tabs:selectedTab:)` 创建的实例。
+    ///
+    /// - Important: 整个 App 请**统一使用同一个实例**：要么全程使用 `.shared`，
+    ///   要么通过 `@State` 注入同一个 `init` 出来的实例。两者混用会导致导航状态不一致
+    ///   （例如对 `.shared` 调用 `navigate` 不会影响注入到 Environment 的实例）。
     public static let shared = CYAppRouter()
     
     /// 每个宿主 Tab 独立的导航路径栈

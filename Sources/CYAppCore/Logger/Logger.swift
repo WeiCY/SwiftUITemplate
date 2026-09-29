@@ -65,7 +65,7 @@ public enum CYLogLevel: Int, Comparable, Sendable {
     }
 }
 
-public final class CYLogger: @unchecked Sendable {
+public final class CYLogger: Sendable {
     
     /// 全局共享实例
     public static let shared = CYLogger()

@@ -66,6 +66,57 @@ final class AppUITests: XCTestCase {
     }
 
     @MainActor
+    func testRouterReplaceCurrentPage() {
+        let home: CYTabID = "home"
+        let router = CYAppRouter(tabs: [home], selectedTab: home)
+        router.navigate(to: "a")
+        router.replace(with: "b")
+        XCTAssertEqual(router.depth(for: home), 1)
+        XCTAssertEqual(router.paths[home]?.count, 1)
+    }
+
+    @MainActor
+    func testRouterPopOnEmptyStackIsNoOp() {
+        let home: CYTabID = "home"
+        let router = CYAppRouter(tabs: [home], selectedTab: home)
+        router.pop()
+        XCTAssertEqual(router.depth(for: home), 0)
+    }
+
+    @MainActor
+    func testRouterPopToRootClearsAllTabs() {
+        let home: CYTabID = "home"
+        let profile: CYTabID = "profile"
+        let router = CYAppRouter(tabs: [home, profile], selectedTab: home)
+        router.navigate(to: "a")
+        router.navigate(to: "b", on: profile)
+        router.popToRoot()
+        XCTAssertEqual(router.depth(for: home), 0)
+        XCTAssertEqual(router.depth(for: profile), 0)
+    }
+
+    @MainActor
+    func testRouterSelectTabCreatesPathIfMissing() {
+        let home: CYTabID = "home"
+        let router = CYAppRouter(tabs: [home], selectedTab: home)
+        let newTab: CYTabID = "newTab"
+        router.selectTab(newTab)
+        XCTAssertEqual(router.selectedTab, newTab)
+        XCTAssertEqual(router.depth(for: newTab), 0)
+    }
+
+    @MainActor
+    func testRouterPresentAndDismissSheet() {
+        let home: CYTabID = "home"
+        let router = CYAppRouter(tabs: [home], selectedTab: home)
+        XCTAssertNil(router.sheetItem)
+        router.presentSheet(Text("sheet"))
+        XCTAssertNotNil(router.sheetItem)
+        router.dismissSheet()
+        XCTAssertNil(router.sheetItem)
+    }
+
+    @MainActor
     func testFeedbackConfigurationDefaultsAndCustomStyles() {
         let configuration = CYFeedbackConfiguration()
         XCTAssertEqual(configuration.toastStyle.position, .center)

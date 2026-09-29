@@ -87,7 +87,7 @@ extension Container {
 // MARK: - CYFactoryContainer 实现
 
 /// Factory 容器实现类
-public final class CYFactoryContainer: DIContainerProtocol, @unchecked Sendable {
+public final class CYFactoryContainer: DIContainerProtocol, Sendable {
     
     public static let shared = CYFactoryContainer()
     

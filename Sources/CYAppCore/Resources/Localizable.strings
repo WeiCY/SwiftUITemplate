@@ -25,6 +25,16 @@
 "error_title" = "Error";
 "warning_title" = "Warning";
 
+/* Bundle Decoding */
+"bundle_file_not_found" = "Bundle file not found: %@";
+"bundle_file_load_failed" = "Failed to load bundle file: %@";
+"bundle_file_decode_failed" = "Failed to decode bundle file: %@";
+
+/* Theme */
+"theme_system" = "Follow System";
+"theme_light" = "Light";
+"theme_dark" = "Dark";
+
 /* Network Errors */
 "network_invalid_url" = "Invalid request URL";
 "network_timeout" = "Request timed out. Please check your network and try again";

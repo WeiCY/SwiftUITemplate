@@ -50,11 +50,12 @@ public final class CYPhotoAssetLoader {
             ) { image, info in
                 // highQualityFormat 通常只回调一次；仍防 degraded / 重复 resume
                 if (info?[PHImageResultIsDegradedKey] as? Bool) == true { return }
+                let failed = (info?[PHImageCancelledKey] as? Bool) == true || info?[PHImageErrorKey] != nil
                 lock.lock()
                 defer { lock.unlock() }
                 guard !hasResumed else { return }
                 hasResumed = true
-                continuation.resume(returning: image)
+                continuation.resume(returning: failed ? nil : image)
             }
         }
 
@@ -82,11 +83,12 @@ public final class CYPhotoAssetLoader {
                 options: options
             ) { image, info in
                 if (info?[PHImageResultIsDegradedKey] as? Bool) == true { return }
+                let failed = (info?[PHImageCancelledKey] as? Bool) == true || info?[PHImageErrorKey] != nil
                 lock.lock()
                 defer { lock.unlock() }
                 guard !hasResumed else { return }
                 hasResumed = true
-                continuation.resume(returning: image)
+                continuation.resume(returning: failed ? nil : image)
             }
         }
     }
@@ -102,12 +104,13 @@ public final class CYPhotoAssetLoader {
         return await withCheckedContinuation { (continuation: CheckedContinuation<Data?, Never>) in
             let lock = NSLock()
             var hasResumed = false
-            imageManager.requestImageDataAndOrientation(for: asset, options: options) { data, _, _, _ in
+            imageManager.requestImageDataAndOrientation(for: asset, options: options) { data, _, _, info in
+                let failed = (info?[PHImageCancelledKey] as? Bool) == true || info?[PHImageErrorKey] != nil
                 lock.lock()
                 defer { lock.unlock() }
                 guard !hasResumed else { return }
                 hasResumed = true
-                continuation.resume(returning: data)
+                continuation.resume(returning: failed ? nil : data)
             }
         }
     }

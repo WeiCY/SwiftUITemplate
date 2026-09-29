@@ -1,5 +1,4 @@
 import Foundation
-import Observation
 
 // MARK: - 缓存管理器
 //
@@ -213,7 +212,6 @@ private actor CacheStorage {
     }
 }
 
-@Observable
 public final class CYCacheManager: Sendable {
     public static let shared = CYCacheManager()
 

@@ -7,17 +7,20 @@ public struct TypewriterModifier: ViewModifier {
     let fullText: String
     let speed: Double
     let trigger: Bool
-    
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var displayedText: String = ""
     @State private var typingTask: Task<Void, Never>?
     @State private var hasStarted = false
-    
+
     public func body(content: Content) -> some View {
         ZStack {
             content.hidden()
             Text(currentText)
         }
         .onAppear {
+            // 减弱动效：直接显示全文，不播放逐字动画
+            guard !reduceMotion else { return }
             if trigger && !hasStarted {
                 hasStarted = true
                 startTypewriter()
@@ -26,6 +29,7 @@ public struct TypewriterModifier: ViewModifier {
             }
         }
         .onChange(of: trigger) { _, newValue in
+            guard !reduceMotion else { return }
             if newValue && !hasStarted {
                 hasStarted = true
                 startTypewriter()
@@ -36,8 +40,11 @@ public struct TypewriterModifier: ViewModifier {
             typingTask = nil
         }
     }
-    
+
     private var currentText: String {
+        if reduceMotion {
+            return fullText
+        }
         if trigger && hasStarted {
             return displayedText
         }

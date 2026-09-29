@@ -2,7 +2,7 @@ import Foundation
 
 /// 新手引导页数据模型。
 /// 请根据你的 App 内容修改以下引导页。
-public struct CYOnboardingPage: Identifiable {
+public struct CYOnboardingPage: Identifiable, Sendable {
     public let id = UUID()
     /// SF Symbol 名称。
     public let icon: String
@@ -16,7 +16,7 @@ public struct CYOnboardingPage: Identifiable {
     }
     
     /// 所有引导页内容 — 请替换为你的 App 介绍
-    public nonisolated(unsafe) static let allPages: [CYOnboardingPage] = [
+    public static let allPages: [CYOnboardingPage] = [
         CYOnboardingPage(
             icon: "sparkles",
             title: "欢迎使用",

@@ -155,9 +155,14 @@ extension String {
         return String(data: data, encoding: .utf8)
     }
     
-    /// URL 编码（百分号转义）
+    /// URL 编码（百分号转义）。
+    ///
+    /// 在 `.urlQueryAllowed` 基础上额外转义 `& = + ? /`，避免作为 query 值时
+    /// 破坏参数结构（如值中包含 `&` 会被误解析为下一个参数）。
     public var urlEncoded: String {
-        return addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? self
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "&=+?/")
+        return addingPercentEncoding(withAllowedCharacters: allowed) ?? self
     }
     
     /// URL 解码（百分号反转义）

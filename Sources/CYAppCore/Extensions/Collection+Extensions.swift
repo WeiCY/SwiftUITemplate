@@ -134,9 +134,4 @@ extension Sequence {
     public func sortedDescending<T: Comparable>(by keyPath: KeyPath<Element, T>) -> [Element] {
         return sorted { $0[keyPath: keyPath] > $1[keyPath: keyPath] }
     }
-    
-    /// 统计满足条件的元素数量
-    public func count(where condition: (Element) -> Bool) -> Int {
-        return filter(condition).count
-    }
 }

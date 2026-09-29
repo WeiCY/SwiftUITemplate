@@ -16,8 +16,8 @@ public enum ImageLoaderError: Error, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .decodeFailed: return "图片数据解码失败"
-        case .loadFailed(let error): return "图片加载失败: \(error.localizedDescription)"
+        case .decodeFailed: return "image_decode_failed".cyLocalized
+        case .loadFailed(let error): return "\("image_load_failed".cyLocalized): \(error.localizedDescription)"
         }
     }
 }

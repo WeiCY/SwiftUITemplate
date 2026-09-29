@@ -29,7 +29,10 @@ extension Task where Failure == Error {
                 lastError = error
                 if attempt < times - 1 {
                     try await Task<Never, Never>.sleep(for: currentDelay)
-                    currentDelay = Duration.seconds(Int64(Double(currentDelay.components.seconds) * backoff))
+                    // 保留亚秒精度，避免延迟 < 1s 时退避被截断为 0
+                    let components = currentDelay.components
+                    let seconds = Double(components.seconds) + Double(components.attoseconds) / 1e18
+                    currentDelay = .seconds(seconds * backoff)
                 }
             }
         }

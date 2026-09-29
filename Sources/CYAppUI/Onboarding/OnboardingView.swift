@@ -25,87 +25,99 @@ public struct CYOnboardingView: View {
     public var body: some View {
         ZStack {
             CYAppColor.secondaryBackground.ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                // 跳过按钮
-                HStack {
-                    Spacer()
-                    if currentPage < pages.count - 1 {
-                        Button("onboarding_skip".cyLocalized) {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                hasCompleted = true
-                            }
-                        }
-                        .font(CYAppFont.button)
-                        .foregroundStyle(CYAppColor.textSecondary)
-                        .padding(.horizontal, CYAppDimens.marginL)
-                        .padding(.top, CYAppDimens.marginM)
-                    }
-                }
-                .frame(height: 44)
-                
-                // 页面内容
-                TabView(selection: $currentPage) {
-                    ForEach(Array(pages.enumerated()), id: \.element.id) { index, page in
-                        onboardingPageView(page)
-                            .tag(index)
-                    }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .animation(.easeInOut(duration: 0.3), value: currentPage)
-                
-                // 底部：页面指示器 + 按钮
-                VStack(spacing: CYAppDimens.marginL) {
-                    // 页面指示器
-                    HStack(spacing: 8) {
-                        ForEach(0..<pages.count, id: \.self) { index in
-                            Capsule()
-                                .fill(index == currentPage ? CYAppColor.primary : CYAppColor.border)
-                                .frame(width: index == currentPage ? 24 : 8, height: 8)
-                                .animation(.spring(response: 0.3), value: currentPage)
-                        }
-                    }
-                    
-                    // 操作按钮
-                    if currentPage == pages.count - 1 {
-                        // 最后一页：开始按钮
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                hasCompleted = true
-                            }
-                        } label: {
-                            Text("onboarding_start".cyLocalized)
-                                .font(CYAppFont.button)
-                                .foregroundStyle(CYAppColor.background)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: CYAppDimens.buttonHeight)
-                                .background(CYAppColor.primary)
-                                .clipShape(RoundedRectangle(cornerRadius: CYAppDimens.radiusL))
-                        }
-                        .buttonStyle(CYScaledButtonStyle())
-                    } else {
-                        // 其他页：下一页按钮
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                currentPage += 1
-                            }
-                        } label: {
-                            Text("onboarding_next".cyLocalized)
-                                .font(CYAppFont.button)
-                                .foregroundStyle(CYAppColor.primary)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: CYAppDimens.buttonHeight)
-                                .background(
-                                    RoundedRectangle(cornerRadius: CYAppDimens.radiusL)
-                                        .stroke(CYAppColor.primary, lineWidth: CYAppDimens.borderWidth)
-                                )
-                        }
-                        .buttonStyle(CYScaledButtonStyle())
-                    }
-                }
-                .padding(.horizontal, CYAppDimens.marginL)
-                .padding(.bottom, CYAppDimens.marginXXL)
+
+            if pages.isEmpty {
+                // 无引导页时视为已完成，避免停留在空白引导界面
+                Color.clear.onAppear { hasCompleted = true }
+            } else {
+                content
             }
+        }
+    }
+
+    /// 最后一页下标（`pages` 为空时安全返回 0）
+    private var lastPageIndex: Int { max(0, pages.count - 1) }
+
+    private var content: some View {
+        VStack(spacing: 0) {
+            // 跳过按钮
+            HStack {
+                Spacer()
+                if currentPage < lastPageIndex {
+                    Button("onboarding_skip".cyLocalized) {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            hasCompleted = true
+                        }
+                    }
+                    .font(CYAppFont.button)
+                    .foregroundStyle(CYAppColor.textSecondary)
+                    .padding(.horizontal, CYAppDimens.marginL)
+                    .padding(.top, CYAppDimens.marginM)
+                }
+            }
+            .frame(height: 44)
+
+            // 页面内容
+            TabView(selection: $currentPage) {
+                ForEach(Array(pages.enumerated()), id: \.element.id) { index, page in
+                    onboardingPageView(page)
+                        .tag(index)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .animation(.easeInOut(duration: 0.3), value: currentPage)
+
+            // 底部：页面指示器 + 按钮
+            VStack(spacing: CYAppDimens.marginL) {
+                // 页面指示器
+                HStack(spacing: 8) {
+                    ForEach(0..<pages.count, id: \.self) { index in
+                        Capsule()
+                            .fill(index == currentPage ? CYAppColor.primary : CYAppColor.border)
+                            .frame(width: index == currentPage ? 24 : 8, height: 8)
+                            .animation(.spring(response: 0.3), value: currentPage)
+                    }
+                }
+
+                // 操作按钮
+                if currentPage >= lastPageIndex {
+                    // 最后一页：开始按钮
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            hasCompleted = true
+                        }
+                    } label: {
+                        Text("onboarding_start".cyLocalized)
+                            .font(CYAppFont.button)
+                            .foregroundStyle(CYAppColor.background)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: CYAppDimens.buttonHeight)
+                            .background(CYAppColor.primary)
+                            .clipShape(RoundedRectangle(cornerRadius: CYAppDimens.radiusL))
+                    }
+                    .buttonStyle(CYScaledButtonStyle())
+                } else {
+                    // 其他页：下一页按钮
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            currentPage += 1
+                        }
+                    } label: {
+                        Text("onboarding_next".cyLocalized)
+                            .font(CYAppFont.button)
+                            .foregroundStyle(CYAppColor.primary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: CYAppDimens.buttonHeight)
+                            .background(
+                                RoundedRectangle(cornerRadius: CYAppDimens.radiusL)
+                                    .stroke(CYAppColor.primary, lineWidth: CYAppDimens.borderWidth)
+                            )
+                    }
+                    .buttonStyle(CYScaledButtonStyle())
+                }
+            }
+            .padding(.horizontal, CYAppDimens.marginL)
+            .padding(.bottom, CYAppDimens.marginXXL)
         }
     }
     

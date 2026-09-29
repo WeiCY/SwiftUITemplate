@@ -70,9 +70,9 @@ extension Dictionary where Key == String {
         return try? JSONSerialization.data(withJSONObject: self, options: [])
     }
     
-    /// 转换为格式化的 JSON 字符串
+    /// 转换为**格式化（缩进）**的 JSON 字符串；无效时返回 "Invalid JSON"
     public var prettyJSON: String {
-        guard let data = jsonData,
+        guard let data = try? JSONSerialization.data(withJSONObject: self, options: .prettyPrinted),
               let string = String(data: data, encoding: .utf8) else {
             return "Invalid JSON"
         }

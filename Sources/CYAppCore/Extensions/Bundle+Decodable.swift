@@ -3,13 +3,24 @@ import Foundation
 // MARK: - Bundle 解码错误
 
 /// 从 Bundle 解码 JSON 时可能出现的错误
-public enum CYBundleDecodingError: Error {
+public enum CYBundleDecodingError: Error, LocalizedError, Sendable {
     /// 在 Bundle 中找不到指定文件
     case fileNotFound(String)
     /// 读取文件内容失败
     case loadFailed(String)
     /// JSON 解析失败
     case decodeFailed(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .fileNotFound(let file):
+            return String(format: "bundle_file_not_found".cyLocalized, file)
+        case .loadFailed(let file):
+            return String(format: "bundle_file_load_failed".cyLocalized, file)
+        case .decodeFailed(let file):
+            return String(format: "bundle_file_decode_failed".cyLocalized, file)
+        }
+    }
 }
 
 // MARK: - Bundle 扩展

@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // MARK: - Date 扩展
 //
@@ -17,28 +18,34 @@ import Foundation
 extension Date {
     
     // MARK: - Formatter Cache
-    
-    private nonisolated(unsafe) static var formatterCache: [String: DateFormatter] = [:]
-    private static let cacheLock = NSLock()
-    
-    private static func cachedFormatter(for format: String, locale: Locale) -> DateFormatter {
-        let key = "\(format)_\(locale.identifier)"
-        cacheLock.lock()
-        defer { cacheLock.unlock() }
-        if let cached = formatterCache[key] { return cached }
-        let formatter = DateFormatter()
-        formatter.dateFormat = format
-        formatter.locale = locale
-        formatterCache[key] = formatter
-        return formatter
+
+    /// 线程安全的 DateFormatter 缓存。
+    /// 格式化在锁内完成，避免共享 DateFormatter 被并发调用（不依赖其线程安全性）。
+    private static let formatterCache = OSAllocatedUnfairLock(initialState: [String: DateFormatter]())
+
+    private static func formatted(_ date: Date, format: String, locale: Locale) -> String {
+        formatterCache.withLock { cache in
+            let key = "\(format)_\(locale.identifier)"
+            let formatter: DateFormatter
+            if let cached = cache[key] {
+                formatter = cached
+            } else {
+                let created = DateFormatter()
+                created.dateFormat = format
+                created.locale = locale
+                cache[key] = created
+                formatter = created
+            }
+            return formatter.string(from: date)
+        }
     }
-    
+
     // MARK: - 格式化
-    
+
     /// 格式化日期为字符串
     /// - Parameter format: 日期格式（默认 "yyyy-MM-dd"）
     public func toString(format: String = "yyyy-MM-dd") -> String {
-        return Self.cachedFormatter(for: format, locale: .current).string(from: self)
+        return Self.formatted(self, format: format, locale: .current)
     }
     
     /// 返回相对时间描述（如 "2小时前"）

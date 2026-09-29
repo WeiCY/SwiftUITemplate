@@ -42,6 +42,7 @@ struct CYPhotoPreviewView: View {
                             .font(.system(size: 16, weight: .medium))
                     }
                     .tint(.white)
+                    .accessibilityLabel("cancel".cyLocalized)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {

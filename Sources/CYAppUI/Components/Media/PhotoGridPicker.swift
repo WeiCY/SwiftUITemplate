@@ -74,6 +74,7 @@ struct CYPhotoGridPicker: View {
             .clipped()
         }
         .buttonStyle(CYScaledButtonStyle())
+        .accessibilityLabel("camera".cyLocalized)
     }
 
     // MARK: - 空状态

@@ -1,11 +1,31 @@
-#if canImport(UIKit)
 import SwiftUI
 import CYAppCore
 import CYAppDesignSystem
 
+#if canImport(UIKit)
+import UIKit
+
+private typealias CYPlatformImage = UIImage
+#elseif canImport(AppKit)
+import AppKit
+
+private typealias CYPlatformImage = NSImage
+#endif
+
+private extension Image {
+    init(cyPlatformImage: CYPlatformImage) {
+        #if canImport(UIKit)
+        self.init(uiImage: cyPlatformImage)
+        #elseif canImport(AppKit)
+        self.init(nsImage: cyPlatformImage)
+        #endif
+    }
+}
+
 /// 远程图片视图
-/// 通过 CYImageLoaderProtocol 加载图片，不直接依赖 Kingfisher
-/// 替换 Kingfisher 时只需更换 ImageLoader 实现即可
+///
+/// 通过 `CYImageLoaderProtocol` 加载图片，不直接依赖 Kingfisher。
+/// 替换图片实现时只需更换 ImageLoader 即可（iOS / macOS 均可编译）。
 public struct CYRemoteImageView: View {
     let url: URL?
     let placeholder: Image?
@@ -15,8 +35,7 @@ public struct CYRemoteImageView: View {
     let retryDelay: TimeInterval
     let errorRetryTitle: String
 
-    @State private var loadedImage: UIImage?
-    @State private var isLoading = false
+    @State private var loadedImage: CYPlatformImage?
     @State private var error: Error?
 
     public init(
@@ -36,26 +55,15 @@ public struct CYRemoteImageView: View {
         self.retryDelay = retryDelay
         self.errorRetryTitle = errorRetryTitle
     }
-    
+
     public var body: some View {
         ZStack {
             if let loadedImage {
-                Image(uiImage: loadedImage)
+                Image(cyPlatformImage: loadedImage)
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
-            } else if let error {
-                VStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 24))
-                        .foregroundStyle(CYAppColor.textSecondary)
-                    Text("image_load_failed".cyLocalized)
-                        .font(CYAppFont.caption)
-                        .foregroundStyle(CYAppColor.textSecondary)
-                    Button(errorRetryTitle.cyLocalized) {
-                        Task { await loadImage() }
-                    }
-                    .font(CYAppFont.caption)
-                }
+            } else if error != nil {
+                errorView
             } else if let placeholder {
                 placeholder
                     .resizable()
@@ -68,25 +76,40 @@ public struct CYRemoteImageView: View {
             await loadImage()
         }
     }
-    
+
+    // MARK: - 错误视图
+
+    private var errorView: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 24))
+                .foregroundStyle(CYAppColor.textSecondary)
+            Text("image_load_failed".cyLocalized)
+                .font(CYAppFont.caption)
+                .foregroundStyle(CYAppColor.textSecondary)
+            Button(errorRetryTitle.cyLocalized) {
+                Task { await loadImage() }
+            }
+            .font(CYAppFont.caption)
+        }
+    }
+
     // MARK: - 私有方法
-    
-    /// 加载图片，最多重试 `maxRetries` 次（指数退避）。
+
+    /// 加载图片，最多重试 `maxRetries` 次（线性退避）。
     /// 循环代替递归以避免栈增长，并在每次重试前检查 `Task.isCancelled`。
     private func loadImage() async {
         guard let url else { return }
-        isLoading = true
         error = nil
-        defer { isLoading = false }
-        
+
         var attempt = 0
         while attempt <= maxRetries {
             if Task.isCancelled { return }
-            
+
             do {
                 let data = try await imageLoader.loadImage(from: url)
                 if Task.isCancelled { return }
-                if let image = UIImage(data: data) {
+                if let image = Self.makeImage(from: data) {
                     loadedImage = image
                     error = nil
                     return
@@ -111,6 +134,16 @@ public struct CYRemoteImageView: View {
             }
         }
     }
+
+    private static func makeImage(from data: Data) -> CYPlatformImage? {
+        #if canImport(UIKit)
+        return UIImage(data: data)
+        #elseif canImport(AppKit)
+        return NSImage(data: data)
+        #else
+        return nil
+        #endif
+    }
 }
 
 // MARK: - 预览
@@ -123,7 +156,7 @@ public struct CYRemoteImageView: View {
         )
         .frame(height: 200)
         .background(Color.gray.opacity(0.1))
-        
+
         CYRemoteImageView(
             url: URL(string: "https://picsum.photos/100/100"),
             contentMode: .fill
@@ -132,4 +165,3 @@ public struct CYRemoteImageView: View {
         .clipShape(Circle())
     }
 }
-#endif

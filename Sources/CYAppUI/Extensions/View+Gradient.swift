@@ -57,9 +57,3 @@ extension View {
         )
     }
 }
-
-private extension Shape {
-    func strokeBorder<S: ShapeStyle>(_ content: S, lineWidth: CGFloat) -> some View {
-        stroke(content, lineWidth: lineWidth)
-    }
-}
