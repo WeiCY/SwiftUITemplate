@@ -8,14 +8,8 @@ import CYAppUI
 struct BookmarkView: View {
     @State private var viewModel: BookmarkViewModel
 
-    init() {
-        _viewModel = State(
-            initialValue: BookmarkViewModel(
-                repository: BookmarkRepository(
-                    context: ExamplePersistence.controller.container.mainContext
-                )
-            )
-        )
+    init(viewModel: BookmarkViewModel) {
+        _viewModel = State(initialValue: viewModel)
     }
 
     var body: some View {

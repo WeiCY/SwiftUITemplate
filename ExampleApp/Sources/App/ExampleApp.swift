@@ -17,10 +17,16 @@ import CYAppUI
 @main
 struct DemoApp: App {
     private let persistence = ExamplePersistence.controller
+    private let dependencies: AppDependencies
 
     init() {
         AppBootstrap.start(with: .default)
         CYToastManager.shared.queueMode = .replace
+
+        dependencies = AppDependencies(
+            networkClient: CYFactoryContainer.shared.networkClient,
+            modelContext: ExamplePersistence.controller.container.mainContext
+        )
     }
 
     @State private var appState = CYAppState()
@@ -31,7 +37,7 @@ struct DemoApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
+            RootView(dependencies: dependencies)
                 .environment(appState)
                 .environment(router)
                 .preferredColorScheme(appState.theme.colorScheme)
@@ -42,6 +48,8 @@ struct DemoApp: App {
 }
 
 struct RootView: View {
+    let dependencies: AppDependencies
+
     @Environment(CYAppState.self) private var appState
     @Environment(CYAppRouter.self) private var router
     @State private var selectedTab = AppTab.home
@@ -67,8 +75,8 @@ struct RootView: View {
     @ViewBuilder
     private func tabRoot(_ tab: AppTab) -> some View {
         switch tab {
-        case .home: HomeView()
-        case .bookmarks: BookmarkView()
+        case .home: HomeView(viewModel: dependencies.homeViewModel)
+        case .bookmarks: BookmarkView(viewModel: dependencies.bookmarkViewModel)
         case .settings: SettingsView()
         }
     }

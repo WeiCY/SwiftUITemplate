@@ -8,6 +8,14 @@
 
 ## 版本历史
 
+### [Unreleased]
+
+#### ExampleApp（一致性收尾）
+
+- `ArticleService` 移除默认参数，改由组合根显式注入，不再引用 Legacy Facade `CYAppContainer.shared`
+- 新增 `AppDependencies` 组合根；`HomeView` / `BookmarkView` 改为接收注入的 ViewModel
+- 长期文档（`APP_FACTORY_GUIDE` / `README` / `REVIEW`）不再写死测试数量，统一引用 CHANGELOG
+
 ### [1.2.0] - 2026-10-09
 
 **App Factory 基线** - DI 能力拆分 + ExampleApp 接入范例重构，161 个测试全部通过。
@@ -15,15 +23,15 @@
 > 本次含一处源码不兼容变更（`DIContainerProtocol.networkClient` 移出）。
 > 因暂无外部消费者，按 MINOR 发布；后续累积为 2.0.0 时再统一说明。
 
-### 架构 / DI（CYAppCore）
+#### 架构 / DI（CYAppCore）
 
-#### 变更（源码不兼容）
+##### 变更（源码不兼容）
 - `networkClient` 从 `DIContainerProtocol` 拆出，新增可选能力协议 `NetworkProviding`
 - `CYFactoryContainer` / `CYAppContainer` 现遵循 `DIContainerProtocol & NetworkProviding`
 - 网络 Feature 应声明 `any DIContainerProtocol & NetworkProviding`；离线 Feature 只依赖 `DIContainerProtocol`
 - `CYAppContainer` 明确标注为 Legacy / Compatibility Facade，新代码优先使用初始化注入或 `@Injected`
 
-### ExampleApp（重构为真实接入范例）
+#### ExampleApp（重构为真实接入范例）
 
 - 目录重构为 `App / Models / Services / Features`，可直接作为新项目复制模板
 - 新增网络域模型 `Article`、持久化域模型 `BookmarkItem` / `BookmarkTag`
@@ -33,30 +41,30 @@
 - `AppBootstrap` 在 DI 注册 `MockNetworkClient`，无后端也可运行完整流程
 - ExampleApp target 新增 `FactoryKit` 依赖（组合根注册 Mock）
 
-### 网络层（CYAppCore + CYAppNetwork）
+#### 网络层（CYAppCore + CYAppNetwork）
 
-#### 修复与一致性
+##### 修复与一致性
 - 删除未被调用的 `fetchRaw` 重载（死代码）
 - `NetworkFailure` 标注 `Sendable`，消除跨并发边界的隐性隐患
 - 文档修正：`requestVoid` 实际走 `.envelope` + `CYEmptyResponse`（并非 `.empty`）；补充 `requestData` 的 raw 语义（不触发凭证恢复、不参与去重）
 - `CYLoggingInterceptor` 文档示例与实际输出对齐（去除不存在的耗时）
 
-#### 结构重构（行为不变）
+##### 结构重构（行为不变）
 - `CYNetworkClient`（原 734 行）拆分为 `NetworkClient` / `+Request` / `+Response` / `+Upload`
 - `NSLock` + `@unchecked Sendable` → `Mutex`（iOS 18 `Synchronization`）；`CYNetworkClient` 与 `MockNetworkClient` 现为真正的 `Sendable`
 - `requestWithDeduplication` 提升到 `CYNetworkClientProtocol` 扩展，生产客户端与 Mock 通用
 - 删除未使用的 `CYHTTPMethod.alamofireMethod` 桥接
 
-#### 新增
+##### 新增
 - `MockNetworkClient` 请求记录：`recordedRequests` / `CYMockRequestRecord` / `clearRecordedRequests()`，可断言方法、路径、Body 与上传分片
 
-### 组件库（CYAppDesignSystem）
+#### 组件库（CYAppDesignSystem）
 
-#### 修复
+##### 修复
 - `CYFlowLayout`（由私有 `FlowLayout` 抽取）：修复宽度未指定时返回无限宽的布局缺陷
 - `ShimmerModifier` 尊重 `accessibilityReduceMotion`
 
-#### 新增 / 扩展
+##### 新增 / 扩展
 - `CYAppColor.configure(primary:accent:)` 与 `reset()`：品牌色可配置，零源码修改换主色
 - 公共 `CYFlowLayout`（标签 / 筛选换行布局）
 - `CYTextField` 增强：`submitLabel` / `autocorrectionDisabled` / `showsClearButton` / `onSubmit`；iOS 专属重载支持 `keyboardType` / `textContentType` / `textInputAutocapitalization`
@@ -65,59 +73,59 @@
 - 新增 `clear` 本地化键（en / zh-Hans）
 - 设计系统预览新增暗黑模式、大字号变体
 
-#### 现代化
+##### 现代化
 - `.foregroundColor` → `.foregroundStyle`（30 处）
 - `.cornerRadius` → `.clipShape(.rect(cornerRadius:))`（10 处，外观等价）
 
-#### 破坏性变更与迁移
+##### 破坏性变更与迁移
 
 | 移除项 | 替代写法 |
 |---|---|
 | `EmptyStateView`（旧名弃用包装） | `CYEmptyStateView(systemImage:title:message:...)` |
 | `CYAppDimens.radiusFull` | `.clipShape(.capsule)` |
 
-### UI 层（CYAppUI）
+#### UI 层（CYAppUI）
 
-#### 修复
+##### 修复
 - `CYRemoteImageView` 删除从未被读取的 `isLoading` 死状态
 - 引导页 `CYOnboardingView`：`pages` 为空时不再错乱（自动视为已完成），并修正「下一页」按钮越界逻辑
 - `CYMediaPicker`（`.system` 样式）：选择后清空 `photoItems`，重复选择同一张可再次触发回调
 - `CYPhotoAssetLoader`：Photos 回调补充取消/错误分支，避免 continuation 挂起
 - `CYView+Gradient`：删除与系统同名、且语义错误的私有 `strokeBorder`（内描边改为系统实现）
 
-#### 无障碍
+##### 无障碍
 - 网格拍照按钮、预览关闭按钮补充 `accessibilityLabel`
 - `TypewriterModifier` 尊重 `accessibilityReduceMotion`
 
-#### 跨平台 / 一致性
+##### 跨平台 / 一致性
 - `CYRemoteImageView` 支持 iOS / macOS（`UIImage` / `NSImage` 双平台）
 - `CYOnboardingPage` 标注 `Sendable`，移除 `nonisolated(unsafe)`
 - `CYAppRouter.shared` 补充单例语义说明（避免与 `init(tabs:)` 实例混用）
 
-#### 测试
+##### 测试
 - 新增 Router 边界测试：`replace`、空栈 `pop`、跨 Tab `popToRoot`、`selectTab` 补建路径、Sheet 展示/关闭
 
-### 核心工具层（CYAppCore）
+#### 核心工具层（CYAppCore）
 
-#### 修复
+##### 修复
 - `UIImage.withTintColor`：`cgImage` 缺失时强制解包会崩溃，改为安全回退原图
 - `String.urlEncoded`：在 `.urlQueryAllowed` 基础上额外转义 `& = + ? /`，避免 query 值破坏参数结构（`Dictionary.queryString` 同受益）
 - `Dictionary.prettyJSON`：此前输出紧凑 JSON，改为真正缩进输出（与 `Data.prettyJSON` 一致）
 - `Task.retry`：退避改用亚秒精度，修复延迟 < 1s 时退避被截断为 0 的问题
 - `CYAppTheme.displayName` / `ImageLoaderError.errorDescription`：由硬编码中文改为 `.cyLocalized`（新增 `theme_system` / `theme_light` / `theme_dark` 本地化键）
 
-#### 结构与一致性
+##### 结构与一致性
 - `DeepLinkHandler.swift`：修正结构错位（`HandlerEntry` 由文件作用域移入类内，文档注释归位）
 - 删除 `Sequence.count(where:)`（Swift 6 标准库已提供，属冗余）
 - `CYBundleDecodingError` 补充 `LocalizedError` 与 `Sendable`，并提供本地化 `errorDescription`（新增 `bundle_file_*` 键）
 
-#### 并发现代化
+##### 并发现代化
 - 一批无状态类由 `@unchecked Sendable` 收敛为编译器校验的 `Sendable`：`CYKeychainHelper`、`CYLogger`、`CYThemeManager`、`CYFactoryContainer`、`CYAppContainer`
 - `CYAppConstants` 的配置存储改用 `OSAllocatedUnfairLock`（移除 `NSLock` + `nonisolated(unsafe)`）
 - `Date` 的 `DateFormatter` 缓存改用 `OSAllocatedUnfairLock`，并将格式化放入锁内执行，消除共享 `DateFormatter` 并发调用的线程安全不确定性
 - 移除 `CYCacheManager` 上无观察状态的 `@Observable`
 
-### 文档
+#### 文档
 - 同步 `ARCHITECTURE.md`（网络文件拆分、组件清单、品牌色配置）
 - 同步 `NETWORK_GUIDE.md`（`requestData` raw 语义、`.empty` 说明、Mock 请求记录）
 - 同步 `GETTING_STARTED.md`（品牌色配置、业务码策略 API 名修正）

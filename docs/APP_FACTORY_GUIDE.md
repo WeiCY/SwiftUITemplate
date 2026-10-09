@@ -13,7 +13,7 @@
 - Router 保留多 Tab 机制，Tab ID 与业务 Route 由宿主定义。
 - Persistence 只提供容器和 Repository 协议，SwiftData 模型由宿主持有。
 - Network 默认无鉴权，账号模型、凭证格式和登录状态由宿主持有。
-- Swift 6 构建通过，当前 Package 测试为 147/147。
+- Swift 6 构建通过，当前 Package 测试全部通过（数量见 CHANGELOG 最新版本）。
 
 当前限制：
 

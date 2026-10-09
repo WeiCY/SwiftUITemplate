@@ -38,8 +38,9 @@ final class ArticleService: ArticleServiceProtocol {
     private let client: any CYNetworkClientProtocol
     var simulateFailure = false
 
-    /// - Parameter client: 网络客户端。从 DI 取用，体现“网络 Feature 依赖 NetworkProviding”。
-    init(client: any CYNetworkClientProtocol = CYAppContainer.shared.networkClient) {
+    /// - Parameter client: 网络客户端，由组合根（AppDependencies）显式注入。
+    ///   这里不提供默认值，贯彻“初始化注入优先”，也不引用 Legacy Facade。
+    init(client: any CYNetworkClientProtocol) {
         self.client = client
     }
 

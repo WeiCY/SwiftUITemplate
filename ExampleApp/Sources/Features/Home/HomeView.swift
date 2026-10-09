@@ -9,15 +9,8 @@ struct HomeView: View {
     @Environment(CYAppRouter.self) private var router
     @State private var viewModel: HomeViewModel
 
-    init() {
-        _viewModel = State(
-            initialValue: HomeViewModel(
-                service: ArticleService(),
-                repository: BookmarkRepository(
-                    context: ExamplePersistence.controller.container.mainContext
-                )
-            )
-        )
+    init(viewModel: HomeViewModel) {
+        _viewModel = State(initialValue: viewModel)
     }
 
     var body: some View {

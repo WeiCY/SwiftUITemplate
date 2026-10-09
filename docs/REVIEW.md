@@ -3,7 +3,7 @@
 > 评测日期：2026-09-16
 >
 > 范围：模块、启动配置、Core/UI/Network/Image/Persistence、ExampleApp、测试与文档。
-> 验证：Swift 6 Package 构建通过，147/147 测试通过。
+> 验证：Swift 6 Package 构建通过，测试全部通过（数量见 CHANGELOG 最新版本）。
 
 ## 结论
 
@@ -18,7 +18,7 @@
 | 业务解耦 | 9.0 | Core 不再拥有 User/Auth、Bookmark/Tag 或固定业务 Tab。 |
 | 网络设计 | 8.8 | 默认无鉴权，端点策略清楚，凭证恢复 single-flight，账号语义归宿主。 |
 | UI 与 Theme | 7.8 | 默认 DesignSystem 实用，但仍以静态 Token 为主。 |
-| 可测试性 | 8.7 | 147 项测试覆盖关键边界；仍缺 iOS 运行级测试。 |
+| 可测试性 | 8.7 | 覆盖关键边界；仍缺 iOS 运行级测试。 |
 | 文档与示例 | 8.2 | 主指南已校准；ExampleApp 已重构为真实接入范例。 |
 | 长期维护 | 8.3 | 方向合理，但 Core 体积、单例和多 App 版本同步需持续控制。 |
 
