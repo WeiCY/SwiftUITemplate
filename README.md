@@ -57,8 +57,8 @@ struct MyApp: App {
 }
 ```
 
-完整组合示例见 `ExampleApp/Sources/AppConfig.swift` 和
-`ExampleApp/Sources/AppBootstrap.swift`。旧的 `CYAppConfiguration` 网络命名空间仍保留
+完整组合示例见 `ExampleApp/Sources/App/AppConfig.swift` 和
+`ExampleApp/Sources/App/AppBootstrap.swift`。旧的 `CYAppConfiguration` 网络命名空间仍保留
 为兼容 API，新代码应使用 `CYNetworkConfiguration`。
 
 > 完整接入说明（网络 / 缓存 / Keychain / 主题 / 特异化等）请阅读 [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)。
@@ -137,7 +137,7 @@ Layer 2  CYAppUI (AppState/Router/反馈视图)
 | [docs/APP_FACTORY_GUIDE.md](docs/APP_FACTORY_GUIDE.md) | 新 App 模块选择、Bootstrap、离线/网络组合与边界 |
 | [docs/REVIEW.md](docs/REVIEW.md) | 评测快照：代码审查与评分（2026-08-13） |
 | [CHANGELOG.md](CHANGELOG.md) | 已发布版本变更记录 |
-| [ExampleApp](ExampleApp/Sources/ExampleApp.swift) | 可运行 Demo（3 Tab 示例） |
+| [ExampleApp](ExampleApp/Sources/App/ExampleApp.swift) | 可运行接入范例（网络/状态/路由/持久化/设置） |
 
 ---
 

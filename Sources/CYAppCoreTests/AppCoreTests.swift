@@ -447,6 +447,16 @@ final class AppCoreTests: XCTestCase {
         XCTAssertNotNil(container.cacheManager)
         XCTAssertNotNil(container.logger)
     }
+
+    func testNetworkCapabilityIsSeparatedFromBaseDI() {
+        // 基础容器协议不要求网络能力
+        let base: any DIContainerProtocol = CYAppContainer.shared
+        XCTAssertNotNil(base.cacheManager)
+
+        // 容器可选地同时提供网络能力，供网络 Feature 组合依赖
+        let networkCapable: any DIContainerProtocol & NetworkProviding = CYAppContainer.shared
+        XCTAssertTrue(networkCapable is CYAppContainer)
+    }
     
     // MARK: - CYTabID Tests
 

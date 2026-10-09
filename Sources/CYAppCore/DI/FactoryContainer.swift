@@ -14,10 +14,10 @@ import FactoryKit
 // MARK: - 工厂容器 扩展
 
 extension Container {
-    /// 网络客户端
+    /// 网络客户端（可选能力，需宿主引入 CYAppNetwork 并注册）
     public var networkClient: Factory<CYNetworkClientProtocol> {
         self {
-            preconditionFailure("请先在 App 启动时通过 DI 注册 networkClient")
+            preconditionFailure("需要网络能力：请引入 CYAppNetwork 并在启动时调用 CYNetworkConfiguration.configure(...)")
         }
     }
     
@@ -87,15 +87,18 @@ extension Container {
 // MARK: - CYFactoryContainer 实现
 
 /// Factory 容器实现类
-public final class CYFactoryContainer: DIContainerProtocol, Sendable {
+public final class CYFactoryContainer: DIContainerProtocol, NetworkProviding, Sendable {
     
     public static let shared = CYFactoryContainer()
     
     private let container = Container.shared
     
-    // MARK: - DIContainerProtocol 实现
+    // MARK: - NetworkProviding 实现
     
     public var networkClient: CYNetworkClientProtocol { container.networkClient() }
+    
+    // MARK: - DIContainerProtocol 实现
+    
     public var cacheManager: CYCacheManager { container.cacheManager() }
     public var logger: CYLogger { container.logger() }
     public var analyticsService: CYAnalyticsServiceProtocol { container.analyticsService() }

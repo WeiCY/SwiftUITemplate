@@ -18,9 +18,9 @@
 当前限制：
 
 - `CYAppCore` 能力较多，新能力不应继续无条件加入 Core。
-- `DIContainerProtocol.networkClient` 是非 Optional getter；离线 App 必须避免访问它。
+- `networkClient` 属于可选的 `NetworkProviding` 能力，不在基础 `DIContainerProtocol` 中；离线 Feature 只依赖基础协议。
 - DesignSystem 是静态语义 Token，还不是完整的可注入 Theme 系统。
-- ExampleApp 是组合参考，不是生产 App 生成器。
+- ExampleApp 是可运行的真实接入范例，覆盖 请求/loading/error/retry/Router/Persistence/设置。
 
 ## 模块选择
 
@@ -54,6 +54,41 @@ MyApp/
 
 `AppConfig` 保存宿主配置值，`AppBootstrap` 是唯一组合入口。业务模型、Tab、Route、账号服务、品牌资源和 SwiftData Schema 留在宿主。
 
+## ExampleApp 接入范例
+
+`ExampleApp` 是一个“小但真实”的 App，可直接作为新项目的复制模板。目录结构：
+
+```text
+ExampleApp/Sources/
+├── App/
+│   ├── ExampleApp.swift       # @main + RootView + Router/Tab 装配
+│   ├── AppConfig.swift        # 宿主配置值
+│   ├── AppBootstrap.swift     # 唯一组合入口
+│   ├── ExamplePersistence.swift
+│   ├── AppTab.swift           # 宿主 Tab
+│   └── AppRoute.swift         # 宿主 Route
+├── Models/
+│   ├── Article.swift          # 网络域模型（Codable/Sendable）
+│   └── BookmarkItem.swift     # 持久化域模型（@Model）
+├── Services/
+│   └── ArticleService.swift   # 网络访问收敛于此
+└── Features/
+    ├── Home/                  # 请求 → loading/error/retry → 列表 → 路由
+    ├── Bookmark/              # Repository 读写 SwiftData
+    └── Settings/              # 主题 / 语言
+```
+
+它演示了完整闭环：
+
+- **网络请求**：`ArticleService` 依赖 `CYNetworkClientProtocol`，由 `AppBootstrap` 在 DI 注册客户端。
+- **loading / error / retry**：`HomeViewModel` 继承 `CYBaseViewModel`，用 `executeTask` 自动管理，`HomeView` 用 `CYBaseView` 渲染。
+- **Persistence**：`BookmarkRepository` 实现 `CYRepositoryProtocol`，收藏写入 `BookmarkItem`。
+- **Router**：`AppRoute.articleDetail` 通过 `CYAppRouter.navigate(to:)` 跳转。
+- **全局状态**：`SettingsView` 改 `CYAppState.theme` / `setLanguage`。
+
+新建项目时按相同目录复制，替换 Model、Service、Feature 即可。
+
+
 ## 离线 App
 
 ```swift
@@ -69,7 +104,7 @@ enum AppBootstrap {
 }
 ```
 
-离线 App 不添加 Network product，不设置 Base URL，也不访问 `CYAppContainer.shared.networkClient`。
+离线 App 不添加 Network product，不设置 Base URL，Feature 只依赖基础 `DIContainerProtocol`，不声明 `NetworkProviding`，因此编译期就不接触 `networkClient`。
 
 ## 网络 App
 

@@ -19,7 +19,7 @@
 | 网络设计 | 8.8 | 默认无鉴权，端点策略清楚，凭证恢复 single-flight，账号语义归宿主。 |
 | UI 与 Theme | 7.8 | 默认 DesignSystem 实用，但仍以静态 Token 为主。 |
 | 可测试性 | 8.7 | 147 项测试覆盖关键边界；仍缺 iOS 运行级测试。 |
-| 文档与示例 | 8.2 | 主指南已校准；ExampleApp 仍偏技术演示。 |
+| 文档与示例 | 8.2 | 主指南已校准；ExampleApp 已重构为真实接入范例。 |
 | 长期维护 | 8.3 | 方向合理，但 Core 体积、单例和多 App 版本同步需持续控制。 |
 
 ## 已达到的能力
@@ -35,7 +35,7 @@
 
 ### P0
 
-- `DIContainerProtocol.networkClient` 仍是非 Optional getter。离线 Feature 若误取会触发 `preconditionFailure`。当前先通过模块边界和文档约束，不建议立即重做 DI。
+- ✅ 已修复：`networkClient` 从基础 `DIContainerProtocol` 拆到可选的 `NetworkProviding`。离线 Feature 只依赖基础协议，网络 Feature 通过 `DIContainerProtocol & NetworkProviding` 获得编译期保证。
 - 新 App 必须从 xcconfig/Info.plist 注入 Base URL，不能沿用 Example 占位值或提交密钥。
 - Package 测试不能替代 iOS App target、真机权限、StoreKit 和生命周期验证。
 
@@ -50,7 +50,7 @@
 
 - 尚无 5/10/20 个 App 的版本治理、迁移日志和批量升级机制。
 - 缺少正式 iOS UI/集成测试矩阵、性能基准、依赖安全与隐私清单审计记录。
-- ExampleApp 尚未覆盖设置、权限、错误恢复、SwiftData 迁移和发布配置。
+- ✅ 已改善：ExampleApp 已重构为 `App / Models / Services / Features`，覆盖网络、loading/error/retry、路由、SwiftData 与设置。仍缺权限、SwiftData 迁移和发布配置示例。
 
 ## 第三方依赖
 

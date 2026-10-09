@@ -8,9 +8,30 @@
 
 ## 版本历史
 
-## [Unreleased]
+### [1.2.0] - 2026-10-09
 
-> 网络层与组件库专项优化，尚未打 tag。正式发布时请按语义化版本重命名（含破坏性变更，建议 MAJOR）。
+**App Factory 基线** - DI 能力拆分 + ExampleApp 接入范例重构，161 个测试全部通过。
+
+> 本次含一处源码不兼容变更（`DIContainerProtocol.networkClient` 移出）。
+> 因暂无外部消费者，按 MINOR 发布；后续累积为 2.0.0 时再统一说明。
+
+### 架构 / DI（CYAppCore）
+
+#### 变更（源码不兼容）
+- `networkClient` 从 `DIContainerProtocol` 拆出，新增可选能力协议 `NetworkProviding`
+- `CYFactoryContainer` / `CYAppContainer` 现遵循 `DIContainerProtocol & NetworkProviding`
+- 网络 Feature 应声明 `any DIContainerProtocol & NetworkProviding`；离线 Feature 只依赖 `DIContainerProtocol`
+- `CYAppContainer` 明确标注为 Legacy / Compatibility Facade，新代码优先使用初始化注入或 `@Injected`
+
+### ExampleApp（重构为真实接入范例）
+
+- 目录重构为 `App / Models / Services / Features`，可直接作为新项目复制模板
+- 新增网络域模型 `Article`、持久化域模型 `BookmarkItem` / `BookmarkTag`
+- 新增 `ArticleService`（收敛网络访问）与 `BookmarkRepository`（`CYRepositoryProtocol`）
+- `HomeViewModel` 演示 `executeTask` 的 loading / error / retry，`HomeView` 用 `CYBaseView` 渲染
+- 接入 `CYAppRouter` 路由、SwiftData `modelContainer`、`SettingsView` 主题 / 语言切换
+- `AppBootstrap` 在 DI 注册 `MockNetworkClient`，无后端也可运行完整流程
+- ExampleApp target 新增 `FactoryKit` 依赖（组合根注册 Mock）
 
 ### 网络层（CYAppCore + CYAppNetwork）
 
@@ -241,6 +262,14 @@
 ---
 
 ## 迁移指南
+
+### 1.2.0
+
+`DIContainerProtocol` 不再包含 `networkClient`，改为独立的 `NetworkProviding`。
+
+- 网络 Feature：把依赖类型改为 `any DIContainerProtocol & NetworkProviding`。
+- 离线 Feature：保持 `any DIContainerProtocol` 即可，无需处理网络。
+- `CYAppContainer.shared.networkClient` 仍可用（`CYAppContainer` 同时遵循两个协议），但该类型已标记为 Legacy Facade，新代码建议初始化注入或 `@Injected`。
 
 ### 初始版本
 

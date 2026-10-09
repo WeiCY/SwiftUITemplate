@@ -108,7 +108,16 @@ let package = Package(
         // 可运行 Demo（业务接入参考）
         .executableTarget(
             name: "ExampleApp",
-            dependencies: ["CYAppCore", "CYAppNetwork", "CYAppImage", "CYFeedbackStyle", "CYAppDesignSystem", "CYAppUI", "CYAppPersistence"],
+            dependencies: [
+                "CYAppCore",
+                "CYAppNetwork",
+                "CYAppImage",
+                "CYFeedbackStyle",
+                "CYAppDesignSystem",
+                "CYAppUI",
+                "CYAppPersistence",
+                .product(name: "FactoryKit", package: "Factory"),
+            ],
             path: "ExampleApp/Sources"
         ),
     ],

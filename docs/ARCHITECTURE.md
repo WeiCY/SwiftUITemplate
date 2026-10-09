@@ -104,7 +104,7 @@ Layer 2 — UI 功能
 |---|---|---|
 | `Network/` | 网络协议层 | `CYEndpoint`, `CYNetworkClientProtocol`, `CYAuthenticationPolicy`, `CYCredentialInterceptor`, `CYCredentialRecovery`, `CYRequestDeduplicator` |
 | `Services/` | 通用服务 | `CYAnalyticsServiceProtocol` |
-| `DI/` | 依赖注入 | `DIContainerProtocol`, `CYFactoryContainer`, `CYAppContainer` |
+| `DI/` | 依赖注入 | `DIContainerProtocol`, `NetworkProviding`, `CYFactoryContainer`, `CYAppContainer` |
 | `Configuration/` | 环境配置 | `CYAppEnvironment` |
 | `Constants/` | 全局常量 | `CYAppConstants`, `CYAppConfigurationValues`, `CYSFSymbol` |
 | `Cache/` | Actor 隔离缓存 | `CYCacheManager`, `CYCacheSerializer` |
@@ -186,22 +186,41 @@ Bookmark/Tag 模型和 Repository 位于 `ExampleApp`，不属于通用 Persiste
 ### 三层架构
 
 ```
-DIContainerProtocol          ← 业务代码依赖的抽象（14 个服务 getter）
+DIContainerProtocol          ← 基础能力抽象（11 个服务 getter，不含网络）
+NetworkProviding             ← 可选网络能力抽象（networkClient）
        ▲
-       │ implements
+       │ implements both
        │
 CYFactoryContainer           ← Factory 实现（注册 Factory<T>）
        ▲
        │ delegates
        │
-CYAppContainer               ← 业务代码使用的基础服务门面
+CYAppContainer               ← Legacy Facade（保持向后兼容，逐步由注入替代）
 ```
+
+### 能力拆分（Base DI vs Network Capability）
+
+`DIContainerProtocol` 不包含 `networkClient`。只有需要网络的 Feature 才声明组合依赖：
+
+```swift
+// 网络 Feature：编译期要求网络能力
+final class HomeViewModel: CYBaseViewModel {
+    private let dependencies: any DIContainerProtocol & NetworkProviding
+}
+
+// 离线 Feature：只依赖基础能力，不感知网络层
+final class NoteViewModel: CYBaseViewModel {
+    private let dependencies: any DIContainerProtocol
+}
+```
+
+这样离线 App 不会被基础 DI 契约强迫提供网络能力；网络 Feature 又能获得编译期保证。
 
 ### 服务注册
 
 | 服务 | 默认实现 | 生命周期 |
 |---|---|---|
-| `networkClient` | **必须注入**（`preconditionFailure`） | — |
+| `networkClient`（`NetworkProviding`） | **可选能力**：需引入 `CYAppNetwork` 并注册，否则离线 App 不访问 | — |
 | `imageLoader` | `CYDefaultImageLoader.shared`（URLSession） | singleton |
 | `cacheManager` | `CYCacheManager.shared` | — |
 | `logger` | `CYLogger.shared` | — |
@@ -555,7 +574,7 @@ CYSwiftTemplate/
 │   ├── CYAppCore/                   # Layer 0: 纯逻辑（协议 + 工具）
 │   │   ├── Network/               #   CYEndpoint, CYNetworkClientProtocol, APIResponse, BusinessCode
 │   │   ├── Configuration/         #   AppEnvironment
-│   │   ├── DI/                    #   DIContainerProtocol, FactoryContainer, AppContainer
+│   │   ├── DI/                    #   DIContainerProtocol, NetworkProviding, FactoryContainer, AppContainer
 │   │   ├── Services/              #   AuthService, AnalyticsService, UserSession
 │   │   ├── Image/                 #   CYImageLoaderProtocol, ImageLoaderError
 │   │   ├── Cache/                 #   CacheManager
@@ -594,7 +613,10 @@ CYSwiftTemplate/
 │   ├── CYAppUITests/               # UI 层测试 (Router + AppState + Feedback)
 │   ├── CYAppDesignSystemTests/     # 设计系统测试
 │   └── CYFeedbackStyleTests/       # 反馈样式测试
-└── ExampleApp/                     # 可运行 Demo
+└── ExampleApp/                     # 可运行范例（App / Features / Models / Services）
     └── Sources/
-        └── ExampleApp.swift        # 3 Tab 示例
+        ├── App/                    #   @main、AppConfig、AppBootstrap、Tab、Route、Persistence
+        ├── Models/                 #   Article（网络域）、BookmarkItem（持久化域）
+        ├── Services/               #   ArticleService
+        └── Features/               #   Home / Bookmark / Settings
 ```

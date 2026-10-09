@@ -2,6 +2,12 @@ import CYAppCore
 import CYAppNetwork
 import CYAppImage
 import CYFeedbackStyle
+import FactoryKit
+
+// MARK: - 组合根
+//
+// AppBootstrap 是唯一装配入口：Core 配置、网络配置、图片、反馈样式。
+// 新增 App 时复制此文件，按需增减模块。
 
 @MainActor
 enum AppBootstrap {
@@ -23,6 +29,13 @@ enum AppBootstrap {
             )
             CYBusinessCodePolicy.configure { $0 = network.businessCodePolicy }
         }
+
+        // 演示项目：用 Mock 客户端替换真实实现，保证没有后端也能运行。
+        // 真实项目删除这段，直接使用上面的 CYNetworkConfiguration 即可。
+        let mockClient = MockNetworkClient()
+        mockClient.defaultDelay = 0.6
+        mockClient.registerResponse(Article.samples)
+        Container.shared.networkClient.register { mockClient }
 
         if config.usesKingfisher {
             CYAppImageConfig.configure()

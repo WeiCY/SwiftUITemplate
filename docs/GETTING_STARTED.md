@@ -106,7 +106,7 @@ https://github.com/your-org/CYSwiftTemplate
 
 推荐在宿主 App 的 `AppConfig` / `AppBootstrap` 中配置，**不需要修改模板源码**。
 `App.swift` 只负责调用 Bootstrap 和挂载根状态。下面是直接调用现有 API 的兼容写法；
-新 App 建议参考 `ExampleApp/Sources/AppBootstrap.swift` 集中编排这些调用：
+新 App 建议参考 `ExampleApp/Sources/App/AppBootstrap.swift` 集中编排这些调用：
 
 ```swift
 import SwiftUI
@@ -313,32 +313,51 @@ default: break
 
 ### Step 4: 在 ViewModel 中使用
 
+推荐先把网络访问收敛到 Service，再让 ViewModel 依赖 Service。
+`networkClient` 属于可选的网络能力，完整结构见 `ExampleApp/Sources/Features/Home`。
+
 ```swift
 import CYAppCore
 
+// 1. Service：网络访问只在这里出现
+@MainActor
+protocol ProfileServiceProtocol: AnyObject {
+    func fetchProfile() async throws -> User
+}
+
+@MainActor
+final class ProfileService: ProfileServiceProtocol {
+    private let client: any CYNetworkClientProtocol
+    init(client: any CYNetworkClientProtocol = CYAppContainer.shared.networkClient) {
+        self.client = client
+    }
+    func fetchProfile() async throws -> User {
+        try await client.request(UserEndpoint.profile)
+    }
+}
+
+// 2. ViewModel：只依赖 Service，状态交给 executeTask
 @MainActor
 @Observable
 final class ProfileViewModel: CYBaseViewModel {
+    private let service: any ProfileServiceProtocol
     var user: User?
+
+    init(service: any ProfileServiceProtocol = ProfileService()) {
+        self.service = service
+        super.init()
+    }
 
     func fetchProfile() async {
         await executeTask { [weak self] in
-            self?.user = try await CYAppContainer.shared.networkClient
-                .request(UserEndpoint.profile)
-        }
-    }
-
-    func updateProfile(name: String, email: String) async {
-        await executeTask { [weak self] in
-            let body = UpdateProfileBody(name: name, email: email)
-            self?.user = try await CYAppContainer.shared.networkClient
-                .request(UserEndpoint.update, body: body)
+            self?.user = try await self.service.fetchProfile()
         }
     }
 }
 ```
 
 `executeTask` 自动管理 `isLoading` / `error` / `retry` 三种状态。
+需要网络能力的 Feature 依赖 `any DIContainerProtocol & NetworkProviding`；离线 Feature 只依赖 `DIContainerProtocol`。
 
 ### Step 5: 在 View 中使用
 
