@@ -134,6 +134,7 @@ Layer 2  CYAppUI (AppState/Router/反馈视图)
 | [docs/NETWORK_GUIDE.md](docs/NETWORK_GUIDE.md) | 网络框架使用指南：请求、上传下载、可选凭证、业务码、去重与 Mock |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架构设计：模块依赖、DI、状态管理、网络层、扩展方式 |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | 路线图：版本规划与后续开发计划 |
+| [docs/REVIEW.md](docs/REVIEW.md) | 工程化评测：分维度评分、主要问题与下一步（随版本更新） |
 | [CHANGELOG.md](CHANGELOG.md) | 已发布版本变更记录 |
 | [ExampleApp](ExampleApp/Sources/App/ExampleApp.swift) | 可运行接入范例（网络/状态/路由/持久化/设置） |
 | [docs/archive/](docs/archive/) | 历史归档：网络重构执行记录、评测快照（不代表当前代码） |

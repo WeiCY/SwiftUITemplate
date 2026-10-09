@@ -18,7 +18,7 @@
 
 #### 文档
 
-- 收敛文档结构：`NETWORK_REFACTOR_PLAN` 与 `REVIEW` 归档至 `docs/archive/`（标注为历史快照，不代表当前代码）
+- 收敛文档结构：旧 `REVIEW` 与 `NETWORK_REFACTOR_PLAN` 归档至 `docs/archive/`；新增轻量 [docs/REVIEW.md](docs/REVIEW.md)（1.2.x 评测结论，随版本更新）
 - `APP_FACTORY_GUIDE` 内容合并进 `TEMPLATE_RULES`（模块选择 / 宿主目录 / 新 App 工作流 / 边界 / 验收清单）与 `README`，移除独立文件
 - `ROADMAP` 更新 1.2.0 状态，删除与 `TEMPLATE_RULES` 重复的开发流程章节
 - `GETTING_STARTED` 网络章节收敛并链接 `NETWORK_GUIDE`，修正过期的 Mock 示例

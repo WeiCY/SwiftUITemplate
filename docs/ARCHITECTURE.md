@@ -568,6 +568,7 @@ CYSwiftTemplate/
 │   ├── NETWORK_GUIDE.md           # 网络框架使用指南
 │   ├── ARCHITECTURE.md            # 架构设计（本文档）
 │   ├── ROADMAP.md                 # 路线图
+│   ├── REVIEW.md                  # 工程化评测（随版本更新）
 │   └── archive/                   # 历史归档（网络重构记录、评测快照，不代表当前代码）
 ├── Sources/
 │   ├── CYAppCore/                   # Layer 0: 纯逻辑（协议 + 工具）
