@@ -1,6 +1,9 @@
-# 工程化评测
+# 工程化评测（历史快照 · 已归档）
 
-> 评测日期：2026-09-16
+> ⚠️ 本文是某一时间点的评测快照，**不代表当前代码状态**，仅作历史参考。
+> 当前架构与边界请以 [ARCHITECTURE](../ARCHITECTURE.md)、[TEMPLATE_RULES](../TEMPLATE_RULES.md) 和 [CHANGELOG](../../CHANGELOG.md) 为准。
+>
+> 评测日期：2026-09-16（部分结论已滞后，如 `networkClient` 能力拆分晚于该日期落地）。
 >
 > 范围：模块、启动配置、Core/UI/Network/Image/Persistence、ExampleApp、测试与文档。
 > 验证：Swift 6 Package 构建通过，测试全部通过（数量见 CHANGELOG 最新版本）。

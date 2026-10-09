@@ -66,6 +66,14 @@
 - 结构清晰，不需要反复猜测
 - 后续增加业务功能时，不需要重构主干
 
+### 2.4 永久边界（模板 vs 宿主）
+
+适合进入模板：跨多个 App 高频复用、无产品语义、API 稳定、可以独立测试的能力。
+
+适合留在宿主：账号、业务 Tab/Route、Endpoint、SwiftData 模型、Repository、产品设置、分析事件、Onboarding、品牌资源和商业规则。
+
+新能力至少应在两个真实 App 中出现相同需求后再考虑沉淀，避免 Core 再次膨胀。
+
 ---
 
 ## 3. 分层规则
@@ -148,18 +156,17 @@
 
 ### 4.2 模块分为三类
 
-#### 必选
-- `CYAppCore`
+| 模块 | 分类 | 使用条件 |
+|---|---|---|
+| `CYAppCore` | 必选 | 所有使用模板能力的 App |
+| `CYFeedbackStyle` | 推荐 | 使用统一反馈样式时 |
+| `CYAppDesignSystem` | 推荐 | 使用语义样式和基础组件时 |
+| `CYAppUI` | 推荐 | 使用 AppState、Router、反馈视图、Picker/Share 时 |
+| `CYAppNetwork` | 按需 | 需要 HTTP、上传或下载时 |
+| `CYAppImage` | 按需 | 需要 Kingfisher 缓存、预取等能力时 |
+| `CYAppPersistence` | 按需 | 需要 SwiftData 基础设施时 |
 
-#### 推荐
-- `CYAppUI`
-- `CYAppDesignSystem`
-- `CYFeedbackStyle`
-
-#### 按需引入
-- `CYAppNetwork`
-- `CYAppImage`
-- `CYAppPersistence`
+完全离线 App 可以不选择 `CYAppNetwork`。如果不需要 Router 或 DesignSystem，也可以进一步减少模块，不必机械采用推荐组合。
 
 ### 4.3 接入复杂度控制
 
@@ -168,6 +175,46 @@
 - 需要翻多个文档才能启动
 - 需要理解大量模板内部细节才能跑起来
 - 需要改模板源码才能完成基础接入
+
+### 4.4 宿主目录与接入范例
+
+推荐宿主 App 采用如下目录：
+
+```text
+MyApp/
+├── App/
+│   ├── MyApp.swift
+│   ├── AppConfig.swift
+│   ├── AppBootstrap.swift
+│   ├── AppTab.swift
+│   └── AppRoute.swift
+├── Features/
+├── Models/
+├── Services/
+└── Resources/
+```
+
+`AppConfig` 保存宿主配置值，`AppBootstrap` 是唯一组合入口。业务模型、Tab、Route、账号服务、品牌资源和 SwiftData Schema 留在宿主。可直接参考 `ExampleApp/Sources/` 作为复制模板。
+
+### 4.5 新 App 工作流
+
+1. 创建 App target，只选择实际需要的 Products。
+2. 创建 `AppConfig` 与 `AppBootstrap`，先让最小 RootView 启动。
+3. 定义宿主 AppTab/AppRoute；单 Tab App 不模拟多 Tab。
+4. 配置 Assets、App Icon、品牌本地化和隐私声明。
+5. 按 Feature 开发业务 Model、ViewModel、View、Service 和测试。
+6. 需要网络、图片或 SwiftData 时再添加可选模块。
+7. 运行 Package 测试与 iOS target 构建，再完成真机、TestFlight 和 App Store 验证。
+
+### 4.6 接入验收清单
+
+- 离线 App 不导入 `CYAppNetwork` 仍可构建。
+- 默认端点不携带凭证，三种鉴权策略有测试保护。
+- Core 不含 User、登录状态、Bookmark/Tag 或固定业务 Tab。
+- Theme 不包含具体产品视觉包，品牌资源不进入模板。
+- `App.swift` 只负责启动、根状态和 RootView。
+- 文档示例使用当前公开 API，不依赖 deprecated 名称。
+- 完整测试与目标平台构建通过。
 
 ---
 

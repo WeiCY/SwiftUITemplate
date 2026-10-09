@@ -2,7 +2,7 @@
 
 > 本文记录 1.1.0 时的实施过程，部分 Token API 已被后续的
 > `CYAuthenticationPolicy` / `CYCredentialRecovery` 取代。当前用法以
-> [NETWORK_GUIDE](./NETWORK_GUIDE.md) 为准。
+> [NETWORK_GUIDE](../NETWORK_GUIDE.md) 为准。
 
 > 状态：**全部完成（Batch 0–16）** — 2026-08-23
 > 初始日期：2026-08-22

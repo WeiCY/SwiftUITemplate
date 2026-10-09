@@ -23,6 +23,7 @@
 - [15. 常见问题](#15-常见问题)
 - [16. 项目特异化指南](#16-项目特异化指南)
 - [17. 模板开发规范](#17-模板开发规范)
+- [18. iOS 18+ 推荐页面范式](#18-ios-18-推荐页面范式)
 
 ---
 
@@ -391,7 +392,9 @@ struct ProfileView: View {
 
 ## 6. 高级网络功能
 
-### 自定义请求拦截器
+> 响应策略（`send`）、上传 / 下载、请求去重、可选凭证恢复、日志脱敏与 Mock 等高级能力，统一由 [网络框架使用指南](NETWORK_GUIDE.md) 说明，本节不再重复。
+
+最常用的自定义拦截器示例：
 
 ```swift
 import CYAppCore
@@ -423,128 +426,14 @@ CYNetworkConfiguration.configure(
 
 内置拦截器：`CYLoggingInterceptor`、`CYCredentialInterceptor`、`CYAuthenticationFailureInterceptor`。凭证格式和失败后的账号状态处理由宿主 App 决定。
 
-### 请求去重
+其余高级主题请直接查阅 [NETWORK_GUIDE](NETWORK_GUIDE.md)：
 
-```swift
-let deduplicator = CYAppContainer.shared.requestDeduplicator
-
-// 相同 key 的并发请求自动合并，只发起一次网络请求
-let user: User = try await networkClient.requestWithDeduplication(
-    UserEndpoint.profile,
-    deduplicator: deduplicator
-)
-
-// POST：Encodable body 会纳入去重键（相同 body 合并，不同 body 不误合并）
-let updated: User = try await networkClient.requestWithDeduplication(
-    UserEndpoint.update,
-    body: UpdateRequest(name: "Tom"),
-    deduplicator: deduplicator
-)
-```
-
-### 响应策略 send（envelope / direct / raw / empty）
-
-```swift
-// envelope：默认包装，自动解包 data（等价 request）
-let user: User = try await networkClient.send(UserEndpoint.profile, strategy: .envelope)
-
-// envelopeRaw：返回原始 CYAPIResponse，不按业务码抛错（等价 requestRaw）
-let response: CYAPIResponse<User> = try await networkClient.send(UserEndpoint.profile, strategy: .envelopeRaw)
-
-// direct：响应体直接就是目标类型（无 envelope，适合第三方接口）
-let raw: ThirdPartyDTO = try await networkClient.send(OpenAPIEndpoint.status, strategy: .direct)
-
-// empty：只关心成功与否（204 等空响应）
-let _: CYEmptyResponse = try await networkClient.send(UserEndpoint.delete, strategy: .empty)
-```
-
-### 便捷 API（requestVoid / requestData / request(body:)）
-
-```swift
-// 只确认成功（业务错误仍会抛出）
-try await networkClient.requestVoid(UserEndpoint.delete(id: 123))
-
-// 原始响应体 Data（图片、文件等二进制）
-let imageData: Data = try await networkClient.requestData(ImageEndpoint.fetch)
-
-// 泛型 Encodable body（等价 post）
-let user: User = try await networkClient.request(AuthEndpoint.login, body: LoginRequest(...))
-```
-
-### 空响应 / 204（CYEmptyResponse）
-
-POST / DELETE 等只返回 `code + message`（或 204 No Content）的接口，用 `CYEmptyResponse`：
-
-```swift
-let _: CYEmptyResponse = try await networkClient.request(UserEndpoint.delete(id: 123))
-// 204 空 body、缺 data 键、data 为 null 均视为成功
-```
-
-### 文件上传（单文件 / 多文件 / 进度）
-
-```swift
-let imageData = image.jpegData(compressionQuality: 0.8) ?? Data()
-
-// 单文件
-let avatar: Avatar = try await networkClient.upload(
-    UserEndpoint.uploadAvatar,
-    parts: [
-        CYMultipartPart(data: imageData, mimeType: "image/jpeg", fileName: "avatar.jpg", paramName: "file")
-    ],
-    additionalParams: ["user_id": "123"]
-)
-
-// 多文件 + 进度回调（fractionCompleted ∈ [0, 1]）
-let result: UploadResult = try await networkClient.upload(
-    UserEndpoint.uploadAttachments,
-    parts: [
-        CYMultipartPart(data: imageData, mimeType: "image/jpeg", fileName: "a.jpg", paramName: "avatar"),
-        CYMultipartPart(data: coverData, mimeType: "image/png", fileName: "c.png", paramName: "cover"),
-    ],
-    additionalParams: ["scene": "profile"],
-    progress: { fraction in
-        uploadProgressView.progress = fraction
-    }
-)
-```
-
-> 超过 `CYAppConstants.maxUploadSizeMB` 设置的上限时，上传会在发起请求前被拒绝并抛出 `CYNetworkError.payloadTooLarge`。
-
-### 文件下载（进度 / 取消）
-
-```swift
-let fileURL = try await networkClient.download(
-    FileEndpoint.downloadPDF(id: "doc123"),
-    to: documentsDirectory.appendingPathComponent("doc.pdf"),
-    progress: { fraction in
-        downloadProgressView.progress = fraction
-    }
-)
-
-// 取消会传播到底层请求，Task 取消时抛出 CYNetworkError.cancelled
-let task = Task { try await networkClient.download(...) }
-task.cancel()
-```
-
-### 可选凭证与恢复
-
-端点通过 `authentication` 声明 `.none`、`.optional` 或 `.required`，默认 `.none`。只有 `.required` 请求认证失败时，才会调用宿主注册的 `CYCredentialRecovery`；并发失败共享一次恢复，成功后最多重放一次。Network 不判断登录状态，也不持有 User、Access Token 或 Refresh Token 模型。
-
-### 日志脱敏
-
-`CYLoggingInterceptor` 自动对敏感信息脱敏：
-
-- 请求头：`Authorization`、`Cookie`、`X-Api-Key`、`Token` 等值输出为 `***`
-- 请求/响应体：`password`、`token`、`access_token`、`refresh_token`、`secret` 等字段值输出为 `***`
-
-```swift
-// 开启网络日志
-CYNetworkConfiguration.configure(
-    environment: .production,
-    baseURL: "https://api.example.com",
-    requestInterceptors: [CYLoggingInterceptor()]   // includeBody: false 可关闭 Body 打印
-)
-```
+- 五种请求 API 与 `send` 响应策略
+- 自定义业务码（`CYBusinessCodePolicy`）
+- 上传（单/多文件、进度、大小限制）与下载（进度、取消）
+- 可选凭证与恢复（`authentication` + `CYCredentialRecovery`）
+- 请求去重与日志脱敏
+- Mock（测试 / SwiftUI Preview）与请求参数断言
 
 ---
 
@@ -892,7 +781,16 @@ CYBusinessCodePolicy.configure {
 
 ### Q: 如何 Mock 网络请求进行测试？
 
-使用 Factory DI 注册 Mock 实现：
+模板内置 `MockNetworkClient`，无需自行实现协议：
+
+```swift
+// SwiftUI Preview / 测试中直接使用
+let mock = MockNetworkClient()
+mock.registerResponse(User(id: 1, name: "Test"))
+let user: User = try await mock.request(UserEndpoint.profile)
+```
+
+也可通过 Factory DI 注入到全局容器：
 
 ```swift
 import FactoryKit
@@ -900,13 +798,9 @@ import FactoryKit
 Container.shared.networkClient.register {
     MockNetworkClient()
 }
-
-struct MockNetworkClient: CYNetworkClientProtocol {
-    func request<T: Decodable & Sendable>(_ endpoint: CYEndpoint) async throws -> T {
-        return mockUser as! T
-    }
-}
 ```
+
+完整 Mock 用法（按端点注册、注册错误、断言请求参数）见 [NETWORK_GUIDE 第 15 节](NETWORK_GUIDE.md#15-mock测试--swiftui-preview)。
 
 ### Q: 如何替换 Toast/Loading/Alert 管理器？
 

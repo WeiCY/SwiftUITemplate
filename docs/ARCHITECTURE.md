@@ -563,13 +563,12 @@ CYSwiftTemplate/
 ├── .github/workflows/
 │   └── ci.yml                     # CI（build + test + lint + iOS Simulator）
 ├── docs/                          # 文档
+│   ├── TEMPLATE_RULES.md          # 模板开发规范
 │   ├── GETTING_STARTED.md         # 完整接入指南
 │   ├── NETWORK_GUIDE.md           # 网络框架使用指南
-│   ├── NETWORK_REFACTOR_PLAN.md   # 网络层重构执行记录
 │   ├── ARCHITECTURE.md            # 架构设计（本文档）
 │   ├── ROADMAP.md                 # 路线图
-│   ├── REVIEW.md                  # 评测快照
-│   └── TEMPLATE_RULES.md          # 模板开发规范
+│   └── archive/                   # 历史归档（网络重构记录、评测快照，不代表当前代码）
 ├── Sources/
 │   ├── CYAppCore/                   # Layer 0: 纯逻辑（协议 + 工具）
 │   │   ├── Network/               #   CYEndpoint, CYNetworkClientProtocol, APIResponse, BusinessCode

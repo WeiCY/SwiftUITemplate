@@ -129,15 +129,14 @@ Layer 2  CYAppUI (AppState/Router/反馈视图)
 
 | 文档 | 说明 |
 |---|---|
+| [docs/TEMPLATE_RULES.md](docs/TEMPLATE_RULES.md) | 模板开发规范：适用场景、分层、模块选择、接入、新 App 工作流与边界 |
 | [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) | 完整接入指南：网络、缓存、Keychain、主题、路由、特异化 |
 | [docs/NETWORK_GUIDE.md](docs/NETWORK_GUIDE.md) | 网络框架使用指南：请求、上传下载、可选凭证、业务码、去重与 Mock |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架构设计：模块依赖、DI、状态管理、网络层、扩展方式 |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | 路线图：版本规划与后续开发计划 |
-| [docs/TEMPLATE_RULES.md](docs/TEMPLATE_RULES.md) | 模板开发规范：适用场景、分层、接入、文档与测试规则 |
-| [docs/APP_FACTORY_GUIDE.md](docs/APP_FACTORY_GUIDE.md) | 新 App 模块选择、Bootstrap、离线/网络组合与边界 |
-| [docs/REVIEW.md](docs/REVIEW.md) | 评测快照：代码审查与评分（2026-08-13） |
 | [CHANGELOG.md](CHANGELOG.md) | 已发布版本变更记录 |
 | [ExampleApp](ExampleApp/Sources/App/ExampleApp.swift) | 可运行接入范例（网络/状态/路由/持久化/设置） |
+| [docs/archive/](docs/archive/) | 历史归档：网络重构执行记录、评测快照（不代表当前代码） |
 
 ---
 

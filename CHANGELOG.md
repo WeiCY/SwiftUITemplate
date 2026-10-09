@@ -14,7 +14,14 @@
 
 - `ArticleService` 移除默认参数，改由组合根显式注入，不再引用 Legacy Facade `CYAppContainer.shared`
 - 新增 `AppDependencies` 组合根；`HomeView` / `BookmarkView` 改为接收注入的 ViewModel
-- 长期文档（`APP_FACTORY_GUIDE` / `README` / `REVIEW`）不再写死测试数量，统一引用 CHANGELOG
+- 长期文档（`README` 等）不再写死测试数量，统一引用 CHANGELOG
+
+#### 文档
+
+- 收敛文档结构：`NETWORK_REFACTOR_PLAN` 与 `REVIEW` 归档至 `docs/archive/`（标注为历史快照，不代表当前代码）
+- `APP_FACTORY_GUIDE` 内容合并进 `TEMPLATE_RULES`（模块选择 / 宿主目录 / 新 App 工作流 / 边界 / 验收清单）与 `README`，移除独立文件
+- `ROADMAP` 更新 1.2.0 状态，删除与 `TEMPLATE_RULES` 重复的开发流程章节
+- `GETTING_STARTED` 网络章节收敛并链接 `NETWORK_GUIDE`，修正过期的 Mock 示例
 
 ### [1.2.0] - 2026-10-09
 
