@@ -32,7 +32,7 @@
 在 Xcode 中选择 **File → Add Package Dependencies**，输入仓库地址：
 
 ```
-https://github.com/your-org/CYSwiftTemplate
+https://github.com/WeiCY/SwiftUITemplate
 ```
 
 按需引入以下 7 个库：
@@ -285,42 +285,27 @@ struct UpdateProfileBody: Encodable, Sendable {
 > Swift 的 `Codable` 协议由编译器自动生成 JSON 解析代码，无需 MJExtension 等运行时反射库。
 > 字段写错 → 编译报错，而非运行时崩溃。
 
-### Step 3: 发起请求
+### Step 3: 发起请求（最常用）
+
+Service 拿到 `CYNetworkClientProtocol` 后即可发起请求：
 
 ```swift
-let networkClient = CYAppContainer.shared.networkClient
+// 后端返回 {"code": 0, "data": {...}, "message": "ok"} 时自动解包
+let user: User = try await client.request(UserEndpoint.profile)
 
-// ─── 方式 1：自动解包（推荐）───
-// 后端返回 {"code": 0, "data": {...}, "message": "ok"}
-let user: User = try await networkClient.request(UserEndpoint.profile)
-
-// ─── 方式 2：带 Encodable body 的 POST ───
-let body = UpdateProfileBody(name: "John", email: "john@example.com")
-let updatedUser: User = try await networkClient.request(UserEndpoint.update, body: body)
-
-// ─── 方式 3：获取完整响应（需要手动处理业务码）───
-let response: CYAPIResponse<User> = try await networkClient.requestRaw(UserEndpoint.profile)
-switch response.businessResult {
-case .success:
-    let user = response.data
-case .tokenExpired:
-    // 框架已自动刷新 Token
-case .businessError(_, let message, let display):
-    if display == .alert { /* showAlert */ }
-    else { CYToastManager.shared.show(message, type: .error) }
-default: break
-}
+// 带 Encodable body 的 POST
+let updatedUser: User = try await client.request(UserEndpoint.update, body: body)
 ```
 
-### Step 4: 在 ViewModel 中使用
+需要完整 envelope、响应策略、上传下载、去重或 Mock 时，见 [网络框架使用指南](NETWORK_GUIDE.md)。
 
-推荐先把网络访问收敛到 Service，再让 ViewModel 依赖 Service。
-`networkClient` 属于可选的网络能力，完整结构见 `ExampleApp/Sources/Features/Home`。
+### Step 4: 定义 Service（显式注入）
+
+网络访问只在 Service 中出现，`client` 由组合根显式注入，不提供默认值、不引用全局容器：
 
 ```swift
 import CYAppCore
 
-// 1. Service：网络访问只在这里出现
 @MainActor
 protocol ProfileServiceProtocol: AnyObject {
     func fetchProfile() async throws -> User
@@ -329,38 +314,84 @@ protocol ProfileServiceProtocol: AnyObject {
 @MainActor
 final class ProfileService: ProfileServiceProtocol {
     private let client: any CYNetworkClientProtocol
-    init(client: any CYNetworkClientProtocol = CYAppContainer.shared.networkClient) {
+
+    init(client: any CYNetworkClientProtocol) {
         self.client = client
     }
+
     func fetchProfile() async throws -> User {
         try await client.request(UserEndpoint.profile)
     }
 }
+```
 
-// 2. ViewModel：只依赖 Service，状态交给 executeTask
+### Step 5: 定义 ViewModel（显式注入）
+
+ViewModel 只依赖 Service 协议，状态交给 `executeTask`：
+
+```swift
 @MainActor
 @Observable
 final class ProfileViewModel: CYBaseViewModel {
     private let service: any ProfileServiceProtocol
     var user: User?
 
-    init(service: any ProfileServiceProtocol = ProfileService()) {
+    init(service: any ProfileServiceProtocol) {
         self.service = service
         super.init()
     }
 
     func fetchProfile() async {
         await executeTask { [weak self] in
-            self?.user = try await self.service.fetchProfile()
+            self?.user = try await self?.service.fetchProfile()
         }
     }
 }
 ```
 
 `executeTask` 自动管理 `isLoading` / `error` / `retry` 三种状态。
-需要网络能力的 Feature 依赖 `any DIContainerProtocol & NetworkProviding`；离线 Feature 只依赖 `DIContainerProtocol`。
 
-### Step 5: 在 View 中使用
+### Step 6: Composition Root（组合根）
+
+Service / Repository / ViewModel 由宿主 Composition Root 统一创建并注入，全局容器只出现在这里。完整写法参考 `ExampleApp/Sources/App/AppDependencies.swift`：
+
+```swift
+@MainActor
+final class AppDependencies {
+    let profileViewModel: ProfileViewModel
+
+    init(networkClient: any CYNetworkClientProtocol) {
+        let service = ProfileService(client: networkClient)
+        self.profileViewModel = ProfileViewModel(service: service)
+    }
+}
+```
+
+```swift
+@main
+struct MyApp: App {
+    private let dependencies: AppDependencies
+
+    init() {
+        AppBootstrap.start(with: .default)
+        dependencies = AppDependencies(
+            networkClient: CYFactoryContainer.shared.networkClient
+        )
+    }
+
+    var body: some Scene {
+        WindowGroup { RootView(dependencies: dependencies) }
+    }
+}
+```
+
+> `CYFactoryContainer.shared` 是 Factory 实现，可以出现在组合根；`CYAppContainer` 是可替换旧代码的 **Legacy / Compatibility Facade**，新业务代码不推荐使用。
+>
+> 需要网络能力的 Feature 可声明 `any DIContainerProtocol & NetworkProviding`；离线 Feature 只依赖 `DIContainerProtocol`。
+
+### Step 7: 在 View 中使用（接收外部 ViewModel）
+
+View 不负责寻找 Service / Repository；依赖由组合根构造后传入：
 
 ```swift
 import SwiftUI
@@ -368,7 +399,11 @@ import CYAppCore
 import CYAppDesignSystem
 
 struct ProfileView: View {
-    @State private var viewModel = ProfileViewModel()
+    @State private var viewModel: ProfileViewModel
+
+    init(viewModel: ProfileViewModel) {
+        _viewModel = State(initialValue: viewModel)
+    }
 
     var body: some View {
         CYBaseView(
@@ -386,6 +421,12 @@ struct ProfileView: View {
         .task { await viewModel.fetchProfile() }
     }
 }
+```
+
+```text
+View 不负责寻找 Service / Repository
+ViewModel 不负责寻找 NetworkClient
+依赖由 Composition Root 统一构造
 ```
 
 ---
@@ -497,31 +538,35 @@ struct SettingsView: View {
 
     var body: some View {
         @Bindable var state = appState
-        VStack {
-            Text(appState.user?.name ?? "Guest")
-            Picker("Theme", selection: $state.theme) {
-                ForEach(CYAppTheme.allCases, id: \.self) { theme in
-                    Text(theme.displayName).tag(theme)
-                }
+        Picker("Theme", selection: $state.theme) {
+            ForEach(CYAppTheme.allCases, id: \.self) { theme in
+                Text(theme.displayName).tag(theme)
             }
         }
     }
 }
 ```
 
+> `CYAppState` 只负责主题与语言等全局偏好；User / 登录状态 / 业务 Tab 属于宿主 App，不进入模板 `CYAppState`。
+
 ### CYBaseViewModel（页面级状态）
 
-单页面的 loading/error/data 放 `CYBaseViewModel` 子类：
+单页面的 loading/error/data 放 `CYBaseViewModel` 子类，数据通过注入的 Service 获取：
 
 ```swift
 @Observable
 final class HomeViewModel: CYBaseViewModel {
+    private let service: any ArticleServiceProtocol
     var items: [Item] = []
+
+    init(service: any ArticleServiceProtocol) {
+        self.service = service
+        super.init()
+    }
 
     func fetchItems() async {
         await executeTask { [weak self] in
-            self?.items = try await CYAppContainer.shared.networkClient
-                .request(ItemEndpoint.list)
+            self?.items = try await self?.service.fetchItems()
         }
     }
 }
@@ -693,9 +738,9 @@ CYFeedbackConfiguration.configure(
 CYToastManager.shared.show("保存成功", type: .success)
 CYToastManager.shared.show("网络错误", type: .error, duration: 3.0)
 
-// 自定义管理器实例（通过 DI 注入）
-let myToast = CYAppContainer.shared.toastManager
-myToast.show("来自 DI 的消息", type: .info)
+// 通过 Factory 注入（可替换实现）
+@Injected(\.toastManager) var toastManager
+toastManager.show("来自 DI 的消息", type: .info)
 ```
 
 ### Loading 遮罩
@@ -706,9 +751,9 @@ CYLoadingManager.shared.show("加载中…")
 // ... 执行操作 ...
 CYLoadingManager.shared.hide()
 
-// DI 注入方式
-let myLoading = CYAppContainer.shared.loadingManager
-myLoading.show("自定义加载")
+// 通过 Factory 注入
+@Injected(\.loadingManager) var loadingManager
+loadingManager.show("自定义加载")
 ```
 
 ### Alert 弹窗
@@ -729,15 +774,16 @@ CYAlertManager.shared.showConfirmation(
     // 执行删除
 }
 
-// DI 注入方式
-let myAlert = CYAppContainer.shared.alertManager
-myAlert.showWarning("自定义警告")
+// 通过 Factory 注入
+@Injected(\.alertManager) var alertManager
+alertManager.showWarning("自定义警告")
 ```
 
 ### 分析服务
 
 ```swift
-let analytics = CYAppContainer.shared.analyticsService
+// 通过 Factory 注入
+@Injected(\.analyticsService) var analytics
 
 // 上报事件
 analytics.track(event: "purchase", properties: ["amount": 29.9, "item": "pro_plan"])
@@ -816,12 +862,16 @@ struct MyCustomToastManager: CYToastManagerProtocol {
 }
 ```
 
-视图层传入自定义管理器：
+视图层通过 Factory 注入后传入自定义管理器：
 
 ```swift
+@Injected(\.toastManager) var toastManager
+@Injected(\.loadingManager) var loadingManager
+@Injected(\.alertManager) var alertManager
+
 ContentView()
-    .feedbackOverlay(toastManager: myToast, loadingManager: myLoading)
-    .alertManager(manager: myAlert)
+    .feedbackOverlay(toastManager: toastManager, loadingManager: loadingManager)
+    .alertManager(manager: alertManager)
 ```
 
 ### Q: 能否直接使用 Alamofire 的高级功能？
@@ -867,9 +917,9 @@ final class CloudThemeManager: CYThemeManaging {
 // 2. 注册到 DI
 Container.shared.themeManager.register { CloudThemeManager() }
 
-// 3. 创建 AppState 时注入
+// 3. 创建 AppState 时注入（默认使用 CYThemeManager.shared）
 @State private var appState = CYAppState(
-    themeManager: CYAppContainer.shared.themeManager
+    themeManager: CYFactoryContainer.shared.themeManager
 )
 ```
 
@@ -889,7 +939,7 @@ Container.shared.localizationManager.register { RemoteLocalizationManager() }
 
 // 3. 注入 AppState
 @State private var appState = CYAppState(
-    localizationManager: CYAppContainer.shared.localizationManager
+    localizationManager: CYFactoryContainer.shared.localizationManager
 )
 ```
 
@@ -940,13 +990,14 @@ CYFeedbackConfiguration.configure(
 // 注册自定义管理器
 Container.shared.toastManager.register { MyCustomToastManager() }
 
-// 视图层传入自定义实例
+// 通过 Factory 注入后传给视图层
+@Injected(\.toastManager) var toastManager
+@Injected(\.loadingManager) var loadingManager
+@Injected(\.alertManager) var alertManager
+
 ContentView()
-    .feedbackOverlay(
-        toastManager: CYAppContainer.shared.toastManager,
-        loadingManager: CYAppContainer.shared.loadingManager
-    )
-    .alertManager(manager: CYAppContainer.shared.alertManager)
+    .feedbackOverlay(toastManager: toastManager, loadingManager: loadingManager)
+    .alertManager(manager: alertManager)
 ```
 
 ### 业务码策略特异化

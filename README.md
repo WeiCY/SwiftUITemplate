@@ -19,7 +19,7 @@ iOS SwiftUI 工程模板 —— 协议驱动、按需引入、Swift 6 并发安�
 在 Xcode 中选择 **File -> Add Package Dependencies**，输入仓库地址：
 
 ```
-https://github.com/your-org/CYSwiftTemplate
+https://github.com/WeiCY/SwiftUITemplate
 ```
 
 ### 最小初始化
@@ -94,7 +94,7 @@ Layer 0  CYAppCore (协议 + 工具 + DI)  ← 仅依赖 FactoryKit
          CYAppPersistence (独立 SwiftData)
 Layer 1  CYAppDesignSystem (颜色/字体/组件)
 Layer 2  CYAppUI (AppState/Router/反馈视图)
-         ExampleApp (Demo)
+         ExampleApp（接入范例）
 ```
 
 > 架构设计详情请阅读 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
@@ -136,13 +136,13 @@ Layer 2  CYAppUI (AppState/Router/反馈视图)
 | [docs/ROADMAP.md](docs/ROADMAP.md) | 路线图：版本规划与后续开发计划 |
 | [docs/REVIEW.md](docs/REVIEW.md) | 工程化评测：分维度评分、主要问题与下一步（随版本更新） |
 | [CHANGELOG.md](CHANGELOG.md) | 已发布版本变更记录 |
-| [ExampleApp](ExampleApp/Sources/App/ExampleApp.swift) | 可运行接入范例（网络/状态/路由/持久化/设置） |
+| [ExampleApp](ExampleApp/Sources/App/ExampleApp.swift) | ExampleApp（接入范例）：网络 → loading/error/retry → 路由 → SwiftData → 设置 |
 | [docs/archive/](docs/archive/) | 历史归档：网络重构执行记录、评测快照（不代表当前代码） |
 
 ---
 
 ## 联系与贡献
 
-- GitHub: https://github.com/your-org/CYSwiftTemplate
-- Issues: https://github.com/your-org/CYSwiftTemplate/issues
+- GitHub: https://github.com/WeiCY/SwiftUITemplate
+- Issues: https://github.com/WeiCY/SwiftUITemplate/issues
 - Pull Requests: 欢迎提交改进建议

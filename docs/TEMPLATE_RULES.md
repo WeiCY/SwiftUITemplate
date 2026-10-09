@@ -68,11 +68,22 @@
 
 ### 2.4 永久边界（模板 vs 宿主）
 
-适合进入模板：跨多个 App 高频复用、无产品语义、API 稳定、可以独立测试的能力。
+**适合进入模板**：跨多个 App 高频复用、无产品语义、API 稳定、可以独立测试的能力。
 
-适合留在宿主：账号、业务 Tab/Route、Endpoint、SwiftData 模型、Repository、产品设置、分析事件、Onboarding、品牌资源和商业规则。
+**适合留在宿主**：
 
-新能力至少应在两个真实 App 中出现相同需求后再考虑沉淀，避免 Core 再次膨胀。
+- User / Auth / Account 等账号与登录体系
+- Bookmark / Tag 等业务模型
+- 业务 Tab / 业务 Route
+- Endpoint
+- SwiftData Model
+- Repository
+- Analytics Event
+- Onboarding 内容
+- 品牌资源
+- 商业规则
+
+规则：一个新能力至少应在两个真实 App 中出现相同需求后，再考虑沉淀进模板，避免 Core 再次膨胀。
 
 ---
 
@@ -370,6 +381,18 @@ ExampleApp 不是随便堆按钮的展示页，而是模板的“接入范例”
 - 一次性大重构
 - 一次性加入太多新模块
 - 为了“更高级”而引入额外复杂度
+
+### 8.4 AI / Agent 修改规则
+
+任何 AI、Codex、OpenCode、Claude 等修改模板前：
+
+1. 先阅读 `TEMPLATE_RULES.md`
+2. 再阅读对应模块文档
+3. 不因为“架构更先进”主动增加抽象
+4. 不新增跨 App 能力，除非有真实复用依据
+5. 不把宿主业务模型放回 Core
+6. 修改公共 API 时同步 README / ARCHITECTURE / CHANGELOG
+7. 能通过配置解决的问题，不通过复制第二套基础设施解决
 
 ---
 

@@ -46,7 +46,7 @@
 | 1.0.0 | 已发布 (2026-08-10) | 98 | ~60% | 30+ | iOS 18, macOS 15 |
 | 1.1.0 | 已发布 (2026-08-23) | 156 | ~70% | 35+ | iOS 18, macOS 15 |
 | 1.2.0 | 已发布 (2026-10-09) | 161 | 75%+ | 40+ | iOS 18, macOS 15 |
-| 2.0.0 | 远期（待多个真实 App 验证后迭代） | 180+ | 80%+ | 45+ | iOS 18, macOS 15, visionOS |
+| 后续 | 真实需求驱动（不预设测试/组件数量） | — | — | — | iOS 18, macOS 15（visionOS 视需求） |
 
 > 1.0.1 计划已取消：其内容（可配置默认值、Keychain/缓存错误可观测、FactoryKit 依赖显式化等）已完成并随 1.1.0 发布。
 
@@ -75,10 +75,10 @@
 
 ---
 
-## Phase 2：可信测试与 CI（✅ 网络重构完成；其余项移至 1.2.0）
+## Phase 2：可信测试与 CI（✅ 网络重构完成；其余项移至后续）
 
 > 原计划对应版本 [1.1.0]，实际 1.1.0 发布内容为网络层能力升级（Batch 0–16，156/156 测试全绿），
-> 原「测试增强与组件完善」中未完成项全部顺延至 1.2.0。
+> 原「测试增强与组件完善」中未完成项顺延至后续。
 
 **主题：测试增强与组件完善（1.1.0 完成情况）**
 
@@ -87,11 +87,10 @@
 | 网络层测试覆盖率 70%+ | ✅ `NetworkRegressionTests`（34 条）+ `MockNetworkClientTests`，上传/下载/拦截器/取消/去重均有确定性测试（URLProtocol mock） |
 | 固定工具链 | ✅ SwiftLint 0.59.1 固定；CI 使用固定 Xcode |
 | iOS CI | ✅ 已修复（2026-09-02）：改为 `swift build --sdk/--triple` 交叉编译验证 iOS Simulator 目标，无需 `.xcodeproj`，本地已验证通过 |
-| 图片层测试 | ⬜ 移至 1.2.0 |
-| 权限管理测试 | ⬜ 移至 1.2.0 |
-| 持久化测试 | ⬜ 部分完成（BookmarkRepository CRUD 1 条），移至 1.2.0 补强 |
-| 隔离全局单例 | ⬜ 移至 1.2.0 |
-| 新增业务组件 | ⬜ 移至 1.2.0 |
+| 图片层测试 | ⬜ 移至后续 |
+| 权限管理测试 | ⬜ 移至后续 |
+| 持久化测试 | ⬜ 部分完成（通用 Repository CRUD 1 条），移至后续补强 |
+| 隔离全局单例 | ⬜ 移至后续 |
 
 ---
 
@@ -104,41 +103,34 @@
 
 | 任务 | 验收标准 |
 |---|---|
-| 图片层测试 | `CYKingfisherImageLoader` / `CYDefaultImageLoader` 测试 |
-| 权限管理测试 | `CYPermissionManager` 状态流转 + 各权限类型测试（注入 mock requester） |
-| 持久化测试补强 | `CYBookmarkRepository`/`CYTagRepository` CRUD + 错误路径 + 内存 ModelContainer 测试 |
-| 隔离全局单例 | `setUp` / `tearDown` 统一重置机制，测试可并行执行 |
-| 新增业务组件 | 导航栏组件 / 图片轮播组件 / 表单构建器 |
-| iOS CI 修复与验证 | ✅ 已完成（2026-09-02）：CI 改为 `swift build` 交叉编译，无需 `.xcodeproj`；远程 Actions 待下次推送确认 |
-| iOS 运行级测试 | XCUITest / iOS Simulator 运行级测试覆盖关键流程 |
-| Logger subsystem 可配置 | 宿主可通过 `.configure(...)` 统一设置 `OSLog` subsystem 与默认 category |
-| ExampleApp 接入范例 | ✅ 1.2.0 已重构：网络 / loading / error / retry / 路由 / SwiftData / 设置（Mock 后端可跑通） |
-| 主题切换实时演示 | ✅ `SettingsView` 支持主题 / 语言切换 |
-| SwiftData 迁移示例 | V1 -> V2 版本化迁移计划与演示 |
-| 性能与安全基线 | 缓存/网络基准、依赖扫描、Keychain 策略与隐私清单形成文档 |
-| API 文档完善 | 每个公共模块具有自己的 DocC 入口及关键 public API 注释 |
-| 多平台构建矩阵 | iOS/macOS 双平台构建与测试矩阵形成正式验证记录 |
+| 真实 App 验证 | 用一个离线 App + 一个网络 App 走完创建到 TestFlight |
+| iOS 运行级验证 | iOS App target / Simulator / 真机运行级测试覆盖关键流程 |
+| Image / Permission / Persistence 测试补强 | ImageLoader、`CYPermissionManager`（注入 mock requester）、`CYPersistenceController` 与 `CYRepositoryProtocol` 通用行为、内存 ModelContainer、Schema 创建、保存/查询/删除错误路径 |
+| Feedback / DI 单例测试隔离 | `setUp` / `tearDown` 统一重置机制，测试可并行执行 |
+| Logger subsystem/category 配置 | 宿主可通过 `.configure(...)` 统一设置 `OSLog` subsystem 与默认 category |
+| SwiftData Migration 示例 | V1 -> V2 版本化迁移示例 |
+
+> 通用 UI 能力由真实 App 驱动。只有同一组件在至少两个真实项目中出现稳定重复需求后，才考虑进入 `CYAppDesignSystem` / `CYAppUI`。
 
 ---
 
-## 远期：现代化与多平台
+## 远期：真实需求驱动
 
-> 对应版本 [2.0.0] - 计划 2026-12
+> 以下能力并非当前模板缺陷，而是规模扩大、出现真实重复需求后才可能需要；不预设测试数量与组件数量。
 
-**主题：现代化与多平台**
-
-| 任务 | 验收标准 |
+| 方向 | 触发条件 |
 |---|---|
-| Swift Testing 框架迁移 | 部分测试迁移到 `@Test` 宏，演示新旧框架共存 |
-| DocC 托管 | GitHub Pages 托管 API 文档，所有 public API 有注释 |
-| 性能基准测试 | 缓存/网络/序列化性能测试，防止性能退化 |
-| visionOS 适配 | 核心组件 visionOS 兼容，空间计算 UI 模板 |
-| watchOS 适配（可选） | 核心工具 watchOS 兼容，Complication 模板 |
-| 安全审计 | 依赖扫描（无已知 CVE）、Keychain 配置审查、代码安全审查 |
+| Theme Token 动态注入 / Theme Pack | 多个真实 App 出现稳定换肤需求 |
+| Crash / Observability 方案 | 宿主有生产可观测性诉求 |
+| 性能基准测试 | 出现性能退化风险时 |
+| 完整 UI Test Matrix | 有正式 iOS 运行级测试预算 |
+| 多 App 版本治理 / 批量升级工具 | App 数量达到 5～10 个以上 |
+| 自动生成器 / 复杂发布工具 | 复制模板已明显成为瓶颈 |
+| visionOS / watchOS 适配 | 有真实目标平台需求 |
+| Swift Testing 迁移 / DocC 托管 / 安全审计 | 按需推进 |
 
 ### 破坏性变更（需迁移指南）
 
-- 测试框架从 XCTest 迁移到 Swift Testing（部分）
 - 可能调整模块依赖关系
 - 可能废弃部分 API（提供替代方案）
 

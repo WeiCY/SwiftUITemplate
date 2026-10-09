@@ -65,11 +65,17 @@ struct MyApp: App {
 }
 ```
 
-之后所有页面通过 `CYAppContainer.shared.networkClient` 获取客户端：
+之后由宿主在**组合根**创建客户端并显式注入 Service；需要从全局容器获取时优先使用 Factory 注入：
 
 ```swift
-let networkClient = CYAppContainer.shared.networkClient
+// 组合根（如 AppDependencies）
+let networkClient = CYFactoryContainer.shared.networkClient
+
+// Feature 内可替换实现
+@Injected(\.networkClient) private var networkClient
 ```
+
+> `CYAppContainer` 是可替换旧代码的 Legacy / Compatibility Facade；新业务代码不推荐使用。
 
 ---
 
@@ -320,7 +326,7 @@ task.cancel()
 ## 11. 请求去重
 
 ```swift
-let deduplicator = CYAppContainer.shared.requestDeduplicator
+@Injected(\.requestDeduplicator) private var deduplicator
 
 // GET：相同 key 的并发请求只执行一次
 let user: User = try await networkClient.requestWithDeduplication(

@@ -74,7 +74,7 @@ Layer 2 — UI 功能
 └─────────────────────────────────────────────────────────────┘
                          │
                          ▼
-                    ExampleApp (Demo)
+                    ExampleApp（接入范例）
 ```
 
 **关键规则**：`CYAppCore` 定义网络协议并提供 URLSession 图片加载默认实现；真正的网络客户端只由可选的 `CYAppNetwork` 注册。离线 App 不应访问 `networkClient`。
@@ -198,6 +198,13 @@ CYFactoryContainer           ← Factory 实现（注册 Factory<T>）
 CYAppContainer               ← Legacy Facade（保持向后兼容，逐步由注入替代）
 ```
 
+- `DIContainerProtocol` = 基础能力（11 个服务 getter，不含网络）
+- `NetworkProviding` = 可选网络能力（`networkClient`）
+- `CYFactoryContainer` = Factory 实现（注册 `Factory<T>`）
+- `CYAppContainer` = Legacy / Compatibility Facade
+
+> 原则：新 Feature 优先使用**初始化注入**；全局容器应尽量只出现在 Composition Root 或兼容代码中。
+
 ### 能力拆分（Base DI vs Network Capability）
 
 `DIContainerProtocol` 不包含 `networkClient`。只有需要网络的 Feature 才声明组合依赖：
@@ -215,6 +222,24 @@ final class NoteViewModel: CYBaseViewModel {
 ```
 
 这样离线 App 不会被基础 DI 契约强迫提供网络能力；网络 Feature 又能获得编译期保证。
+
+### Composition Root（组合根）
+
+`ExampleApp` 采用如下组织方式（模板不新增额外框架类型，只是当前设计的说明）：
+
+```
+App
+ ↓
+AppBootstrap         配置环境 / 网络 / 反馈（框架级）
+ ↓
+AppDependencies      构造 Service / Repository / ViewModel（业务级）
+ ↓
+ViewModel / Service / Repository
+ ↓
+Feature
+```
+
+`AppBootstrap` 负责框架配置，`AppDependencies` 负责业务依赖构造并显式注入；Feature View 只接收已构造好的 ViewModel。完整示例见 `ExampleApp/Sources/App/AppDependencies.swift`。
 
 ### 服务注册
 

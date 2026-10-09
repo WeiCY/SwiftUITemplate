@@ -22,6 +22,12 @@
 - `APP_FACTORY_GUIDE` 内容合并进 `TEMPLATE_RULES`（模块选择 / 宿主目录 / 新 App 工作流 / 边界 / 验收清单）与 `README`，移除独立文件
 - `ROADMAP` 更新 1.2.0 状态，删除与 `TEMPLATE_RULES` 重复的开发流程章节
 - `GETTING_STARTED` 网络章节收敛并链接 `NETWORK_GUIDE`，修正过期的 Mock 示例
+- `GETTING_STARTED` 与 ExampleApp 对齐：Service / ViewModel / View 改为显式初始化注入，新增 Composition Root 说明，移除 `CYAppContainer.shared` 作为新代码推荐写法
+- 仓库链接统一为 `https://github.com/WeiCY/SwiftUITemplate`；`ExampleApp` 定位统一为“接入范例”
+- `ARCHITECTURE` 补充 Composition Root 结构与 DI 能力映射（Base DI / `NetworkProviding` / Legacy Facade）
+- `TEMPLATE_RULES` 明确永久边界清单，新增“AI / Agent 修改规则”
+- `ROADMAP` 删除业务语义测试目标与未经验证的组件规划，改为真实需求驱动，并移除未来版本预测数字
+- `REVIEW` 改为 App Factory 评价视角，明确当前无 P0 阻塞问题
 
 ### [1.2.0] - 2026-10-09
 

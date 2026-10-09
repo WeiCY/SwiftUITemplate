@@ -5,55 +5,66 @@
 > 范围：模块边界、启动配置、Core / UI / Network / Image / Persistence、ExampleApp、测试与文档。
 > 验证：Swift 6 Package 构建通过；Package 测试全部通过（数量见 [CHANGELOG](../CHANGELOG.md)）。
 >
-> 本文是**随版本更新**的评测结论，不是长期不变的评价。历史快照见 [archive/REVIEW.md](archive/REVIEW.md)（不代表当前代码）。
+> **定位声明**：本评测优先按“个人 / 中小团队 SwiftUI **App Factory**”定位评价，而不是按大型企业平台 / SDK 标准评价。重点看新 App 起步速度、模块可裁剪性、宿主业务边界、依赖注入清晰度、ExampleApp 可复制性、公共 API 稳定性、文档一致性与真实 App 升级成本。
+>
+> 本文随版本更新；历史快照见 [archive/REVIEW.md](archive/REVIEW.md)（不代表当前代码）。
 
 ## 结论
 
-工程稳定在“可组合 App Factory”阶段：7 个 Library 依赖单向，Network / Image / Persistence 可选，启动配置集中在宿主 `AppConfig` / `AppBootstrap`，账号、业务模型与固定 Tab 已从 Foundation 移出。适合作为个人和中小团队多个独立 App 的基础底座，但不宜称为完整生产平台或自动生成器——Theme 注入、发布流水线、iOS 运行级验证和多 App 版本治理仍需真实项目推动。
+工程稳定在“可组合 App Factory”阶段：7 个 Library 依赖单向，Network / Image / Persistence 可选，启动配置集中在宿主 `AppConfig` / `AppBootstrap`，账号、业务模型与固定 Tab 已从 Foundation 移出，ExampleApp 是可复制的新项目范例。当前**没有阻塞性架构问题**。
 
-综合评分：**8.8 / 10**。
+| 指标 | 评分 |
+|---|---:|
+| 综合工程质量 | **8.8 / 10** |
+| App Factory 适配度 | **9.0 / 10** |
 
 | 维度 | 评分 | 评价 |
 |---|---:|---|
-| 模块化与边界 | 9.0 | 7 个 Library；Network、Image、Persistence 可选，业务模型已移出 Foundation。 |
-| 启动与配置 | 8.5 | Core Config 与宿主 Bootstrap 分工清楚，复用现有配置入口。 |
-| 业务解耦 | 9.0 | Core 不含 User/Auth、Bookmark/Tag 或固定业务 Tab。 |
-| 网络设计 | 9.0 | 默认无鉴权，端点策略清楚，凭证恢复 single-flight，账号语义归宿主。 |
-| UI 与 Theme | 7.8 | 默认 DesignSystem 实用，但仍是静态 Token，只支持主/强调色覆写。 |
-| 可测试性 | 8.7 | 覆盖关键边界；仍缺 iOS 运行级测试。 |
-| 文档与示例 | 8.8 | 文档已收敛为 5 篇核心 + 路线图；ExampleApp 是真实接入范例。 |
-| 长期维护 | 8.3 | 方向合理，但 Core 体积、单例和多 App 版本同步需持续控制。 |
+| 模块边界 | 9.1 | 7 个 Library；可选模块隔离清晰，业务模型已移出 Foundation。 |
+| DI / Composition Root | 9.2 | Base DI 与 `NetworkProviding` 拆分；`AppDependencies` 显式构造并注入。 |
+| Network | 9.0 | 默认无鉴权，端点策略清楚，凭证恢复 single-flight，账号语义归宿主。 |
+| Persistence | 8.8 | `CYPersistenceController` + Repository 协议通用；Schema 归宿主。 |
+| UI / DesignSystem | 8.5 | 默认 DesignSystem 实用，但仍是静态 Token，只支持主/强调色覆写。 |
+| ExampleApp | 9.3 | 覆盖网络 / loading / error / retry / 路由 / SwiftData / 设置，可直接复制。 |
+| 可裁剪性 | 8.9 | 离线 App 可不引入 Network；单 Tab App 不强制多 Tab。 |
+| 文档结构 | 9.0 | 6 篇核心文档职责单一，历史资料归档。 |
+| 文档一致性 | 8.8～9.0 | 已收敛；需持续随公共 API 同步。 |
+| App Factory 适配 | 9.0 | 新项目起步快，宿主边界清楚。 |
 
 ## 已达到的能力
 
 1. 离线 App 可以不选择 `CYAppNetwork`；Image 与 Persistence 同样按需。
 2. `networkClient` 拆到可选的 `NetworkProviding`，离线 Feature 只依赖 `DIContainerProtocol`（1.2.0）。
-3. `CYAppConfig` 只描述 Core，宿主 `AppBootstrap` 组合各模块。
+3. `CYAppConfig` 只描述 Core，宿主 `AppBootstrap` 配置框架、`AppDependencies` 构造业务依赖。
 4. 网络端点默认 `.none`，无需账号的 App 没有认证成本。
 5. Router 管理任意 `CYTabID`，Persistence 接收宿主 Schema。
-6. ExampleApp 覆盖网络 / loading / error / retry / 路由 / SwiftData / 设置，可直接复制为新项目模板。
+6. ExampleApp 是完整接入范例，而非组件 Demo。
 
 ## 主要问题
 
 ### P0
 
-- 新 App 必须从 xcconfig/Info.plist 注入 Base URL，不能沿用 Example 占位值或提交密钥。
-- Package 测试不能替代 iOS App target、真机权限、StoreKit 和生命周期验证。
+**当前没有阻塞性架构问题。** 模板已经可以实际用于新项目。
 
 ### P1
 
-- DesignSystem 是静态语义 Token，`CYAppColor` 仅支持 `primary` / `accent` 覆写，尚不能自然安装外部 Theme Pack。
-- Core 已包含较多 Helper/Manager；新增能力必须证明跨 App 高频复用。
-- 全局配置器和 Manager 使用单例；反馈管理器（Toast/Loading/Alert）与 DI 容器尚无统一测试重置机制。
-- Analytics 是轻量抽象；Crash 和生产可观测性由宿主选择。
-- `OSLog` subsystem/category 尚不能由宿主统一配置。
+- 用真实的离线 App + 网络 App 验证从创建到 TestFlight 的完整流程。
+- `CYAppCore` 不继续膨胀：新能力必须先证明跨 App 高频复用。
+- `GETTING_STARTED` / `ExampleApp` / `ARCHITECTURE` 持续保持一致。
+- Image / Permission / Persistence 测试补强。
+- Feedback / DI 单例测试隔离（`setUp` / `tearDown` 统一重置）。
+- iOS App target / 真机生命周期验证（Package 测试不能替代）。
 
-### P2
+### P2 / Future
 
-- 缺少正式 iOS UI/集成测试矩阵、性能基准、依赖安全与隐私清单审计记录。
-- 图片层 / 权限管理 / 持久化测试仍需补强。
-- 尚无 5/10/20 个 App 的版本治理、迁移日志和批量升级机制。
-- 缺 SwiftData 版本化迁移示例。
+- Theme Token 动态注入 / Theme Pack。
+- Crash / Observability 方案。
+- 性能基准测试与完整 UI Test Matrix。
+- 多 App（5/10/20）版本治理、迁移日志与批量升级工具。
+- 自动生成器 / 复杂发布工具。
+- visionOS / watchOS 适配。
+
+> 以上 P2 并非当前模板缺陷，而是规模扩大后才可能需要的能力。
 
 ## 第三方依赖
 
@@ -73,4 +84,4 @@
 4. `OSLog` subsystem 可配置化。
 5. 等多个 App 出现真实重复需求后，再决定 Theme Token、设置组件或发布工具是否进入模板。
 
-当前最重要的不是继续拆模块，而是验证这些边界能否减少新 App 的基础设施工作，并保持后续升级可迁移。
+当前最重要的不是继续拆模块或增加功能，而是验证这些边界能否减少新 App 的基础设施工作，并保持后续升级可迁移。
