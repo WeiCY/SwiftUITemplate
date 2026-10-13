@@ -17,12 +17,12 @@ struct HomeView: View {
         CYBaseView(
             isLoading: viewModel.isLoading,
             error: viewModel.error,
-            loadingMessage: "加载中…",
+            loadingMessage: "home_loading".exampleLocalized,
             onRetry: { Task { await viewModel.retry() } }
         ) {
             content
         }
-        .navigationTitle("文章")
+        .navigationTitle("home_title".exampleLocalized)
         .toolbar { toolbar }
         .task {
             if viewModel.articles.isEmpty {
@@ -36,9 +36,9 @@ struct HomeView: View {
         if viewModel.articles.isEmpty && !viewModel.isLoading {
             CYEmptyStateView(
                 systemImage: "doc.text",
-                title: "暂无文章",
-                message: "下拉或点击刷新重新加载",
-                actionTitle: "重新加载",
+                title: "home_empty_title".exampleLocalized,
+                message: "home_empty_message".exampleLocalized,
+                actionTitle: "home_reload".exampleLocalized,
                 action: { Task { await viewModel.load() } }
             )
         } else {
@@ -89,10 +89,10 @@ struct HomeView: View {
     private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
             Menu {
-                Button("重新加载", systemImage: "arrow.clockwise") {
+                Button("home_reload".exampleLocalized, systemImage: "arrow.clockwise") {
                     Task { await viewModel.load() }
                 }
-                Toggle("模拟网络失败", isOn: $viewModel.simulateFailure)
+                Toggle("home_simulate_failure".exampleLocalized, isOn: $viewModel.simulateFailure)
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
@@ -106,7 +106,7 @@ struct ArticleDetailView: View {
     let article: Article
 
     var body: some View {
-        CYPageContainer(title: article.title, subtitle: "Article #\(article.id)") {
+        CYPageContainer(title: article.title, subtitle: String(format: "article_number".exampleLocalized, article.id)) {
             VStack(alignment: .leading, spacing: CYAppDimens.marginM) {
                 Text(article.summary)
                     .font(CYAppFont.bodyMedium)

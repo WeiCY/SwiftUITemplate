@@ -63,11 +63,16 @@ public struct CYMediaItem: Identifiable, Hashable {
     public let id: String
     public let asset: PHAsset?
     public let image: UIImage?
+    private let videoStorage: CYMediaVideoStorage?
+
+    /// 系统选择器导入的视频文件；使用期间应保留 CYMediaItem，或复制到自己的目录。
+    public var videoURL: URL? { videoStorage?.url }
 
     /// 基于 PHAsset 构造（网格选择器）
     public init(asset: PHAsset) {
         self.asset = asset
         self.image = nil
+        self.videoStorage = nil
         self.id = asset.localIdentifier
     }
 
@@ -75,10 +80,27 @@ public struct CYMediaItem: Identifiable, Hashable {
     public init(image: UIImage, id: String = UUID().uuidString) {
         self.asset = nil
         self.image = image
+        self.videoStorage = nil
         self.id = id
     }
 
+    /// 基于调用方拥有的视频文件构造，不负责删除此文件。
+    public init(videoURL: URL, id: String = UUID().uuidString) {
+        self.asset = nil
+        self.image = nil
+        self.id = id
+        self.videoStorage = CYMediaVideoStorage(url: videoURL)
+    }
+
+    init(videoFile: CYMediaVideoFile, id: String = UUID().uuidString) {
+        self.asset = nil
+        self.image = nil
+        self.id = id
+        self.videoStorage = videoFile.storage
+    }
+
     public var mediaType: CYMediaType {
+        if videoStorage != nil { return .video }
         if let asset {
             switch asset.mediaType {
             case .image: return .image
@@ -106,6 +128,9 @@ public struct CYMediaItem: Identifiable, Hashable {
 
     /// 异步加载图片 Data（用于上传）
     public func loadData() async -> Data? {
+        if let videoURL {
+            return await Task.detached { try? Data(contentsOf: videoURL) }.value
+        }
         if let asset { return await CYPhotoAssetLoader.shared.loadData(for: asset) }
         if let image { return image.jpegData(compressionQuality: 0.9) }
         return nil

@@ -18,6 +18,11 @@ struct NetworkFailure: Error, Sendable {
     let data: Data?
 }
 
+/// 已执行过的终态拦截器错误，不进入凭证恢复或重复拦截路径。
+struct ResponseInterceptorFailure: Error {
+    let error: Error
+}
+
 /// 网络客户端实现（Alamofire 桥接层）
 ///
 /// 业务代码通过 `CYNetworkClientProtocol` 协议使用，不直接依赖 Alamofire。
@@ -130,8 +135,9 @@ public final class CYNetworkClient: CYNetworkClientProtocol, Sendable {
             return try await build()
         } catch {
             let failure = error as? NetworkFailure
-            let rawError = failure?.cyError ?? error
-            let requiresRefresh = (rawError as? CYNetworkError)?.requiresCredentialRecovery ?? false
+            let interceptorFailure = error as? ResponseInterceptorFailure
+            let rawError = interceptorFailure?.error ?? failure?.cyError ?? error
+            let requiresRefresh = interceptorFailure == nil && ((rawError as? CYNetworkError)?.requiresCredentialRecovery ?? false)
 
             // 只有明确要求凭证的端点才允许恢复；公开或可选鉴权请求不会隐式改变账号状态。
             if !hasRefreshed, requiresRefresh, endpoint.authentication == .required,
@@ -179,8 +185,9 @@ public final class CYNetworkClient: CYNetworkClientProtocol, Sendable {
         case .envelope:
             // 唯一走「业务码判定 + 401 自动刷新」的链路（对应 request）
             return try await performRequest(endpoint) {
-                let apiResponse: CYAPIResponse<T> = try await self.fetchRaw(endpoint, urlRequest: urlRequest)
-                return try self.resolveData(apiResponse)
+                let result: (value: T, response: URLResponse?, data: Data?) = try await self.fetchEnvelope(endpoint, urlRequest: urlRequest)
+                try await self.applyFinalResponseInterceptors(result.response, data: result.data)
+                return result.value
             }
 
         case .envelopeRaw, .direct:

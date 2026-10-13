@@ -18,7 +18,7 @@ struct SettingsView: View {
     var body: some View {
         @Bindable var appState = appState
 
-        CYPageContainer(title: "设置", showsNavigationBar: true) {
+        CYPageContainer(title: "settings_title".exampleLocalized, showsNavigationBar: true) {
             VStack(alignment: .leading, spacing: CYAppDimens.marginL) {
                 themeSection(appState: appState)
                 languageSection
@@ -28,10 +28,10 @@ struct SettingsView: View {
 
     private func themeSection(appState: CYAppState) -> some View {
         VStack(alignment: .leading, spacing: CYAppDimens.marginS) {
-            CYSectionHeader(title: "外观")
+            CYSectionHeader(title: "settings_appearance".exampleLocalized)
 
             CardView {
-                Picker("主题", selection: Binding(
+                Picker("settings_theme".exampleLocalized, selection: Binding(
                     get: { appState.theme },
                     set: { appState.theme = $0 }
                 )) {
@@ -46,7 +46,7 @@ struct SettingsView: View {
 
     private var languageSection: some View {
         VStack(alignment: .leading, spacing: CYAppDimens.marginS) {
-            CYSectionHeader(title: "语言")
+            CYSectionHeader(title: "settings_language".exampleLocalized)
 
             CardView {
                 VStack(spacing: 0) {
@@ -61,7 +61,7 @@ struct SettingsView: View {
                             },
                             action: {
                                 appState.setLanguage(language.code)
-                                CYToastManager.shared.show("已切换语言", type: .success)
+                                CYToastManager.shared.show("language_changed".exampleLocalized, type: .success)
                             }
                         )
                     }

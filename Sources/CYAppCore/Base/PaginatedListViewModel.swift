@@ -43,6 +43,7 @@ open class CYPaginatedListViewModel<Item: Identifiable & Sendable>: CYBaseViewMo
     
     /// 每页大小
     public var pageSize: Int
+    @ObservationIgnored private var generation = UUID()
     
     /// 是否为空列表（无数据且非加载中）
     public var isEmpty: Bool {
@@ -80,11 +81,15 @@ open class CYPaginatedListViewModel<Item: Identifiable & Sendable>: CYBaseViewMo
     /// 注意：刷新成功前**保留旧数据**，仅在成功后替换，
     /// 避免请求失败时用户看到空白而非原有内容。
     public func refresh() async {
-        hasMore = true
+        let id = UUID()
+        generation = id
+        isLoadingMore = false
         
         await executeTask { [weak self] in
             guard let self else { return }
             let newItems = try await self.fetchPage(page: 1, pageSize: self.pageSize)
+            try Task.checkCancellation()
+            guard self.generation == id else { return }
             self.items = newItems
             self.hasMore = newItems.count >= self.pageSize
             self.currentPage = 1
@@ -98,15 +103,21 @@ open class CYPaginatedListViewModel<Item: Identifiable & Sendable>: CYBaseViewMo
         guard hasMore, !isLoadingMore, !isLoading else { return }
         
         isLoadingMore = true
+        let id = generation
+        error = nil
         let nextPage = currentPage + 1
         
         do {
             let newItems = try await fetchPage(page: nextPage, pageSize: pageSize)
+            try Task.checkCancellation()
+            guard generation == id else { return }
             items.append(contentsOf: newItems)
             currentPage = nextPage
             hasMore = newItems.count >= pageSize
         } catch {
-            self.error = CYAppError.resolve(error)
+            guard generation == id else { return }
+            let appError = CYAppError.resolve(error)
+            if !appError.isCancellation { self.error = appError }
         }
         
         isLoadingMore = false

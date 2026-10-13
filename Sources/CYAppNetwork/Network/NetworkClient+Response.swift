@@ -29,51 +29,40 @@ extension CYNetworkClient {
         return data
     }
 
-    // MARK: - 原始拉取（内部，不含业务码判定 / 不含刷新重试）
+    // MARK: - Envelope 拉取
 
-    /// 仅负责「发送 → 解码 CYAPIResponse<T>」并映射底层错误，
-    /// 业务码判定（成功 / 失败 / Token 过期 / 重新登录）交由上层 `resolveData`。
-    func fetchRaw<T: Decodable>(
+    /// 发送、解码并判定业务码；仅传输/解码/业务失败包装响应上下文。
+    /// 响应拦截器由上层在终态执行，避免抛错后被重复执行。
+    func fetchEnvelope<T: Decodable & Sendable>(
         _ endpoint: CYEndpoint,
         urlRequest: URLRequest
-    ) async throws -> CYAPIResponse<T> {
+    ) async throws -> (value: T, response: URLResponse?, data: Data?) {
         var urlRequest = urlRequest
-        try await self.applyRequestInterceptors(to: &urlRequest, authentication: endpoint.authentication)
-
+        try await applyRequestInterceptors(to: &urlRequest, authentication: endpoint.authentication)
         let dataTask = session.request(urlRequest)
             .validate(statusCode: 200..<300)
-            .serializingDecodable(CYAPIResponse<T>.self, decoder: self.makeDecoder(for: endpoint))
-
+            .serializingDecodable(CYAPIResponse<T>.self, decoder: makeDecoder(for: endpoint))
+        let response = await dataTask.response
         do {
-            let apiResponse = try await self.decodeAPIResponse(from: dataTask)
-            let response = await dataTask.response
-            try await self.applyResponseInterceptors(response.response, data: response.data)
-            return apiResponse
+            // HTTP 空响应无需伪造业务码，也不受 successCodes 配置影响。
+            if T.self == CYEmptyResponse.self,
+               let status = response.response?.statusCode, (204...205).contains(status),
+               response.data?.isEmpty ?? true,
+               let empty = CYEmptyResponse() as? T {
+                if let error = response.error {
+                    // 仅绕过空 envelope 的序列化失败，保留取消等传输错误。
+                    guard case .responseSerializationFailed = error else { throw error }
+                }
+                return (empty, response.response, response.data)
+            }
+            let envelope = try await dataTask.value
+            return (try resolveData(envelope), response.response, response.data)
         } catch {
-            let response = await dataTask.response
-            // 解码/网络失败：携带终态响应抛出，由上层（performRequest / sendDirect）在终态应用响应拦截器
             throw NetworkFailure(
-                cyError: self.mapNetworkError(error, data: response.data),
-                response: response.response,
-                data: response.data
+                cyError: mapNetworkError(error, data: response.data),
+                response: response.response, data: response.data
             )
         }
-    }
-
-    /// 解码 `CYAPIResponse<T>`；204/205 空响应体仅在 `T == CYEmptyResponse` 时视为成功
-    /// （合成空 envelope，避免 Alamofire 对非 `EmptyResponse` 类型抛 `.invalidEmptyResponse`）。
-    private func decodeAPIResponse<T: Decodable>(
-        from dataTask: DataTask<CYAPIResponse<T>>
-    ) async throws -> CYAPIResponse<T> {
-        if T.self == CYEmptyResponse.self {
-            let response = await dataTask.response
-            if let statusCode = response.response?.statusCode,
-               (204...205).contains(statusCode),
-               response.data?.isEmpty ?? true {
-                return CYAPIResponse(code: 0, data: nil, message: nil)
-            }
-        }
-        return try await dataTask.value
     }
 
     /// 直接解码响应体为 `T`（envelopeRaw / direct / empty 策略共用），

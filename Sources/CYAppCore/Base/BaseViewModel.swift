@@ -41,6 +41,7 @@ open class CYBaseViewModel {
     // MARK: - 私有属性
     
     private var retryAction: (() async -> Void)?
+    @ObservationIgnored private var taskID = UUID()
     
     // MARK: - 初始化
     
@@ -58,13 +59,19 @@ open class CYBaseViewModel {
     /// 3. 成功 → `isLoading = false`
     /// 4. 失败 → `isLoading = false`，设置 `error`，保存重试闭包
     public func executeTask(_ action: @escaping () async throws -> Void) async {
+        let id = UUID()
+        taskID = id
         isLoading = true
         error = nil
+        retryAction = nil
         
         do {
             try await action()
+            try Task.checkCancellation()
+            guard taskID == id else { return }
             isLoading = false
         } catch {
+            guard taskID == id else { return }
             isLoading = false
             let appError = CYAppError.resolve(error)
             // 请求取消（Task 取消 / URLSession 取消）属于预期内终止，不展示错误

@@ -26,12 +26,22 @@ final class BookmarkViewModel: CYBaseViewModel {
     }
 
     func delete(_ item: BookmarkItem) {
+        delete([item])
+    }
+
+    func delete(at offsets: IndexSet) {
+        // 取原数组快照，避免每次删除后刷新数组导致后续索引失效。
+        delete(offsets.compactMap { bookmarks.indices.contains($0) ? bookmarks[$0] : nil })
+    }
+
+    private func delete(_ items: [BookmarkItem]) {
+        guard !items.isEmpty else { return }
         do {
-            try repository.delete(item)
+            try repository.delete(items)
             bookmarks = try repository.fetch(predicate: nil)
-            CYToastManager.shared.show("已删除", type: .info)
+            CYToastManager.shared.show("bookmark_deleted".exampleLocalized, type: .info)
         } catch {
-            CYToastManager.shared.show("删除失败", type: .error)
+            CYToastManager.shared.show("bookmark_delete_failed".exampleLocalized, type: .error)
         }
     }
 }

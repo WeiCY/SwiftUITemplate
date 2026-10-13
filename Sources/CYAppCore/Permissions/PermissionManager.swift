@@ -50,6 +50,7 @@ public final class CYPermissionManager {
     
     /// 注册自定义权限请求器
     public func register(_ type: CYPermissionType, requester: any CYPermissionRequester) {
+        ensureRegistered()
         requesters[type] = requester
     }
     

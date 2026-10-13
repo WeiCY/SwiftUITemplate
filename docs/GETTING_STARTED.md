@@ -1,5 +1,7 @@
 # 完整接入指南
 
+> 本文档对应当前主干（含 Unreleased 变更）；使用已发布 tag 时以该 tag 的文档为准。
+>
 > 本文档涵盖从零接入到各模块使用的完整说明。如果只需 5 分钟快速预览，请先阅读 [README](../README.md)。
 
 ---
@@ -14,12 +16,14 @@
 - [6. 高级网络功能](#6-高级网络功能)
 - [7. 模型与解析](#7-模型与解析替代-mjextension)
 - [8. 状态管理](#8-状态管理)
+  - [语言切换与资源包](#语言切换与资源包)
 - [9. 导航路由](#9-导航路由)
 - [10. 缓存](#10-缓存)
 - [11. Keychain 安全存储](#11-keychain-安全存储)
 - [12. 宿主认证](#12-宿主认证)
 - [13. 反馈样式自定义](#13-反馈样式自定义)
 - [14. 组件速查](#14-组件速查)
+  - [系统媒体选择器的视频](#系统媒体选择器的视频)
 - [15. 常见问题](#15-常见问题)
 - [16. 项目特异化指南](#16-项目特异化指南)
 - [17. 模板开发规范](#17-模板开发规范)
@@ -549,6 +553,34 @@ struct SettingsView: View {
 
 > `CYAppState` 只负责主题与语言等全局偏好；User / 登录状态 / 业务 Tab 属于宿主 App，不进入模板 `CYAppState`。
 
+### 语言切换与资源包
+
+`language` 是只读的可观察状态，通过 `appState.setLanguage("zh-Hans")` 修改，
+`resetAll()` 也会同步恢复语言并通知视图。根视图挂 `.id(appState.language)`，需要系统
+控件跟随语言时再挂 `.environment(\.locale, Locale(identifier: appState.language))`。
+
+模板内置文案用 `"action_retry".cyLocalized`，读取 Core 的 `en.lproj` /
+`zh-Hans.lproj`；宿主文案留在宿主的同名资源目录中。SPM 宿主可以参考 ExampleApp：
+
+```swift
+CYLocalizationManager.shared.localized("home_title", bundle: .module)
+```
+
+普通 App target 默认读取 `Bundle.main`。新建 SPM 资源包应声明
+`defaultLocalization: "en"` 和 `.process("Resources")`。需要独立资源与偏好存储时：
+
+```swift
+let manager = CYLocalizationManager(bundle: .module, defaults: myDefaults)
+let appState = CYAppState(localizationManager: manager)
+// 宿主文案也使用同一 manager 读取。
+let title = manager.localized("home_title")
+```
+
+语言匹配保留地区/文字变体；缺少目标语言时回退英语，再回退 key。默认模板的
+`cyLocalized` 使用 `CYLocalizationManager.shared` 的语言；仅注入自定义管理器或在 Factory
+注册实现，不会自动替换这个读取入口。需要两套文案跟随语言时，宿主须同步共享管理器的
+语言，或使用自定义文案/视图。
+
 ### CYBaseViewModel（页面级状态）
 
 单页面的 loading/error/data 放 `CYBaseViewModel` 子类，数据通过注入的 Service 获取：
@@ -583,9 +615,22 @@ final class HomeViewModel: CYBaseViewModel {
 
 ## 9. 导航路由
 
-### 定义路由
+### 定义宿主 Tab 与路由
+
+Tab 和 Route 均由宿主定义，不修改 Core。以下示例使用 home/profile 两个宿主 Tab：
 
 ```swift
+import SwiftUI
+import CYAppCore
+import CYAppUI
+
+enum AppTab: String, CaseIterable, Identifiable {
+    case home, profile
+    var id: CYTabID { CYTabID(rawValue: rawValue) }
+    var title: String { self == .home ? "首页" : "我的" }
+    var icon: String { self == .home ? "house" : "person" }
+}
+
 enum Route: Hashable {
     case productDetail(id: Int)
     case settings
@@ -595,48 +640,56 @@ enum Route: Hashable {
 
 ### 导航操作
 
+以下 router 是宿主持有的同一实例，可通过 Environment 注入子页面：
+
 ```swift
 // 前进
-CYAppRouter.shared.navigate(to: Route.productDetail(id: 123))
+router.navigate(to: Route.productDetail(id: 123))
 
 // 后退
-CYAppRouter.shared.pop()
+router.pop()
 
 // 回到根页面
-CYAppRouter.shared.popToRoot()
+router.popToRoot()
 
 // 跨 Tab 导航（自动切换到目标 Tab）
-CYAppRouter.shared.navigate(to: Route.settings, on: .profile)
+router.navigate(to: Route.settings, on: AppTab.profile.id)
 ```
 
 ### 在 View 中使用
 
 ```swift
 struct RootView: View {
-    @Bindable var router = CYAppRouter.shared
-    @State private var selectedTab = AppTab.home
+    @State private var router = CYAppRouter(
+        tabs: AppTab.allCases.map(\.id),
+        selectedTab: AppTab.home.id
+    )
 
     var body: some View {
-        TabView(selection: $selectedTab) {
+        TabView(selection: Binding(
+            get: { router.selectedTab },
+            set: { router.selectTab($0) }
+        )) {
             ForEach(AppTab.allCases) { tab in
                 NavigationStack(path: router.binding(for: tab.id)) {
-                    HomeView()
+                    // 实际项目替换成已注入 ViewModel 的 Feature 根视图。
+                    Text(tab.title)
                         .navigationDestination(for: Route.self) { route in
                             switch route {
                             case .productDetail(let id):
-                                ProductDetailView(id: id)
+                                Text("商品 #\(id)")
                             case .settings:
-                                SettingsView()
+                                Text("设置")
                             case .profile(let userId):
-                                ProfileView(userId: userId)
+                                Text("用户 \(userId)")
                             }
                         }
                 }
                 .tabItem { Label(tab.title, systemImage: tab.icon) }
-                .tag(tab)
+                .tag(tab.id)
             }
         }
-        .onChange(of: selectedTab) { _, tab in router.selectTab(tab.id) }
+        .environment(router)
         .feedbackOverlay()
     }
 }
@@ -663,6 +716,10 @@ let removeResult = await cache.remove(forKey: "access_token", namespace: "Auth")
 ```
 
 缓存目录名可通过 `CYAppConstants.configure(...)` 自定义。
+
+缓存键与 namespace 使用稳定 SHA-256 文件名，namespace 不作为路径拼接。
+nil 与空 namespace 含义一致；`clear(namespace: "")` 与 `clear()` 一样清除全部当前缓存。
+缓存文件格式已升级到 `v2` 子目录，旧缓存会作为未命中处理；SwiftData / Keychain 数据不受影响。
 
 ---
 
@@ -730,6 +787,29 @@ CYFeedbackConfiguration.configure(
 ---
 
 ## 14. 组件速查
+
+### 系统媒体选择器的视频
+
+系统样式使用 `.videos` 或 `.any` 过滤时，视频通过文件导入；例如：
+
+```swift
+CYMediaPicker(style: .system, source: .album, maxSelection: 3, filter: .videos) { items in
+    for item in items where item.isVideo {
+        if let url = item.videoURL {
+            // 使用 url 播放，或复制到宿主目录保存。
+            // 异步使用期间保留 item，避免导入副本提前释放。
+        }
+    }
+} label: {
+    Label("选择视频", systemImage: "video")
+}
+```
+
+返回的视频具有 `isVideo == true`；`videoURL` 提供文件位置，`loadData()` 可读取视频内容。
+`videoURL` 针对系统导入的视频和 `CYMediaItem(videoURL:)`；网格选择器返回的 PHAsset
+仍通过 `asset` 获取，不保证具有文件 URL。
+导入时会复制 PhotosPicker 的临时文件；副本在最后一个媒体项释放后清理。
+需要长期保存时复制到宿主目录。`CYMediaItem(videoURL:)` 不会删除调用方提供的文件。
 
 ### Toast 提示
 

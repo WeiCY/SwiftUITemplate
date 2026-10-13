@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 // MARK: - 缓存管理器
 //
@@ -57,7 +58,8 @@ private actor CacheStorage {
         let base = baseDirectory
             ?? fm.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? fm.temporaryDirectory
-        self.baseCacheDirectory = base.appendingPathComponent(directoryName)
+        // v2 使用摘要文件名；旧缓存自然失效，避免读取有键碰撞风险的旧条目。
+        self.baseCacheDirectory = base.appendingPathComponent(directoryName).appendingPathComponent("v2")
         self.serializer = serializer
 
         if !fm.fileExists(atPath: baseCacheDirectory.path) {
@@ -183,7 +185,7 @@ private actor CacheStorage {
         guard let namespace = namespace, !namespace.isEmpty else {
             return baseCacheDirectory
         }
-        let namespaceDir = baseCacheDirectory.appendingPathComponent(namespace)
+        let namespaceDir = baseCacheDirectory.appendingPathComponent("namespace-" + safeFileName(for: namespace))
         if !FileManager.default.fileExists(atPath: namespaceDir.path) {
             do {
                 try FileManager.default.createDirectory(at: namespaceDir, withIntermediateDirectories: true)
@@ -195,7 +197,7 @@ private actor CacheStorage {
     }
 
     private func safeFileName(for key: String) -> String {
-        return key.replacingOccurrences(of: "/", with: "_")
+        SHA256.hash(data: Data(key.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
     private func registerMemoryKey(_ safeKey: String, namespace: String?) {
@@ -249,7 +251,7 @@ public final class CYCacheManager: Sendable {
     @discardableResult
     public func save<T: Codable & Sendable>(value: T, forKey key: String, namespace: String? = nil, ttl: TimeInterval? = nil) async -> Result<Void, CYCacheError> {
         do {
-            try await storage.save(value: value, forKey: key, namespace: namespace, ttl: ttl)
+            try await storage.save(value: value, forKey: key, namespace: normalized(namespace), ttl: ttl)
             return .success(())
         } catch let error as CYCacheError {
             CYLogger.cache.error("Failed to save cache entry for key: \(key)", error: error)
@@ -267,14 +269,14 @@ public final class CYCacheManager: Sendable {
     ///   - namespace: 命名空间
     /// - Returns: 缓存对象，不存在或已过期时返回 nil
     public func load<T: Codable & Sendable>(forKey key: String, namespace: String? = nil) async -> T? {
-        await storage.load(forKey: key, namespace: namespace)
+        await storage.load(forKey: key, namespace: normalized(namespace))
     }
 
     /// 移除指定缓存项
     @discardableResult
     public func remove(forKey key: String, namespace: String? = nil) async -> Result<Void, CYCacheError> {
         do {
-            try await storage.remove(forKey: key, namespace: namespace)
+            try await storage.remove(forKey: key, namespace: normalized(namespace))
             return .success(())
         } catch let error as CYCacheError {
             CYLogger.cache.error("Failed to remove cache entry for key: \(key)", error: error)
@@ -289,7 +291,7 @@ public final class CYCacheManager: Sendable {
     @discardableResult
     public func clear(namespace: String? = nil) async -> Result<Void, CYCacheError> {
         do {
-            try await storage.clear(namespace: namespace)
+            try await storage.clear(namespace: normalized(namespace))
             return .success(())
         } catch let error as CYCacheError {
             CYLogger.cache.error("Failed to clear cache", error: error)
@@ -297,5 +299,9 @@ public final class CYCacheManager: Sendable {
         } catch {
             return .failure(.fileSystem(error))
         }
+    }
+
+    private func normalized(_ namespace: String?) -> String? {
+        namespace?.isEmpty == true ? nil : namespace
     }
 }

@@ -120,6 +120,15 @@ extension CYNetworkClient {
         }
     }
 
+    /// 凭证恢复链路的终态成功出口；保留拦截器错误来源，防止错误被当成请求认证失败重放。
+    func applyFinalResponseInterceptors(_ response: URLResponse?, data: Data?) async throws {
+        do {
+            try await applyResponseInterceptors(response, data: data)
+        } catch {
+            throw ResponseInterceptorFailure(error: error)
+        }
+    }
+
     // MARK: - 错误日志
 
     /// 终态失败时输出带上下文的错误日志（所有出口统一调用）

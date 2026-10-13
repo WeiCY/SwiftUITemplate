@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "CYSwiftTemplate",
+    defaultLocalization: "en",
     platforms: [
         .iOS(.v18),
         .macOS(.v15)
@@ -105,6 +106,11 @@ let package = Package(
             dependencies: ["CYAppPersistence"],
             path: "Sources/CYAppPersistenceTests"
         ),
+        .testTarget(
+            name: "ExampleAppTests",
+            dependencies: ["ExampleApp", "CYAppCore", "CYAppPersistence"],
+            path: "Sources/ExampleAppTests"
+        ),
         // 可运行 Demo（业务接入参考）
         .executableTarget(
             name: "ExampleApp",
@@ -118,7 +124,8 @@ let package = Package(
                 "CYAppPersistence",
                 .product(name: "FactoryKit", package: "Factory"),
             ],
-            path: "ExampleApp/Sources"
+            path: "ExampleApp/Sources",
+            resources: [.process("Resources")]
         ),
     ],
     swiftLanguageModes: [.v6]

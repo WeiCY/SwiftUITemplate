@@ -22,7 +22,7 @@ import CYAppCore
 ///
 /// ## 多语言系统
 ///
-/// `language` 为计算属性，实际状态由 `CYLocalizationManager` 管理。
+/// `language` 为可观察状态，通过 `setLanguage` 与注入的管理器同步。
 /// 切换语言后 SwiftUI 视图需配合 `.id(appState.language)` 刷新。
 /// ```swift
 /// appState.setLanguage("zh-Hans")
@@ -65,14 +65,13 @@ public final class CYAppState {
     
     // MARK: - 多语言
     
-    /// 当前语言代码（只读，实际状态由 CYLocalizationManager 管理）
-    public var language: String {
-        localizationManager.currentLanguage
-    }
+    /// 当前语言代码；通过 setLanguage 修改，自动通知观察此值的视图。
+    public private(set) var language: String
     
     /// 切换 App 语言
     public func setLanguage(_ languageCode: String) {
         localizationManager.setLanguage(languageCode)
+        language = localizationManager.currentLanguage
     }
     
     // MARK: - 初始化
@@ -89,12 +88,13 @@ public final class CYAppState {
         self.themeManager = themeManager
         self.localizationManager = localizationManager
         self.theme = themeManager.savedTheme()
-        _ = localizationManager.restore()
+        self.language = localizationManager.restore()
     }
 
     /// 重置模板管理的外观和语言偏好。
     public func resetAll() {
         self.theme = .system
         localizationManager.resetToSystem()
+        language = localizationManager.currentLanguage
     }
 }

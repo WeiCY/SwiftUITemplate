@@ -1,6 +1,8 @@
 # CYSwiftTemplate
 
-iOS SwiftUI 工程模板 —— 协议驱动、按需引入、Swift 6 并发安全。
+iOS SwiftUI 工程模板 —— 协议驱动、按需引入、采用 Swift 6。
+
+> 文档对应当前仓库主干；`Unreleased` 中的能力尚未发布，使用已发布 tag 时请阅读该 tag 的文档。
 
 面向个人开发和中小型团队的 SwiftUI 模板底座，目标是让新项目能快速接入、风格统一、长期迭代。开始使用前建议先阅读 [docs/TEMPLATE_RULES.md](docs/TEMPLATE_RULES.md) 了解规则，再查看 [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) 完成接入。
 
@@ -61,6 +63,11 @@ struct MyApp: App {
 `ExampleApp/Sources/App/AppBootstrap.swift`。旧的 `CYAppConfiguration` 网络命名空间仍保留
 为兼容 API，新代码应使用 `CYNetworkConfiguration`。
 
+语言通过 `appState.setLanguage(...)` 切换，`language` 会通知 SwiftUI；模板文案来自包内
+`en.lproj` / `zh-Hans.lproj`，宿主文案使用宿主自己的资源。`CYLocalizationManager` 支持注入
+`bundle` / `defaults`，详见接入指南。系统媒体选择器支持图片和视频，视频通过
+`CYMediaItem.videoURL` 访问；使用文件期间应保留媒体项或复制到宿主目录。
+
 > 完整接入说明（网络 / 缓存 / Keychain / 主题 / 特异化等）请阅读 [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)。
 
 ---
@@ -108,7 +115,7 @@ Layer 2  CYAppUI (AppState/Router/反馈视图)
 - **可选凭证机制**：公开/可选/强制鉴权按端点声明，宿主决定凭证格式与恢复逻辑
 - **请求去重**：Actor 隔离，防止快速点击重复请求
 - **协议驱动 DI**：基于 Factory，所有服务可替换，全套 Mock 实现
-- **Swift 6 并发安全**：全量 `Sendable`、`@MainActor`、`actor` 隔离
+- **Swift 6 并发模型**：使用 `Sendable`、`@MainActor`、`actor` 与锁管理共享状态
 - **SwiftUI 状态管理**：`@Observable` + `NavigationStack` + 多 Tab Router
 
 ---

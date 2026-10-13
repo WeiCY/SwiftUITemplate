@@ -14,12 +14,15 @@
 - [x] 目录结构与主干代码审查完成
 - [x] 网络层重构，随 1.1.0 发布
 - [x] 1.2.0 App Factory 基线（DI 能力拆分 + ExampleApp 接入范例）
-- [ ] 后续：测试补强、iOS 运行级测试、Logger subsystem 可配置
+- [x] 当前主干稳定性修复与行为回归（2026-10-13，Unreleased）
+- [ ] 后续：真实 App / 真机流程、测试补强、Logger subsystem 可配置
 
 ### 现阶段说明
 
+- **当前主干（Unreleased，2026-10-13）**：修复语言、分页、缓存、请求去重、权限、网络空响应/拦截器、图片/视频和示例删除问题；新增对应回归测试。macOS 测试、iOS Library/ExampleApp/测试目标交叉编译、模拟器视频文件生命周期测试已验证，结果见 [CHANGELOG](../CHANGELOG.md#unreleased)。实际相册交互、签名和真机流程仍待验收。
+
 - **1.2.0（2026-10-09）已发布**：`networkClient` 拆分为可选能力协议 `NetworkProviding`；ExampleApp 重构为真实接入范例（网络 / loading / error / retry / 路由 / SwiftData / 设置），
-  当前 Package 测试全部通过（数量见 [CHANGELOG](../CHANGELOG.md)）。
+  发布时的 Package 测试通过（数量见 CHANGELOG 的 1.2.0 记录）；当前主干验证见 Unreleased。
 - **网络层能力升级（1.1.0，2026-08-23）已完成**：`CYResponseStrategy` + `send` API、`requestVoid`/`requestData`/泛型 `request(body:)`、`upload(parts:)` 多文件上传、上传/下载进度与取消传播、`.cancelled` 取消识别、日志脱敏、Token 刷新边界、空响应/204 支持。详见 [CHANGELOG](../CHANGELOG.md) 与 [归档：网络重构执行记录](./archive/NETWORK_REFACTOR_PLAN.md)。
 - 发布质量修整（原 1.0.1 计划）内容已提前完成并随 1.1.0 发布：FactoryKit 依赖显式声明、`CYAppConstants` 可注入配置、Keychain 错误处理 `Result` + `kSecAttrAccessible` 配置、缓存错误可观测、SwiftLint 版本固定。
 - 测试隔离：`CYAppState` 测试注入内存版主题/多语言管理器替身并清理 UserDefaults 持久化键，跨用例、跨运行可复现；iOS Simulator 构建改为 `swift build --sdk/--triple` 交叉编译验证（无需 `.xcodeproj`）。
@@ -41,12 +44,13 @@
 
 ## 版本对比矩阵
 
-| 版本 | 状态 | 测试数量 | 覆盖率 | 组件数量 | 平台支持 |
-|---|---|---|---|---|---|
-| 1.0.0 | 已发布 (2026-08-10) | 98 | ~60% | 30+ | iOS 18, macOS 15 |
-| 1.1.0 | 已发布 (2026-08-23) | 156 | ~70% | 35+ | iOS 18, macOS 15 |
-| 1.2.0 | 已发布 (2026-10-09) | 161 | 75%+ | 40+ | iOS 18, macOS 15 |
-| 后续 | 真实需求驱动（不预设测试/组件数量） | — | — | — | iOS 18, macOS 15（visionOS 视需求） |
+| 版本 | 状态 | 测试数量 | 组件数量 | 平台支持 |
+|---|---|---|---|---|
+| 1.0.0 | 已发布 (2026-08-10) | 98 | 30+ | iOS 18, macOS 15 |
+| 1.1.0 | 已发布 (2026-08-23) | 156 | 35+ | iOS 18, macOS 15 |
+| 1.2.0 | 已发布 (2026-10-09) | 161 | 40+ | iOS 18, macOS 15 |
+| Unreleased | 当前主干 | 见 CHANGELOG | — | iOS 18, macOS 15 |
+| 后续 | 真实需求驱动（不预设测试/组件数量） | — | — | iOS 18, macOS 15（visionOS 视需求） |
 
 > 1.0.1 计划已取消：其内容（可配置默认值、Keychain/缓存错误可观测、FactoryKit 依赖显式化等）已完成并随 1.1.0 发布。
 
@@ -84,12 +88,12 @@
 
 | 任务 | 状态 |
 |---|---|
-| 网络层测试覆盖率 70%+ | ✅ `NetworkRegressionTests`（34 条）+ `MockNetworkClientTests`，上传/下载/拦截器/取消/去重均有确定性测试（URLProtocol mock） |
-| 固定工具链 | ✅ SwiftLint 0.59.1 固定；CI 使用固定 Xcode |
+| 网络关键路径回归 | ✅ `NetworkRegressionTests`（34 条）+ `MockNetworkClientTests`，上传/下载/拦截器/取消/去重均有确定性测试（URLProtocol mock） |
+| 工具链选择 | ✅ SwiftLint 0.59.1 固定；CI 选择运行器的 `/Applications/Xcode.app`，未固定 Xcode 具体版本 |
 | iOS CI | ✅ 已修复（2026-09-02）：改为 `swift build --sdk/--triple` 交叉编译验证 iOS Simulator 目标，无需 `.xcodeproj`，本地已验证通过 |
-| 图片层测试 | ⬜ 移至后续 |
-| 权限管理测试 | ⬜ 移至后续 |
-| 持久化测试 | ⬜ 部分完成（通用 Repository CRUD 1 条），移至后续补强 |
+| 图片层测试 | 部分完成（Unreleased）：资源切换与旧加载结果隔离；Kingfisher 实现测试待补 |
+| 权限管理测试 | 部分完成（Unreleased）：自定义 requester 注册覆盖回归；系统授权流程待补 |
+| 持久化测试 | 部分完成：通用 Repository CRUD 与 ExampleApp 批量删除；迁移/错误路径待补 |
 | 隔离全局单例 | ⬜ 移至后续 |
 
 ---
@@ -145,9 +149,9 @@
 | ~~P1~~ | ✅ iOS Simulator CI 构建步骤已修复（2026-09-02，改为 `swift build` 交叉编译，无需 `.xcodeproj`） | 已完成 |
 | ~~P2~~ | ✅ `ExampleApp` 已重构为真实接入范例（网络 / 状态 / 路由 / 持久化 / 设置，1.2.0） | 已完成 |
 | P2 | `OSLog` subsystem/category 仍无法由宿主统一配置 | 后续 |
-| P2 | 图片层 / 权限管理 / 持久化测试不足；反馈管理器（Toast/Loading/Alert）与 DI 容器无统一测试隔离（AppState/主题/语言隔离已于 2026-09-02 修复） | 后续 |
-| P2 | iOS 运行级测试尚未覆盖 | 后续 |
-| P2 | macOS/iOS 构建矩阵仍缺少正式验证记录 | 后续 |
+| P2 | 图片加载实现、系统权限流程与持久化迁移/错误路径仍需补测；反馈管理器（Toast/Loading/Alert）与 DI 容器无统一测试隔离（AppState/主题/语言隔离已于 2026-09-02 修复） | 后续 |
+| P2 | 模拟器视频文件测试已覆盖，真实相册交互、App 生命周期和真机流程仍待验证 | 后续 |
+| P2 | 本机 macOS / iOS 编译验证已记录；CI 仍需补 iOS 测试编译与运行矩阵 | 后续 |
 
 ---
 

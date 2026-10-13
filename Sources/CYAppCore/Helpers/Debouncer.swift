@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // MARK: - 防抖器 (CYDebouncer)
 //
@@ -13,33 +14,44 @@ import Foundation
 // }
 // ```
 
-public final class CYDebouncer: @unchecked Sendable {
-    
+public final class CYDebouncer: Sendable {
+    private struct Pending {
+        let id: UUID
+        let item: DispatchWorkItem
+    }
+    // DispatchWorkItem 非 Sendable，私有状态只在锁内读写，且从不返回锁外。
+    private let pending = OSAllocatedUnfairLock(uncheckedState: nil as Pending?)
     private let delay: TimeInterval
-    private var workItem: DispatchWorkItem?
     private let queue: DispatchQueue
-    
-    /// - 参数：
-    ///   - delay: 防抖延迟时间（秒）
-    ///   - queue: 执行队列（默认主线程）
+
     public init(delay: TimeInterval, queue: DispatchQueue = .main) {
-        self.delay = delay
+        self.delay = max(0, delay)
         self.queue = queue
     }
-    
-    /// 调度新的防抖操作，之前的待执行操作会被取消
+
     public func debounce(action: @escaping @Sendable () -> Void) {
-        workItem?.cancel()
-        
-        let item = DispatchWorkItem(block: action)
-        workItem = item
-        queue.asyncAfter(deadline: .now() + delay, execute: item)
+        pending.withLock { current in
+            current?.item.cancel()
+            let id = UUID()
+            let item = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                let shouldRun = self.pending.withLock { current in
+                    guard current?.id == id else { return false }
+                    current = nil
+                    return true
+                }
+                if shouldRun { action() }
+            }
+            current = Pending(id: id, item: item)
+            queue.asyncAfter(deadline: .now() + delay, execute: item)
+        }
     }
-    
-    /// 取消待执行的防抖操作
+
     public func cancel() {
-        workItem?.cancel()
-        workItem = nil
+        pending.withLock { current in
+            current?.item.cancel()
+            current = nil
+        }
     }
 }
 
@@ -56,44 +68,57 @@ public final class CYDebouncer: @unchecked Sendable {
 // }
 // ```
 
-public final class CYThrottler: @unchecked Sendable {
-    
+public final class CYThrottler: Sendable {
+    private struct State {
+        var lastExecution: TimeInterval?
+        var trailingID: UUID?
+        var trailingWorkItem: DispatchWorkItem?
+    }
+    // 状态只在锁内访问；调用方闭包在释放锁后由 queue 执行。
+    private let state = OSAllocatedUnfairLock(uncheckedState: State())
     private let interval: TimeInterval
-    private var lastExecution: Date?
     private let queue: DispatchQueue
-    private var trailingWorkItem: DispatchWorkItem?
-    
+
     public init(interval: TimeInterval, queue: DispatchQueue = .main) {
-        self.interval = interval
+        self.interval = max(0, interval)
         self.queue = queue
     }
-    
+
     public func throttle(trailing: Bool = false, action: @escaping @Sendable () -> Void) {
-        let now = Date()
-        
-        if let last = lastExecution, now.timeIntervalSince(last) < interval {
-            if trailing {
-                trailingWorkItem?.cancel()
-                let remaining = interval - now.timeIntervalSince(last)
+        state.withLock { state in
+            let now = ProcessInfo.processInfo.systemUptime
+            if let last = state.lastExecution, now - last < interval {
+                guard trailing else { return }
+                state.trailingWorkItem?.cancel()
+                let id = UUID()
                 let item = DispatchWorkItem { [weak self] in
-                    self?.lastExecution = Date()
-                    action()
+                    guard let self else { return }
+                    let shouldRun = self.state.withLock { state in
+                        guard state.trailingID == id else { return false }
+                        state.trailingID = nil
+                        state.trailingWorkItem = nil
+                        state.lastExecution = ProcessInfo.processInfo.systemUptime
+                        return true
+                    }
+                    if shouldRun { action() }
                 }
-                trailingWorkItem = item
-                queue.asyncAfter(deadline: .now() + remaining, execute: item)
+                state.trailingID = id
+                state.trailingWorkItem = item
+                queue.asyncAfter(deadline: .now() + interval - (now - last), execute: item)
+            } else {
+                state.trailingWorkItem?.cancel()
+                state.trailingID = nil
+                state.trailingWorkItem = nil
+                state.lastExecution = now
+                queue.async(execute: action)
             }
-            return
         }
-        
-        trailingWorkItem?.cancel()
-        trailingWorkItem = nil
-        lastExecution = now
-        queue.async(execute: action)
     }
-    
+
     public func reset() {
-        lastExecution = nil
-        trailingWorkItem?.cancel()
-        trailingWorkItem = nil
+        state.withLock { state in
+            state.trailingWorkItem?.cancel()
+            state = State()
+        }
     }
 }

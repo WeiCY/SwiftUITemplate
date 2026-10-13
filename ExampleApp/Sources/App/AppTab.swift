@@ -13,9 +13,9 @@ enum AppTab: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .home: "文章"
-        case .bookmarks: "收藏"
-        case .settings: "设置"
+        case .home: "home_title".exampleLocalized
+        case .bookmarks: "bookmarks_title".exampleLocalized
+        case .settings: "settings_title".exampleLocalized
         }
     }
 

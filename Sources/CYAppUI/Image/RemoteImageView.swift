@@ -1,15 +1,16 @@
 import SwiftUI
+import Observation
 import CYAppCore
 import CYAppDesignSystem
 
 #if canImport(UIKit)
 import UIKit
 
-private typealias CYPlatformImage = UIImage
+typealias CYPlatformImage = UIImage
 #elseif canImport(AppKit)
 import AppKit
 
-private typealias CYPlatformImage = NSImage
+typealias CYPlatformImage = NSImage
 #endif
 
 private extension Image {
@@ -35,9 +36,6 @@ public struct CYRemoteImageView: View {
     let retryDelay: TimeInterval
     let errorRetryTitle: String
 
-    @State private var loadedImage: CYPlatformImage?
-    @State private var error: Error?
-
     public init(
         url: URL?,
         placeholder: Image? = nil,
@@ -57,23 +55,47 @@ public struct CYRemoteImageView: View {
     }
 
     public var body: some View {
+        RemoteImageContent(
+            url: url, placeholder: placeholder, contentMode: contentMode,
+            imageLoader: imageLoader, maxRetries: max(0, maxRetries),
+            retryDelay: max(0, retryDelay), errorRetryTitle: errorRetryTitle
+        )
+        // URL 是资源身份：更换 URL 时立即销毁旧图片、错误和重试状态。
+        .id(url)
+    }
+}
+
+private struct RemoteImageContent: View {
+    let url: URL?
+    let placeholder: Image?
+    let contentMode: SwiftUI.ContentMode
+    let imageLoader: CYImageLoaderProtocol
+    let maxRetries: Int
+    let retryDelay: TimeInterval
+    let errorRetryTitle: String
+    @State private var state = CYRemoteImageLoadState()
+    @State private var retryID = UUID()
+
+    public var body: some View {
         ZStack {
-            if let loadedImage {
+            if let loadedImage = state.loadedImage {
                 Image(cyPlatformImage: loadedImage)
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
-            } else if error != nil {
+            } else if state.error != nil {
                 errorView
             } else if let placeholder {
                 placeholder
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
+            } else if url == nil {
+                Color.clear
             } else {
                 ProgressView()
             }
         }
-        .task(id: url) {
-            await loadImage()
+        .task(id: retryID) {
+            await state.load(url: url, imageLoader: imageLoader, maxRetries: maxRetries, retryDelay: retryDelay)
         }
     }
 
@@ -88,27 +110,40 @@ public struct CYRemoteImageView: View {
                 .font(CYAppFont.caption)
                 .foregroundStyle(CYAppColor.textSecondary)
             Button(errorRetryTitle.cyLocalized) {
-                Task { await loadImage() }
+                retryID = UUID()
             }
             .font(CYAppFont.caption)
         }
     }
 
+}
+
+/// 加载状态单独管理请求身份，防止被取消但未立即退出的加载器提交旧结果。
+@MainActor
+@Observable
+final class CYRemoteImageLoadState {
+    private(set) var loadedImage: CYPlatformImage?
+    private(set) var error: Error?
+    @ObservationIgnored private var requestID = UUID()
+
     // MARK: - 私有方法
 
     /// 加载图片，最多重试 `maxRetries` 次（线性退避）。
     /// 循环代替递归以避免栈增长，并在每次重试前检查 `Task.isCancelled`。
-    private func loadImage() async {
-        guard let url else { return }
+    func load(url: URL?, imageLoader: CYImageLoaderProtocol, maxRetries: Int, retryDelay: TimeInterval) async {
+        let id = UUID()
+        requestID = id
+        loadedImage = nil
         error = nil
+        guard let url else { return }
 
         var attempt = 0
-        while attempt <= maxRetries {
-            if Task.isCancelled { return }
+        while attempt <= max(0, maxRetries) {
+            if Task.isCancelled || requestID != id { return }
 
             do {
                 let data = try await imageLoader.loadImage(from: url)
-                if Task.isCancelled { return }
+                if Task.isCancelled || requestID != id { return }
                 if let image = Self.makeImage(from: data) {
                     loadedImage = image
                     error = nil
@@ -120,12 +155,12 @@ public struct CYRemoteImageView: View {
                     userInfo: [NSLocalizedDescriptionKey: "image_decode_failed".cyLocalized]
                 )
             } catch {
-                if Task.isCancelled { return }
+                if Task.isCancelled || requestID != id { return }
                 self.error = error
                 attempt += 1
-                if attempt <= maxRetries {
+                if attempt <= max(0, maxRetries) {
                     do {
-                        let delay = retryDelay * TimeInterval(attempt)
+                        let delay = max(0, retryDelay) * TimeInterval(attempt)
                         try await Task.sleep(for: .seconds(delay))
                     } catch {
                         return

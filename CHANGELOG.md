@@ -10,6 +10,25 @@
 
 ### [Unreleased]
 
+#### 稳定性修复（2026-10-13）
+
+- 修复 `CYAppState.language` 不通知 Observation；切换与重置语言同步到可观察状态
+- Core 与 ExampleApp 本地化资源改为 `en.lproj` / `zh-Hans.lproj`；模板文案按选定语言读取，示例界面文案迁入宿主资源
+- `CYLocalizationManager` 新增可注入 `bundle` / `defaults` / `systemLanguages` 的初始化与指定资源包的 `localized` 重载
+- 分页请求增加代次校验，防止刷新后混入旧分页数据/错误；刷新失败保留分页元信息，取消不展示错误
+- `CYBaseViewModel` 忽略旧任务的 loading/error 收尾，成功后不保留过期重试闭包
+- 缓存键与 namespace 改用 SHA-256 文件名，nil/空 namespace 统一；缓存格式升级到 v2，旧缓存自然失效
+- 去重键采用结构化稳定编码，覆盖 query/body/headers/authentication，Encodable 指纹使用端点编码策略；任务按结果类型及登记身份隔离
+- 自定义权限注册不再被首次默认注册覆盖
+- HTTP 204/205 空响应直接返回 `CYEmptyResponse`，不依赖业务成功码包含 0
+- 响应拦截器终态执行一次，拦截器错误不触发成功请求重放；下载成功分支不再吞掉拦截器错误
+- 远程图片按 URL 重置状态，旧加载结果不能覆盖当前资源，nil URL 显示占位/空内容
+- 防抖与节流的全部可变状态受锁保护，调用方 action 在锁外执行
+- 系统媒体选择器支持视频 FileRepresentation 导入；新增 `CYMediaItem(videoURL:)` 与 `videoURL`，导入副本随媒体项生命周期清理
+- ExampleApp 批量删除采用对象快照并统一保存/刷新；TabView 双向绑定 Router 的选中 Tab
+- 新增 ExampleApp 测试目标与 Observation、分页交错、去重碰撞/取消、缓存隔离、本地化、工具并发、图片身份和视频文件生命周期回归测试
+- 验证：macOS 185 个测试全部通过；iOS Library / ExampleApp / 测试目标交叉编译通过；iPhone 17（iOS 26.5）模拟器的 2 个视频文件生命周期测试通过
+
 #### ExampleApp（一致性收尾）
 
 - `ArticleService` 移除默认参数，改由组合根显式注入，不再引用 Legacy Facade `CYAppContainer.shared`
@@ -17,6 +36,12 @@
 - 长期文档（`README` 等）不再写死测试数量，统一引用 CHANGELOG
 
 #### 文档
+
+- 统一当前主干 / Unreleased 与已发布 tag 的文档适用边界
+- 接入指南补完整视频调用示例与文件所有权、默认/自定义本地化读取入口说明
+- 网络指南校准响应链路顺序、204/205 与业务成功码边界、终态拦截器错误规则
+- ROADMAP 同步已完成回归与模拟器文件测试，区分真实相册/真机待验收项；工具链描述与 CI 实际选择对齐
+- DocC 移除过期认证 Mock/权限/本地化符号，补 URLSession 默认图片实现、宿主业务边界；架构目录树与当前 Sources/ExampleApp 对齐
 
 - 收敛文档结构：旧 `REVIEW` 与 `NETWORK_REFACTOR_PLAN` 归档至 `docs/archive/`；新增轻量 [docs/REVIEW.md](docs/REVIEW.md)（1.2.x 评测结论，随版本更新）
 - `APP_FACTORY_GUIDE` 内容合并进 `TEMPLATE_RULES`（模块选择 / 宿主目录 / 新 App 工作流 / 边界 / 验收清单）与 `README`，移除独立文件

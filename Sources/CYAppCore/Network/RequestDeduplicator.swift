@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 // MARK: - 网络请求去重协调器
 
@@ -28,12 +29,17 @@ import Foundation
 public actor CYRequestDeduplicator {
 
     /// 存储正在执行的任务（使用类型擦除的 Task 包装）
-    private var tasks: [String: TaskWrapper] = [:]
+    private struct TaskKey: Hashable {
+        let key: String
+        let resultType: ObjectIdentifier
+    }
+    private var tasks: [TaskKey: TaskWrapper] = [:]
 
     public init() {}
 
     /// Task 包装器（用于类型擦除，标记为 @unchecked Sendable）
     private struct TaskWrapper: @unchecked Sendable {
+        let id = UUID()
         private let _task: Any
         let cancel: @Sendable () -> Void
 
@@ -62,7 +68,8 @@ public actor CYRequestDeduplicator {
         key: String,
         action: @escaping @Sendable () async throws -> T
     ) async throws -> T {
-        if let wrapper = tasks[key],
+        let taskKey = TaskKey(key: key, resultType: ObjectIdentifier(T.self))
+        if let wrapper = tasks[taskKey],
            let existingTask = wrapper.getTask(as: T.self) {
             return try await existingTask.value
         }
@@ -71,23 +78,20 @@ public actor CYRequestDeduplicator {
             try await action()
         }
 
-        tasks[key] = TaskWrapper(task)
-
-        do {
-            let result = try await task.value
-            tasks[key] = nil
-            return result
-        } catch {
-            tasks[key] = nil
-            throw error
+        let wrapper = TaskWrapper(task)
+        tasks[taskKey] = wrapper
+        defer {
+            // 取消后可能已有同 key 的替代任务，只移除自己的登记。
+            if tasks[taskKey]?.id == wrapper.id { tasks[taskKey] = nil }
         }
+
+        return try await task.value
     }
 
     /// 取消指定 key 的请求
     public func cancel(key: String) {
-        if let wrapper = tasks[key] {
-            wrapper.cancel()
-            tasks[key] = nil
+        for taskKey in tasks.keys.filter({ $0.key == key }) {
+            tasks.removeValue(forKey: taskKey)?.cancel()
         }
     }
 
@@ -102,35 +106,33 @@ public actor CYRequestDeduplicator {
 
 // MARK: - Endpoint 扩展（自动生成去重键）
 
+private struct DeduplicationQuery: Encodable {
+    let name: String
+    let value: String?
+}
+private struct DeduplicationIdentity: Encodable {
+    let method: String
+    let path: String
+    let query: [DeduplicationQuery]
+    let body: CYRequestParams?
+    let headers: [String: String]?
+    let authentication: String
+}
+
 extension CYEndpoint {
-    /// 生成请求的唯一标识符（用于去重）
-    ///
-    /// 规则：`method + path + queryItems + body 的哈希`
-    ///
-    /// 示例：
-    /// ```swift
-    /// UserEndpoint.profile.deduplicationKey  // "GET:/api/user/profile"
-    /// UserEndpoint.list(page: 2).deduplicationKey  // "GET:/api/user/list?page=2"
-    /// ```
+    /// 结构化编码 method/path/query/body/headers/authentication 后生成稳定摘要。
+    /// query 保留原始顺序及 nil 值，避免重复参数、分隔符和空值被错误合并。
     public var deduplicationKey: String {
-        var components: [String] = [method.rawValue, path]
-        
-        if let queryItems = queryItems, !queryItems.isEmpty {
-            let queryString = queryItems
-                .sorted { $0.name < $1.name }
-                .map { "\($0.name)=\($0.value ?? "")" }
-                .joined(separator: "&")
-            components.append(queryString)
-        }
-        
-        if let body = body, !body.isEmpty {
-            let sortedBody = body.keys.sorted().map { key in
-                "\(key)=\(body[key]?.stableDescription ?? "")"
-            }.joined(separator: "&")
-            components.append(sortedBody)
-        }
-        
-        return components.joined(separator: ":")
+        let identity = DeduplicationIdentity(
+            method: method.rawValue, path: path,
+            query: (queryItems ?? []).map { DeduplicationQuery(name: $0.name, value: $0.value) },
+            body: body, headers: headers, authentication: String(describing: authentication)
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        // 非法 JSON（例如 NaN）不能复用结果；实际请求仍会抛出编码错误。
+        guard let data = try? encoder.encode(identity) else { return UUID().uuidString }
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }
 
@@ -164,14 +166,17 @@ public extension CYNetworkClientProtocol {
         body: B,
         deduplicator: CYRequestDeduplicator
     ) async throws -> T {
-        try await deduplicator.execute(key: endpoint.deduplicationKey + ":body=" + bodyFingerprint(body)) {
+        try await deduplicator.execute(key: endpoint.deduplicationKey + ":body=" + (try bodyFingerprint(body, strategy: endpoint.keyEncodingStrategy))) {
             try await self.request(endpoint, body: body)
         }
     }
 }
 
 /// 生成 Encodable body 的确定性指纹（纳入去重键）
-private func bodyFingerprint<B: Encodable>(_ body: B) -> String {
-    guard let data = try? JSONEncoder().encode(body) else { return "?" }
-    return data.base64EncodedString()
+private func bodyFingerprint<B: Encodable>(_ body: B, strategy: JSONEncoder.KeyEncodingStrategy) throws -> String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    encoder.keyEncodingStrategy = strategy
+    let data = try encoder.encode(body)
+    return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
 }

@@ -1,6 +1,6 @@
 # 网络框架使用指南（CYAppCore + CYAppNetwork）
 
-> 适用版本：1.2.x（Batch 0–16 网络层升级后，协议收敛为 5 个核心要求）。
+> 适用代码：当前主干（1.2.x 基线 + Unreleased 变更）；使用已发布 tag 时以该 tag 的文档为准。
 > 本文档为网络层**唯一权威使用说明**；`GETTING_STARTED.md` 为整体接入入口，遇到网络细节以此为准。
 
 ---
@@ -20,7 +20,8 @@
 
 ```
 CYEndpoint → 构建 URLRequest → 请求拦截器（注入 Header/Token）
-          → 发送 → 响应拦截器（终态）→ 按策略解码 → 业务码判定 → 结果/错误
+          → 发送 → 按策略解码 / 业务码判定 → 必要时恢复凭证并重放
+          → 响应拦截器（仅终态）→ 结果/错误
 ```
 
 ---
@@ -339,7 +340,14 @@ let updated: User = try await networkClient.requestWithDeduplication(
 )
 ```
 
-去重键默认 = `method:path:query:body字典哈希`；`CYRequestDeduplicator.cancel(key:)` / `cancelAll()` 可手动取消。
+去重键由 method/path/query/body/headers/authentication 的结构化编码生成 SHA-256 摘要；
+query 保留顺序和 nil 值，Encodable body 使用端点编码策略和 sortedKeys 生成指纹。
+仅合并正在执行的同 key、同结果类型请求，没有固定时间窗口。
+`CYRequestDeduplicator.cancel(key:)` / `cancelAll()` 可手动取消；取消后旧任务的清理不会移除新登记。
+去重器应按客户端与凭证生命周期创建，动态凭证切换时取消并替换，避免跨客户端或账号复用结果。
+
+响应拦截器在终态执行一次。成功响应的拦截器错误原样返回，不触发成功请求的凭证重放；
+请求已经失败时保留原始网络/解码/业务错误，拦截器的附加错误不会覆盖它。
 
 ---
 
@@ -386,14 +394,21 @@ await executeTask { [weak self] in
 
 ---
 
-## 14. 空响应 / 204
+## 14. 空响应 / 204 / 205
 
 ```swift
 let _: CYEmptyResponse = try await networkClient.request(UserEndpoint.delete(id: 123))
 ```
 
-以下三种后端返回对 `CYEmptyResponse` 均为成功：204 空 body、`{"code":0,"message":"ok"}`（缺 data 键）、`data: null`。
-非空类型遇到 data 缺失仍会抛 `decodingFailed`（不静默吞错）。
+- HTTP 204/205 且 body 为空：`CYEmptyResponse` 直接成功，不合成业务码，也不要求
+  `successCodes` 包含 0；`requestVoid` 同样适用。
+- 有 envelope 的响应：先按 `CYBusinessCodePolicy` 判定业务码。业务成功时，
+  `CYEmptyResponse` 允许 data 缺失或为 null；例如 `{"code":0,"message":"ok"}`
+  仅在 successCodes 包含 0 时成功。业务失败仍抛对应错误。
+- 非空结果类型不允许缺失 data；HTTP 204/205 空 body 也不会为非空类型合成数据。
+
+上传接口仍按 envelope 解码；上述 HTTP 空响应特例适用于 `send` / `request` /
+`requestVoid` 的 CYEmptyResponse 链路，不能视为 multipart 上传的空响应约定。
 
 ---
 

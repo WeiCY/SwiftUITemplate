@@ -225,22 +225,25 @@ public struct CYMediaPicker<Label: View>: View {
             matching: photoFilter,
             photoLibrary: .shared()
         )
-        .onChange(of: photoItems) { _, newItems in
+        .task(id: photoItems) {
+            let newItems = photoItems
             guard !newItems.isEmpty else { return }
-            Task {
-                var images: [CYMediaItem] = []
-                for item in newItems {
-                    if let data = try? await item.loadTransferable(type: Data.self),
-                       let image = UIImage(data: data) {
-                        images.append(CYMediaItem(image: image))
+            var items: [CYMediaItem] = []
+            for item in newItems {
+                guard !Task.isCancelled else { return }
+                if item.supportedContentTypes.contains(where: { $0.conforms(to: .movie) || $0.conforms(to: .video) }) {
+                    if let file = try? await item.loadTransferable(type: CYMediaVideoFile.self) {
+                        items.append(CYMediaItem(videoFile: file))
                     }
+                } else if let data = try? await item.loadTransferable(type: Data.self),
+                          let image = UIImage(data: data) {
+                    items.append(CYMediaItem(image: image))
                 }
-                if !images.isEmpty {
-                    onPicked(images)
-                }
-                // 清空选择，允许重复选择同一张图片再次触发回调
-                photoItems = []
             }
+            guard !Task.isCancelled else { return }
+            if !items.isEmpty { onPicked(items) }
+            // 清空选择，允许重复选择同一媒体再次触发回调。
+            photoItems = []
         }
     }
 

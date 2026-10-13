@@ -11,6 +11,6 @@ extension String {
     /// Text("error_generic".cyLocalized)
     /// ```
     public var cyLocalized: String {
-        Bundle.module.localizedString(forKey: self, value: self, table: "Localizable")
+        CYLocalizationManager.shared.localized(self, tableName: "Localizable", bundle: .module)
     }
 }

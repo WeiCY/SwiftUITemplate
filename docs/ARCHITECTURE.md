@@ -1,6 +1,6 @@
 # 架构设计
 
-> 本文档描述 CYSwiftTemplate 的模块分层、依赖注入、状态管理、路由与网络架构，以及扩展方式。
+> 本文档对应当前主干（含 Unreleased 变更），描述 CYSwiftTemplate 的模块分层、依赖注入、状态管理、路由与网络架构，以及扩展方式。
 
 ---
 
@@ -35,7 +35,7 @@ Feedback 等现有配置入口。Core 不反向依赖 Optional Module；完全�
 | **协议驱动** | 稳定基础能力以协议暴露：网络、分析、图片加载、反馈管理器、主题、多语言、权限、持久化 Repository |
 | **按需引入** | 网络实现（Alamofire）、图片实现（Kingfisher）、持久化（SwiftData）均为独立 target，业务代码只依赖协议 |
 | **DI 可替换** | 基于 Factory 的三层 DI 架构，任何服务都可在启动时或测试中替换 |
-| **Swift 6 并发安全** | 全量 `Sendable`、`@MainActor`、`actor` 隔离，`OSAllocatedUnfairLock` / `NSLock` 保护非 actor 共享状态 |
+| **Swift 6 并发模型** | 跨域数据使用 `Sendable`，Actor 隔离状态，锁保护非 actor 共享状态；框架桥接的 unchecked 类型按实现约束审查 |
 | **零源码修改** | 所有特异化通过 `.configure(...)`、协议实现 + DI 注册、AppState 注入参数完成，不修改模板源码 |
 
 ---
@@ -117,6 +117,9 @@ Layer 2 — UI 功能
 | `Base/` | ViewModel 与基础状态 | `CYBaseViewModel`, `CYPaginatedListViewModel<Item>`, `CYAppError`, `CYTabID`, `CYAppTheme` |
 | `Extensions/` | Foundation 扩展 | Collection, String, Date, Data, Optional, Numeric, Dictionary, Bundle 等 16 个文件 |
 
+Core 默认缓存使用 v2 目录和摘要文件名，旧缓存按未命中处理；namespace 与文件系统路径隔离。
+Debouncer/Throttler 的可变状态受锁保护，调用方 action 在锁外执行。
+
 ### CYAppNetwork（Layer 0 — 网络实现）
 
 Alamofire 桥接层，按职责拆分为多个文件：
@@ -169,6 +172,9 @@ Kingfisher 桥接层。
 | `Components/` | `CYMediaPicker`, `CYShareSheet` |
 | `Image/` | `CYRemoteImageView` |
 | `Helpers/` | `CYKeyboardObserver` |
+
+`CYRemoteImageView` 以 URL 为资源身份，加载结果提交前校验请求身份。
+系统视频导入复制提供方临时文件，文件所有权随 `CYMediaItem` 生命周期管理。
 
 ### CYAppPersistence（独立 — SwiftData）
 
@@ -301,7 +307,7 @@ Container.shared.networkClient.register { EncryptedNetworkClient() }
 │  CYAppState（全局，App 生命周期）              │
 │  @MainActor @Observable                      │
 │  ├── theme: CYAppTheme（自动持久化）           │
-│  └── language（backed by LocalizationManager）│
+│  └── language（可观察值，与注入管理器同步）    │
 │  注入方式：.environment(appState)              │
 │  消费方式：@Environment(CYAppState.self)       │
 └─────────────────────────────────────────────┘
@@ -327,6 +333,10 @@ Container.shared.networkClient.register { EncryptedNetworkClient() }
 |---|---|
 | 主题偏好 / 语言 | 搜索关键词 |
 | App 生命周期通用偏好 | 页面列表数据 / loading / error |
+
+`CYAppState.language` 持有可观察快照，setLanguage/resetAll 与注入管理器同步；
+模板和 ExampleApp 各自拥有 lproj 资源。分页刷新递增请求代次，旧分页结果和旧错误不能
+提交到新列表；失败保留旧数据与页码。BaseViewModel 的 loading/error 收尾只接受最新任务。
 
 ### 错误模型
 
@@ -365,17 +375,17 @@ CYAppError（视图层，粗粒度）
 |---|---|
 | `navigate(to:on:)` | 前进，可选切换 Tab |
 | `pop(on:)` | 后退一页 |
-| `popToRoot(on:)` | 回到根页面 |
+| `popToRoot(on:)` | 指定 Tab 清空该栈；未指定时清空全部 Tab |
 | `replace(with:on:)` | 替换当前栈 |
 | `depth(for:)` | 获取栈深度 |
 | `presentSheet(_:)` / `dismissSheet()` | Sheet 展示 |
 | `binding(for:)` | 获取 `Binding<NavigationPath>` 供 `NavigationStack` 使用 |
-| `bind(to:)` | 绑定 AppState（在 `.onAppear` 中调用） |
+| `selectTab(_:)` | 同步宿主 TabView 的选中项 |
 
 ### 设计要点
 
 - **路由类型由业务 App 定义**：Router 泛型为 `some Hashable`，消费方定义自己的 `Route` enum 并注册 `.navigationDestination(for: Route.self)`。
-- **AppState 强引用**：`@ObservationIgnored` 强引用 `CYAppState`，避免弱引用静默失效。无循环引用，因为 AppState 由 Environment 持有。
+- **单一实例与双向绑定**：Router 不依赖 AppState；宿主统一使用注入实例或 `.shared`。TabView selection 读取 `router.selectedTab`，写入调用 `selectTab(_:)`，每个 Tab 的 tag 使用对应 `CYTabID`，让编程式跨 Tab 导航同步显示。
 - **深链接**：`CYDeepLinkHandler`（CYAppCore）按 scheme/host 解析 URL，分发到注册的闭包；App 在 `.onOpenURL` 中接入，通常在闭包内调用 `router.navigate(...)`。
 
 ---
@@ -480,7 +490,11 @@ CYCredentialRecoveryCoordinator（Actor）
 
 ### 请求去重
 
-`CYRequestDeduplicator`（Actor）按 `method + path + query + body` 生成 key，合并 500ms 内的相同并发请求，只发起一次网络调用。1.1.0 起去重 key 完整覆盖 `Encodable` body（不同 body 不会误合并）。
+`CYRequestDeduplicator`（Actor）只合并正在执行的相同请求，不设置固定时间窗口。
+端点 method/path/query/body/headers/authentication 经结构化编码生成稳定摘要；query
+保留顺序和 nil 值。Encodable body 使用端点的编码策略及 sortedKeys 生成指纹。
+内部按结果类型隔离任务，每个登记具有唯一标识，旧任务完成不会清掉取消后创建的新任务。
+去重器应按客户端与凭证生命周期创建；动态凭证切换时取消并替换对应去重器。
 
 ### 内置拦截器
 
@@ -544,10 +558,10 @@ CYPersistenceController
 |---|---|
 | `@MainActor` | AppState、Router、所有 Manager、BaseViewModel |
 | `actor` | `CYRequestDeduplicator`、`CYCredentialRecoveryCoordinator`、`CYDefaultImageLoader`、`CacheStorage` |
-| `Sendable` | 全量标注：模型、配置、拦截器、Endpoint |
-| `OSAllocatedUnfairLock` | `CYBusinessCodePolicy` 等非 actor 共享状态 |
+| `Sendable` | 跨隔离域传递的配置、拦截器、Endpoint 与响应模型 |
+| `OSAllocatedUnfairLock` | `CYBusinessCodePolicy`、LocalizationManager、Debouncer/Throttler 等共享状态 |
 | `NSLock` | `CYNetworkConfiguration.configure` 的一次性保护 |
-| `@unchecked Sendable` | 单例桥接隔离域 |
+| `@unchecked Sendable` | 类型擦除或系统框架桥接，须按实现的锁/Actor 约束审查 |
 
 ---
 
@@ -605,7 +619,7 @@ CYSwiftTemplate/
 │   │   ├── Cache/                 #   CacheManager
 │   │   ├── Permissions/           #   相机/相册/定位/通知权限
 │   │   ├── Managers/              #   Toast/Loading/Alert 管理器 (协议 + DI)
-│   │   ├── Mock/                  #   Mock 5 件套
+│   │   ├── Mock/                  #   网络 / 分析 / Toast / Loading Mock
 │   │   └── ...
 │   ├── CYAppNetwork/                # Layer 0: 网络实现（+Alamofire），可选
 │   │   ├── AppConfiguration.swift #   启动配置（注册 networkClient）
@@ -628,8 +642,6 @@ CYSwiftTemplate/
 │   │   ├── Onboarding/            #   引导页
 │   │   └── Extensions/            #   View/Animation/EdgeInsets 扩展
 │   ├── CYAppPersistence/           # Layer 3: SwiftData 持久化（独立、可选）
-│   │   ├── BookmarkItem.swift     #   @Model 示例
-│   │   ├── BookmarkRepository.swift # Repository 实现
 │   │   ├── PersistenceController.swift # ModelContainer 管理
 │   │   └── RepositoryProtocol.swift  # CRUD 协议
 │   ├── CYAppCoreTests/             # Core 层单元测试
@@ -637,11 +649,13 @@ CYSwiftTemplate/
 │   ├── CYAppPersistenceTests/      # SwiftData Repository 内存 CRUD 测试
 │   ├── CYAppUITests/               # UI 层测试 (Router + AppState + Feedback)
 │   ├── CYAppDesignSystemTests/     # 设计系统测试
-│   └── CYFeedbackStyleTests/       # 反馈样式测试
+│   ├── CYFeedbackStyleTests/       # 反馈样式测试
+│   └── ExampleAppTests/            # 宿主示例：批量删除与持久化回归
 └── ExampleApp/                     # 可运行范例（App / Features / Models / Services）
     └── Sources/
         ├── App/                    #   @main、AppConfig、AppBootstrap、Tab、Route、Persistence
         ├── Models/                 #   Article（网络域）、BookmarkItem（持久化域）
         ├── Services/               #   ArticleService
-        └── Features/               #   Home / Bookmark / Settings
+        ├── Features/               #   Home / Bookmark / Settings，含 BookmarkRepository
+        └── Resources/              #   en.lproj / zh-Hans.lproj 宿主文案
 ```

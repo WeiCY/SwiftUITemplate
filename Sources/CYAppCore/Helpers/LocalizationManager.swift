@@ -38,12 +38,18 @@ public protocol CYLocalizationManaging: AnyObject, Sendable {
 public final class CYLocalizationManager: CYLocalizationManaging, @unchecked Sendable {
     public static let shared = CYLocalizationManager()
 
-    private init() { restore() }
+    private let bundle: Bundle
+    private let defaults: UserDefaults
+    private let systemLanguages: [String]
+    private let langLock = OSAllocatedUnfairLock(initialState: "en")
 
-    private let lock = OSAllocatedUnfairLock(initialState: Bundle.main as Bundle)
-    private let langLock = OSAllocatedUnfairLock(
-        initialState: Locale.current.language.languageCode?.identifier ?? "en"
-    )
+    /// 可注入资源包与偏好存储，便于宿主和测试隔离。
+    public init(bundle: Bundle = .main, defaults: UserDefaults = .standard, systemLanguages: [String] = Locale.preferredLanguages) {
+        self.bundle = bundle
+        self.defaults = defaults
+        self.systemLanguages = systemLanguages
+        restore()
+    }
 
     public var currentLanguage: String { langLock.withLock { $0 } }
 
@@ -56,46 +62,48 @@ public final class CYLocalizationManager: CYLocalizationManaging, @unchecked Sen
     }
 
     public func availableLanguages() -> [String] {
-        guard let localizations = Bundle.main.localizations as [String]? else { return ["en"] }
-        return localizations.filter { $0 != "Base" }.sorted()
+        bundle.localizations.filter { $0 != "Base" }.sorted()
     }
 
     public func setLanguage(_ languageCode: String) {
-        langLock.withLock { $0 = languageCode }
-
-        UserDefaults.standard.set([languageCode], forKey: "AppleLanguages")
-        UserDefaults.standard.set(languageCode, forKey: CYAppConstants.keyLanguagePreference)
-
-        if let path = Bundle.main.path(forResource: languageCode, ofType: "lproj"),
-           let bundle = Bundle(path: path) {
-            lock.withLock { $0 = bundle }
-        } else {
-            lock.withLock { $0 = Bundle.main }
+        langLock.withLock {
+            $0 = languageCode
+            defaults.set(languageCode, forKey: CYAppConstants.keyLanguagePreference)
         }
     }
 
     @discardableResult
     public func restore() -> String {
-        if let saved = UserDefaults.standard.string(forKey: CYAppConstants.keyLanguagePreference) {
+        if let saved = defaults.string(forKey: CYAppConstants.keyLanguagePreference) {
             setLanguage(saved)
             return saved
         }
-        let systemLang = Locale.current.language.languageCode?.identifier ?? "en"
+        let systemLang = systemLanguages.first ?? "en"
         langLock.withLock { $0 = systemLang }
-        lock.withLock { $0 = Bundle.main }
         return systemLang
     }
 
     public func resetToSystem() {
-        UserDefaults.standard.removeObject(forKey: CYAppConstants.keyLanguagePreference)
-        UserDefaults.standard.removeObject(forKey: "AppleLanguages")
-        let systemLang = Locale.current.language.languageCode?.identifier ?? "en"
+        defaults.removeObject(forKey: CYAppConstants.keyLanguagePreference)
+        // 兼容清理旧版本写入的 override；新版本按资源包显式选语言。
+        defaults.removeObject(forKey: "AppleLanguages")
+        let systemLang = systemLanguages.first ?? "en"
         langLock.withLock { $0 = systemLang }
-        lock.withLock { $0 = Bundle.main }
     }
 
     public func localized(_ key: String, tableName: String? = nil) -> String {
-        let bundle = lock.withLock { $0 }
+        localized(key, tableName: tableName, bundle: bundle)
+    }
+
+    /// 为指定资源包选择当前语言；宿主包和模板包保持各自的资源边界。
+    public func localized(_ key: String, tableName: String? = nil, bundle: Bundle) -> String {
+        let languages = Bundle.preferredLocalizations(from: bundle.localizations, forPreferences: [currentLanguage, "en"])
+        for language in languages + ["en"] {
+            if let path = bundle.path(forResource: language, ofType: "lproj"), let localizedBundle = Bundle(path: path) {
+                let value = localizedBundle.localizedString(forKey: key, value: key, table: tableName)
+                if value != key { return value }
+            }
+        }
         return bundle.localizedString(forKey: key, value: key, table: tableName)
     }
 

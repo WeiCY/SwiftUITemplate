@@ -61,9 +61,10 @@ extension CYNetworkClient {
             .serializingDecodable(CYAPIResponse<T>.self, decoder: self.makeDecoder(for: endpoint))
 
             let response = await uploadTask.response
-            let apiResponse: CYAPIResponse<T>
+            let value: T
             do {
-                apiResponse = try await uploadTask.value
+                let apiResponse = try await uploadTask.value
+                value = try self.resolveData(apiResponse)
             } catch {
                 // 解码失败：携带终态响应抛出，由上层在终态统一应用响应拦截器
                 throw NetworkFailure(
@@ -73,8 +74,8 @@ extension CYNetworkClient {
                 )
             }
 
-            try await self.applyResponseInterceptors(response.response, data: response.data)
-            return try self.resolveData(apiResponse)
+            try await self.applyFinalResponseInterceptors(response.response, data: response.data)
+            return value
         }
     }
 
@@ -119,8 +120,12 @@ extension CYNetworkClient {
                                     data: response.resumeData
                                 ))
                             } else if let fileURL = response.fileURL {
-                                try? await self.applyResponseInterceptors(response.response, data: response.resumeData)
-                                continuation.resume(returning: fileURL)
+                                do {
+                                    try await self.applyFinalResponseInterceptors(response.response, data: response.resumeData)
+                                    continuation.resume(returning: fileURL)
+                                } catch {
+                                    continuation.resume(throwing: error)
+                                }
                             } else {
                                 continuation.resume(throwing: CYNetworkError.unknown)
                             }

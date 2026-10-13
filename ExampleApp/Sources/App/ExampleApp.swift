@@ -41,6 +41,7 @@ struct DemoApp: App {
                 .environment(appState)
                 .environment(router)
                 .preferredColorScheme(appState.theme.colorScheme)
+                .environment(\.locale, Locale(identifier: appState.language))
                 .id(appState.language)
         }
         .modelContainer(persistence.container)
@@ -52,10 +53,12 @@ struct RootView: View {
 
     @Environment(CYAppState.self) private var appState
     @Environment(CYAppRouter.self) private var router
-    @State private var selectedTab = AppTab.home
 
     var body: some View {
-        TabView(selection: $selectedTab) {
+        TabView(selection: Binding(
+            get: { router.selectedTab },
+            set: { router.selectTab($0) }
+        )) {
             ForEach(AppTab.allCases) { tab in
                 NavigationStack(path: router.binding(for: tab.id)) {
                     tabRoot(tab)
@@ -64,11 +67,9 @@ struct RootView: View {
                         }
                 }
                 .tabItem { Label(tab.title, systemImage: tab.icon) }
-                .tag(tab)
+                .tag(tab.id)
             }
         }
-        .onAppear { router.selectTab(selectedTab.id) }
-        .onChange(of: selectedTab) { _, tab in router.selectTab(tab.id) }
         .feedbackOverlay()
     }
 

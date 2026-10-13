@@ -20,7 +20,7 @@ struct BookmarkView: View {
         ) {
             content
         }
-        .navigationTitle("收藏")
+        .navigationTitle("bookmarks_title".exampleLocalized)
         .task { await viewModel.load() }
     }
 
@@ -29,8 +29,8 @@ struct BookmarkView: View {
         if viewModel.bookmarks.isEmpty && !viewModel.isLoading {
             CYEmptyStateView(
                 systemImage: "bookmark",
-                title: "还没有收藏",
-                message: "在首页点击书签图标即可收藏文章"
+                title: "bookmarks_empty_title".exampleLocalized,
+                message: "bookmarks_empty_message".exampleLocalized
             )
         } else {
             List {
@@ -43,9 +43,7 @@ struct BookmarkView: View {
                     )
                 }
                 .onDelete { indexSet in
-                    for index in indexSet {
-                        viewModel.delete(viewModel.bookmarks[index])
-                    }
+                    viewModel.delete(at: indexSet)
                 }
             }
             .listStyle(.plain)

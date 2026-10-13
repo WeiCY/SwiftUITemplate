@@ -1,29 +1,30 @@
 # CYAppCore
 
-纯逻辑层框架，仅依赖 Foundation + FactoryKit。提供协议抽象、工具类、DI 基础设施。
+基础能力层，第三方依赖仅 FactoryKit；权限、Keychain、设备等工具按需桥接 Apple 系统框架。提供协议抽象、工具类和 DI 基础设施。
 
-> **按需加载设计**：CYAppCore 不包含网络和图片实现。需要 HTTP 请求请引入 ``CYAppNetwork``，需要远程图片加载请引入 ``CYAppImage``。
+> **按需引入设计**：HTTP 客户端实现由可选的 `CYAppNetwork` 提供。Core 内置 ``CYDefaultImageLoader``（URLSession）；需要 Kingfisher 缓存和预取时，再引入 `CYAppImage` 并注册。
 
 ## 概述
 
 CYAppCore 是 CYSwiftTemplate 的核心骨架，遵循 **协议驱动 + DI 注入** 的设计原则。
-网络实现（Alamofire）和图片加载（Kingfisher）已拆分为独立可选 target：
-- ``CYAppNetwork``：`CYNetworkClient` Alamofire 实现
-- ``CYAppImage``：`CYKingfisherImageLoader` Kingfisher 实现
+Alamofire 客户端与 Kingfisher 图片加载器位于独立可选 target：
+
+- `CYAppNetwork`：`CYNetworkClient` Alamofire 实现
+- `CYAppImage`：`CYKingfisherImageLoader` Kingfisher 实现
 
 ### 架构分层
 
 ```
-CYAppCore (仅 Foundation + FactoryKit)
+CYAppCore (基础能力 + FactoryKit)
 ├── Network      网络协议层（CYEndpoint, CYNetworkClientProtocol, APIResponse）
-├── Services     认证 / 分析 / 用户会话
+├── Services     通用分析协议与默认实现（账号/认证/会话由宿主持有）
 ├── DI           依赖注入（Protocol → Factory）
-├── Image        图片加载协议（CYImageLoaderProtocol）
+├── Image        图片加载协议 + URLSession 默认实现
 ├── Cache        Actor 隔离缓存
 ├── Managers     Toast / Loading / Alert
 ├── Permissions  权限管理
 ├── Logger       多级日志
-└── Extensions   10 类 Foundation 扩展
+└── Extensions   Foundation / 系统平台扩展
 ```
 
 ### 接入示例
@@ -36,6 +37,14 @@ let cache = CYCacheManager.shared
 let logger = CYLogger.shared
 CYToastManager.shared.show("操作成功", type: .success)
 ```
+
+## 默认行为
+
+- 缓存使用 v2 子目录和稳定摘要文件名；旧缓存按未命中处理，nil 与空 namespace 含义一致。
+- 请求去重仅共享正在执行的同 key、同结果类型任务；取消后的旧任务不会清除新登记。
+- 自定义权限请求器可覆盖内置实现，首次查询不会覆盖宿主注册。
+- 默认本地化按资源包匹配当前语言，模板文案位于 Core 的 en/zh-Hans lproj 目录。
+- 防抖/节流状态受锁保护；调用方 action 在锁外执行。
 
 ## Topics
 
@@ -62,7 +71,11 @@ CYToastManager.shared.show("操作成功", type: .success)
 
 ### 依赖注入
 
-- ``CYAppContainer``
+- ``CYFactoryContainer``
+- ``CYAppContainer``（Legacy Facade）
+- ``NetworkProviding``
+- ``CYAppConfig``
+- ``CYCoreBootstrap``
 - ``DIContainerProtocol``
 - ``CYAppEnvironment``
 
@@ -75,14 +88,16 @@ CYToastManager.shared.show("操作成功", type: .success)
 - ``CYAlertManager``
 - ``CYAlertManagerProtocol``
 
-### 缓存与持久化
+### 缓存
 
 - ``CYCacheManager``
+- ``CYCacheSerializer``
+- ``CYCacheError``
 
 ### 权限
 
 - ``CYPermissionManager``
-- ``CYPermissionProtocol``
+- ``CYPermissionRequester``
 - ``CYPermissionStatus``
 - ``CYPermissionType``
 
@@ -97,7 +112,8 @@ CYToastManager.shared.show("操作成功", type: .success)
 - ``CYBiometricAuth``
 - ``CYFormValidator``
 - ``CYAppBadgeManager``
-- ``CYDébouncer``
+- ``CYDebouncer``
+- ``CYThrottler``
 - ``CYNetworkMonitor``
 - ``CYHapticFeedback``
 - ``CYClipboardObserver``
@@ -107,7 +123,6 @@ CYToastManager.shared.show("操作成功", type: .success)
 ### Mock 测试
 
 - ``MockNetworkClient``
-- ``MockAuthService``
 - ``MockAnalyticsService``
 - ``MockToastManager``
 - ``MockLoadingManager``
@@ -126,7 +141,7 @@ CYToastManager.shared.show("操作成功", type: .success)
 
 - ``CYLocalizationManaging``
 - ``CYLocalizationManager``
-- ``CYStringLocalized``
+- ``String/cyLocalized``
 
 ### Foundation 扩展
 

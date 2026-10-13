@@ -51,6 +51,11 @@ struct BookmarkRepository: CYRepositoryProtocol {
         try context.save()
     }
 
+    func delete(_ entities: [BookmarkItem]) throws {
+        for entity in entities { context.delete(entity) }
+        try save()
+    }
+
     // MARK: - 业务便捷方法
 
     func find(sourceID: Int) throws -> BookmarkItem? {

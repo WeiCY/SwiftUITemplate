@@ -51,14 +51,14 @@ final class HomeViewModel: CYBaseViewModel {
         do {
             if let existing = try repository.find(sourceID: article.id) {
                 try repository.delete(existing)
-                CYToastManager.shared.show("已取消收藏", type: .info)
+                CYToastManager.shared.show("bookmark_removed".exampleLocalized, type: .info)
             } else {
                 try repository.insert(.from(article))
-                CYToastManager.shared.show("已收藏", type: .success)
+                CYToastManager.shared.show("bookmark_added".exampleLocalized, type: .success)
             }
             bookmarkedSourceIDs = try repository.allSourceIDs()
         } catch {
-            CYToastManager.shared.show("收藏操作失败", type: .error)
+            CYToastManager.shared.show("bookmark_failed".exampleLocalized, type: .error)
         }
     }
 }
