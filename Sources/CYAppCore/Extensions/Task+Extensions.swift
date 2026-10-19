@@ -1,16 +1,5 @@
 import Foundation
 
-extension Task where Success == Never, Failure == Never {
-
-    public static func sleep(seconds: Double) async throws {
-        try await sleep(for: .seconds(seconds))
-    }
-
-    public static func sleep(milliseconds: Int) async throws {
-        try await sleep(for: .milliseconds(milliseconds))
-    }
-}
-
 extension Task where Failure == Error {
 
     @discardableResult
@@ -78,7 +67,7 @@ public func withTimeout<T: Sendable>(
                 return result
             }
             group.addTask {
-                try await Task<Never, Never>.sleep(seconds: seconds)
+                try await Task<Never, Never>.sleep(for: .seconds(seconds))
                 throw CYTimeoutError.timedOut
             }
             guard let result = try await group.next() else {

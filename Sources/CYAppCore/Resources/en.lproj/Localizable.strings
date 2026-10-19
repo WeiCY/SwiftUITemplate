@@ -91,3 +91,9 @@
 
 "dismiss" = "Dismiss";
 "filter" = "Filter";
+
+/* Verification Code */
+"verification_code" = "Verification code";
+"verification_code_placeholder" = "Enter code";
+"verification_code_hint" = "Enter %ld digits using 0 through 9.";
+"verification_code_progress" = "%ld of %ld digits";

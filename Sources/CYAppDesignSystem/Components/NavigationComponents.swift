@@ -128,32 +128,3 @@ public struct CYSearchFilterBar: View {
         }
     }
 }
-
-// MARK: - 多栏页面容器
-
-/// 面向 iPad / 大屏的多栏页面容器。
-public struct CYSplitViewContainer<Sidebar: View, Content: View, Detail: View>: View {
-    let sidebar: Sidebar
-    let content: Content
-    let detail: Detail
-
-    public init(
-        @ViewBuilder sidebar: () -> Sidebar,
-        @ViewBuilder content: () -> Content,
-        @ViewBuilder detail: () -> Detail
-    ) {
-        self.sidebar = sidebar()
-        self.content = content()
-        self.detail = detail()
-    }
-
-    public var body: some View {
-        NavigationSplitView {
-            sidebar
-        } content: {
-            content
-        } detail: {
-            detail
-        }
-    }
-}

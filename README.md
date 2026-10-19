@@ -71,7 +71,7 @@ python3 scripts/verify-doc-examples.py
 python3 scripts/verify-component-matrix.py
 ```
 
-前两轮的独立消费者证据继续保留；第三轮逐项评审组件与扩展，修复 Snackbar 生命周期、Keychain 更新、输入边界与调试导出，并补原生草稿编辑示例。严格 lint 覆盖消费者和测试辅助代码。当前验证结果、环境限制和图片测量方法见 [工程验证记录](docs/ENGINEERING_VALIDATION.md)。App 编译、模拟器 UI 测试与真机验证分别记录，不能相互替代。
+前两轮的独立消费者证据继续保留；第四轮执行破坏性公开API清理：原生导航/键盘安全区、单可见字段OTP及显式抛错Codable偏好，仓库内消费者和示例同步迁移。严格 lint 覆盖消费者和测试辅助代码。当前验证结果、环境限制和图片测量方法见 [工程验证记录](docs/ENGINEERING_VALIDATION.md)。App 编译、模拟器 UI 测试与真机验证分别记录，不能相互替代。
 
 - [独立消费者与运行入口](ConsumerFixtures/README.md)
 - [组件与扩展分类、使用边界、缺口和选择指南](docs/MODULE_COMPONENT_REVIEW.md)
@@ -84,3 +84,5 @@ python3 scripts/verify-component-matrix.py
 - [变更与迁移](CHANGELOG.md)
 
 文档对应主干 Unreleased；使用已发布 tag 时请阅读该 tag 的文档。
+
+本次最终收尾只保存本地Git基线；本机验证与未验收范围见工程记录，不代表远端CI通过或新版本已发布。

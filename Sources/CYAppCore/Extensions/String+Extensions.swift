@@ -187,25 +187,4 @@ extension String {
     }
     #endif
     
-    // MARK: - 类型转换
-    
-    /// 转换为 URL（如格式合法）
-    public var asURL: URL? {
-        return URL(string: self)
-    }
-    
-    /// 转换为 UTF-8 Data
-    public var asData: Data? {
-        return data(using: .utf8)
-    }
-    
-    /// 转换为 Double（如可能）
-    public var toDouble: Double? {
-        return Double(self)
-    }
-    
-    /// 转换为 Int（如可能）
-    public var toInt: Int? {
-        return Int(self)
-    }
 }

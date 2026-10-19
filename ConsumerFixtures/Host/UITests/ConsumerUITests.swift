@@ -2,6 +2,23 @@ import XCTest
 
 @MainActor
 final class ConsumerUITests: XCTestCase {
+    func testNativeBottomBarAndExternalOTPConsumer() {
+        let app = XCUIApplication()
+        app.launch()
+        app.tabBars.buttons["Inputs"].tap()
+        let field = app.textFields["Consumer OTP"]
+        XCTAssertTrue(field.waitForExistence(timeout: 3))
+        field.tap()
+        XCTAssertTrue(app.buttons["consumer.inputDone"].isHittable)
+        field.typeText("12")
+        app.buttons["consumer.inputDone"].tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
+        app.buttons["consumer.restartInput"].tap()
+        field.typeText("123456")
+        XCTAssertEqual(app.staticTexts["consumer.otpValue"].label, "Code: 123456")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
+    }
+
     func testLocalEditingUsesDraftAndExplicitSave() {
         let app = XCUIApplication()
         app.launch()

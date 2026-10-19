@@ -112,8 +112,14 @@ CYNetworkClient 新增 Foundation URLSessionConfiguration 初始化重载，消�
 
 ## 组件与扩展的复用取舍（第三轮）
 
-公共组件以受控值/Binding/内容插槽为主，复杂页面使用原生容器组合。CYPageContainer已有usesScrollView开关；分页拥有List；StickyBottomBar不拥有固定定位。Tag支持局部selectedTextColor与全局onPrimary分工。Snackbar/Toast的动作与短提示语义保留，Snackbar旧计时取消不得关闭后继消息，MainActor动作先移除旧状态再调用。
+公共组件以受控值/Binding/内容插槽为主，复杂页面使用原生容器组合。CYPageContainer有showsHeader和usesScrollView开关；分页拥有List；CYBottomActionBar仅处理排版，原生safeAreaInset处理定位。Tag支持局部selectedTextColor与全局onPrimary分工。Snackbar/Toast的动作与短提示语义保留，Snackbar旧计时取消不得关闭后继消息，MainActor动作先移除旧状态再调用。
 
-没有新增业务框架或公共控件。原生SwiftData草稿编辑放在现有外部消费者；编辑模型、冲突和事务属于宿主。薄导航外观/键盘padding/存储别名保留兼容，但新代码优先原生语义；已识别的参数未兑现、环境和错误边界见专项清单，不用继续叠参数掩盖。
+没有新增业务框架或公共控件。原生SwiftData草稿编辑放在现有外部消费者；编辑模型、冲突和事务属于宿主。第四轮移除重复导航外观/全屏键盘高度补偿/静默存储属性；原生导航和键盘安全区是默认路径。Codable偏好使用注入UserDefaults的实例工具，load/save显式throws，不提供全局clear-all。
 
 Keychain以service/account定位并更新，缺失后才add，重复插入时重试一次update；不删除旧条目再写。cURL默认复用日志脱敏，原文导出显式选择；共享字段规则不等于对未知字段/路径的保证。缓存序列化器按格式和实际模型选择，没有通用性能比例承诺。
+
+## 第四轮控件与公开面
+
+OTP由一个可见系统TextField拥有输入和无障碍语义，局部editing policy只处理ASCII规范化/完成边沿，不管理网络、账号或导航。宿主通过原生focused控制初始/完成焦点。普通字段是窄屏和大字体的默认表现，没有透明输入或固定格宽。
+
+底栏保留ActionBar的布局和品牌价值，safeAreaInset/导航栏/分栏/键盘安全区交回原生。低价值更名扩展移除，安全下标、格式化、抛错解码、重试/超时取消及表单规则保留。网络通用凭证注入与恢复协调保持，登录/用户/订单等业务流程仍归宿主。

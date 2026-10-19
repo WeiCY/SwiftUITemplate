@@ -120,7 +120,7 @@ public struct CustomConsumerPage: View {
         .feedbackOverlay(toastManager: host.toast, loadingManager: host.loading)
         .alertManager(manager: host.alert)
         .environment(host.router)
-        .safeAreaInset(edge: .bottom) {
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             Text("Started: \(host.imageStatus.started) Cancelled: \(host.imageStatus.cancelled)")
                 .accessibilityIdentifier("consumer.image-status")
         }

@@ -51,10 +51,6 @@ extension UIImage {
 
     // MARK: - Format Conversion
 
-    public func toPNG() -> Data? { pngData() }
-
-    public func toJPEG(quality: CGFloat = 0.8) -> Data? { jpegData(compressionQuality: quality) }
-
     public func toHEIC(quality: CGFloat = 0.8) -> Data? {
         guard let cgImage else { return nil }
         let data = NSMutableData()
@@ -63,23 +59,6 @@ extension UIImage {
         CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
         guard CGImageDestinationFinalize(destination) else { return nil }
         return data as Data
-    }
-
-    // MARK: - Color Overlay
-
-    public func withTintColor(_ color: UIColor) -> UIImage {
-        // CIImage 背书 / 无 CGImage 的图片无法做 mask 着色，安全回退为原图，避免崩溃
-        guard let cgImage else { return self }
-        let renderer = UIGraphicsImageRenderer(size: size)
-        return renderer.image { ctx in
-            color.setFill()
-            ctx.cgContext.translateBy(x: 0, y: size.height)
-            ctx.cgContext.scaleBy(x: 1.0, y: -1.0)
-            ctx.cgContext.setBlendMode(.normal)
-            let rect = CGRect(origin: .zero, size: size)
-            ctx.cgContext.clip(to: rect, mask: cgImage)
-            ctx.cgContext.fill(rect)
-        }
     }
 
     // MARK: - Blur

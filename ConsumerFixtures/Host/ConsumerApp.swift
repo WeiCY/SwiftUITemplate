@@ -18,6 +18,7 @@ struct ConsumerApp: App {
                 }.tabItem { Text("Paging") }
                 CustomConsumerPage(host: first).tabItem { Text("Custom A") }
                 CustomConsumerPage(host: second).tabItem { Text("Custom B") }
+                NavigationStack { DesignInputConsumerPage() }.tabItem { Text("Inputs") }
                 NavigationStack { OfflinePage() }
                     .modelContainer(for: Note.self, inMemory: true).tabItem { Text("Offline") }
             }

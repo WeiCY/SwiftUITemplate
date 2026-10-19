@@ -2,7 +2,7 @@
 
 日期：2026-10-18；主干 Unreleased。Xcode 26.5 (17F42)，Swift 6 模式，arm64 macOS；iOS 26.5 的 iPhone 17 模拟器。未提交、推送、打 tag 或发布。
 
-以下至“第二轮”章节前为第一轮历史记录；其中空工作区、185 基线等描述不代表第二轮输入。第二轮以第一轮全部未提交/未跟踪成果为输入，基线为 214 测试。
+第一至三轮均为历史快照；第四轮的实际公开面/运行记录见文末。以下至“第二轮”章节前为第一轮历史记录；其中空工作区、185 基线等描述不代表第二轮输入。第二轮以第一轮全部未提交/未跟踪成果为输入，基线为 214 测试。
 
 ## 基线与分阶段验证
 
@@ -225,3 +225,70 @@ xcodebuild -project ConsumerFixtures/Host/Consumers.xcodeproj -scheme Consumers 
 从最终xcresult导出并实际查看了两张1206×2622截图：[大字体长内容Snackbar](../ConsumerFixtures/Evidence/round3-snackbar.png)、[局部配色Tag](../ConsumerFixtures/Evidence/round3-tag.png)。大字体长消息完整换行并保留关闭入口；Tag黑字配黄底，长列表行截断仍可见。图像仅是iPhone17这一场景，不代表完整设备/暗色/对比度/辅助功能验收。目录的局部colorScheme用于预览内容，不改变整个App的系统状态栏主题。
 
 输入触点最终布局后，额外重建并运行DesignSystemConsumerProof，含LegacyConsumer旧调用，结果PASS（`/tmp/cy-round3-design-consumer-final.log`）；没有重做无关性能测量。最后的源码注释校正只涉及不存在的AppStorageValue/静态ThemeManager示例及按钮触觉误述；严格lint与diff空白检查再次通过。
+
+## 第四轮：公开 API 清理与控件整顿（2026-10-19）
+
+本轮输入为前三轮已保留的成果，开始时工作树为空，HEAD为bcf54f1；用户明确授权破坏性清理。已先列迁移清单再执行，七个Library/依赖及通用网络凭证能力保留。未stage/提交/推送/改tag；开始与结束的`git ls-files --stage`导出比较用于确认暂存区不变。本轮源码不提供兼容壳，旧名称只保留在迁移/历史和删除守卫中。
+
+### 预期行为与回归依据
+
+- 底栏只排版；原生safeAreaInset负责键盘安全区。表单焦点依次Email→Password→Confirm→提交，键盘显示时提交仍可操作，收起后恢复布局。UI断言提交按钮可点击及其到键盘的间距，截图排查重复补偿；不添加ignoresSafeArea(.keyboard)。
+- OTP一个可见系统输入源，ASCII过滤后截断；初始/外部更新静默同步，用户编辑新完整值才回调，删掉/清空后可再次完成。5个单元测试覆盖混合Unicode、溢出、禁用、长长度与回调规则；UI实际输入、删除、宿主进程设置剪贴板后调用系统Paste菜单、外部更新、完成移焦、禁用。没有把粘贴/模拟键盘称为短信自动填充验收。
+- 首次最大字号截图发现单行24位码省略；改为TextField(axis:.vertical)自然换行。最终SE截图完整显示24位，字段宽240pt、accessibility5；保留原生字体与点击尺寸。没有透明输入层或六个独立字段。
+- Codable偏好4个针对性单元测试覆盖旧JSON字节、缺失nil/损坏throws、非Data类型、NaN编码失败保留旧数据、自定义编码/解码策略。CoreOnly另用独立suite验证public接口，旧key/编码不变，不自动清库。UserDefaults不承诺可抛错磁盘事务。
+
+### 构建与自动化结果
+
+| 验证 | 本轮结果 / 证据 |
+|---|---|
+| macOS包 | 基线226；最终行为改动后235/235通过，含既有网络/存储/取消回归；显式swift build通过。`/tmp/cy-round4-tests.log`、`/tmp/cy-round4-build.log` |
+| 独立消费者 | verify-consumers.py五个Proof构建/执行/链接检查及7行为测试通过；最终源再次swift test，7/7通过。`/tmp/cy-round4-consumer-proof.json`、`/tmp/cy-round4-consumers-final.log`；未覆盖旧性能JSON |
+| iOS ExampleApp | 最终全Scheme49个原生回归+8个UI全部通过，TEST SUCCEEDED；构建包括两个新增规则/存储测试文件，无签名。`/tmp/cy-round4-example-final.xcresult`、`/tmp/cy-round4-example-final-ios.log` |
+| iOS独立消费者 | 首轮既有4个UI通过；新增输入流程修正定位和光标假设后1/1通过（`/tmp/cy-round4-consumer-verified.xcresult`）。是4+1分批验证，不称最终全5重跑 |
+| 小屏 | iPhone SE 3rd /375×667pt、iOS26.5；表单与OTP交互2项通过于`/tmp/cy-round4-small-verified.xcresult`，长码最大字号最终1/1通过于`/tmp/cy-round4-small-layout.xcresult`。前者整批3项中长码当时失败，后者专门重跑修正该项；不是一次全3通过 |
+| 文档/公开面 | 12个标记示例类型检查，包含OTP+原生底栏和显式Codable偏好；当前矩阵登记与旧API删除守卫通过。类型数量仅为覆盖检查 |
+| 静态检查 | SwiftLint0.59.1严格lint零违规；git diff --check通过；根Package.swift/依赖锁文件无改动 |
+
+可复现命令（设备ID与/tmp缓存只属于本机，不写入项目依赖）：
+
+```bash
+CLANG_MODULE_CACHE_PATH=/tmp/cy-root-modules SWIFTPM_MODULECACHE_OVERRIDE=/tmp/cy-root-modules swift test --disable-sandbox --skip-update
+python3 scripts/verify-consumers.py --cache-from .build --output /tmp/cy-round4-consumer-proof.json
+python3 scripts/verify-doc-examples.py
+python3 scripts/verify-component-matrix.py
+swiftlint lint --strict --quiet --no-cache
+git diff --check
+xcodebuild -project ExampleApp/ExampleApp.xcodeproj -scheme ExampleApp \
+  -destination 'platform=iOS Simulator,id=D7961504-06E5-4C70-B37D-EBB8BF39C204' \
+  -derivedDataPath /tmp/cy-round4-host-derived -clonedSourcePackagesDirPath /tmp/cy-offline-packages \
+  -disableAutomaticPackageResolution -skipPackageUpdates -parallel-testing-enabled NO \
+  -resultBundlePath /tmp/cy-round4-example-final.xcresult CODE_SIGNING_ALLOWED=NO test
+```
+
+独立宿主将project/scheme替换为ConsumerFixtures/Host/Consumers.xcodeproj、Consumers；小屏将destination替换为SE设备，使用-only-testing选取两个OTP和表单方法。结果bundle命名必须新建，不能覆写已存在bundle。实际SwiftLint可执行文件位于/tmp/cy-work/swiftlint/swiftlint。
+
+### 实际视觉证据、测试修正与未验证项
+
+已从最终xcresult导出并实际查看：[小屏最大字号24位OTP](../ConsumerFixtures/Evidence/round4-otp-small.png)、[小屏键盘与底部提交栏](../ConsumerFixtures/Evidence/round4-keyboard-bottom.png)。前者无省略号、四行完整数字，后者Done与提交并列、底栏紧接键盘。首次表单截图发现键盘toolbar Done与提交边缘重叠，最终改为ActionBar leading中的Done；未增加键盘管理器。
+
+UI脚本曾错误使用textViews/泛label选择（实际XCTest兼容树为TextField，泛label还会匹配装饰标题），修正为textFields；另曾假定tap后光标总在末尾，实际系统按点击位置定位，导致345612等合法但与断言预期不同的结果。最终长码使用明确doubleTap选中替换，消费者用Restart input显式清空聚焦；保留内容/回调/键盘断言，不改控件去强制光标，也未删除行为测试。失败bundle与日志仍保存在/tmp供排查。
+
+工具链仍有只读manifest缓存、Kingfisher未声明Info.plist及FactoryKit扫描提示，macOS测试有CoreData通知环境输出；未伪称构建零警告。无新增第三方包。本轮没有新的性能测量结论。
+
+未验证：真实短信oneTimeCode、真机/VoiceOver朗读及焦点、硬件键盘、iOS18/macOS15实际运行、iPad分屏/横屏/浮动键盘、所有语言和字体组合、媒体权限/相机/真实视频、生产后端及磁盘提交失败。OTP语义标签/值/提示已实现，不能据此标为VoiceOver验收通过。现有网络凭证注入/恢复/取消及表单验证保留，账号/登录、支付/订单、模型和编辑冲突仍属于宿主。
+
+## 最终本地基线收尾（2026-10-19）
+
+本次按用户授权在原main分支创建新的本地提交，不amend或改写已有历史。开始时暂存区为空；待提交内容均为第四轮清理成果和本次必要文档收尾，前三轮成果已在父提交bcf54f1中保留。没有发现需要排除的无关用户改动，不使用未经检查的git add .，不推送、创建PR、打tag或发布。
+
+本次没有修改功能源码、工程配置或脚本，只补齐ROADMAP第三/四轮完成状态、当前复核入口与收尾说明。前轮结果仍对应当前功能实现，已重新读取本地日志确认其通过记录；没有将沿用结果说成再次全量执行。235个macOS测试之后的Optional文件变动仅为注释和空行整理；最终iOS整Scheme及消费者行为验证在其后完成。组件检查脚本的最后一项导航删除守卫已在前轮及本次实际执行。
+
+本次实际检查：
+
+- 当前分支、status、暂存及未暂存diff与5个未跟踪文件逐项核对。新源码/测试、两份本地化资源、ExampleApp两个新增测试引用、独立消费者和截图均完整。两张截图各小于200KB，均为第四轮文档证据，未收录重复截图或xcresult。
+- 项目文件和两份strings通过plutil -lint；两个Xcode工程共41个本地文件引用及本地Package引用均存在。工程/脚本未依赖用户目录；/tmp仅用作可生成的输出/模块缓存，旧日志和xcresult路径为本机历史取证，不是仓库输入依赖，也不纳入提交。
+- 文档本地链接逐个检查，无缺失文件；当前推荐API与源码一致，删除名称仅用于迁移、历史或删除守卫。历史记录原貌保留，补充说明当前与历史范围。
+- 公开类型登记、旧API删除与消费者边界检查通过；12个文档标记示例重新类型检查通过。git diff --check及暂存区差异检查通过。
+- 检查待提交文件与已跟踪路径，未发现凭证/私钥、敏感配置、构建产物、用户Xcode状态或临时日志；高置信凭证模式检查无命中。现有忽略规则已经覆盖实际.build/.swiftpm/xcuserdata，本次无需扩大.gitignore。
+
+严格lint、全量构建/测试与界面结果沿用第四轮明确记录；本次仅运行上述交付相关检查。远端CI步骤已配置，本次未推送触发运行，不能宣称远端通过。真机短信、VoiceOver、iPad分屏/浮动键盘及真实App后端/数据迁移等未验收范围不变。

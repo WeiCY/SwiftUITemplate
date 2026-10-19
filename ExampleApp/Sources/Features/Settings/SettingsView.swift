@@ -19,7 +19,7 @@ struct SettingsView: View {
     var body: some View {
         @Bindable var appState = appState
 
-        CYPageContainer(title: "settings_title".exampleLocalized, showsNavigationBar: true) {
+        CYPageContainer(title: "settings_title".exampleLocalized, showsHeader: true) {
             VStack(alignment: .leading, spacing: CYAppDimens.marginL) {
                 themeSection(appState: appState)
                 languageSection

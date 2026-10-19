@@ -102,3 +102,27 @@ public struct DesignConsumerPage: View {
         .task(id: refreshID) { await model.refresh() }
     }
 }
+
+/// External public-only usage: host focus plus native safe area, without template keyboard/navigation wrappers.
+public struct DesignInputConsumerPage: View {
+    @State private var code = ""
+    @FocusState private var focused: Bool
+    public init() {}
+    public var body: some View {
+        CYPageContainer(title: "Inputs", showsHeader: false, usesScrollView: false) {
+            Form {
+                CYVerificationCodeInput(code: $code, title: "Consumer OTP") { _ in focused = false }
+                    .focused($focused)
+                Text("Code: \(code)").accessibilityIdentifier("consumer.otpValue")
+                Button("Restart input") { code = ""; focused = true }.accessibilityIdentifier("consumer.restartInput")
+            }
+            .scrollDismissesKeyboard(.interactively)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            CYBottomActionBar { Text("Local input") } trailing: {
+                Button("Done") { focused = false }.accessibilityIdentifier("consumer.inputDone")
+            }
+        }
+        .navigationTitle("Inputs")
+    }
+}

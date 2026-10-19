@@ -32,6 +32,7 @@ struct ComponentCatalog: View {
                 NavigationLink("全部公开组件索引 / Public API index") { PublicComponentIndex() }
                 NavigationLink("更多组合 / More combinations") { AdditionalComponents() }
                 NavigationLink("表单 / Form") { FormExample() }
+                NavigationLink("验证码 / Verification code") { VerificationCodeExample() }
                 NavigationLink("搜索与分页 / Search & pagination") { SearchExample() }
                 NavigationLink("媒体 / Media") { MediaExample() }
             }
@@ -44,7 +45,7 @@ struct ComponentCatalog: View {
             Section("输入 / Inputs") {
                 CYTextField(title: "Email", placeholder: "name@example.com", text: $input, error: "校验错误 / Validation error")
                 CYSearchBar(text: $input)
-                CYVerificationCodeInput(code: $code, boxSize: 36, spacing: 4)
+                CYVerificationCodeInput(code: $code)
                 Toggle("原生 Toggle", isOn: $enabled)
                 DatePicker("原生 DatePicker", selection: $date, displayedComponents: .date)
             }
@@ -104,7 +105,7 @@ private struct LayoutExample: View {
         CYPageContainer(title: "页面容器 / Page", subtitle: "Scroll + safe area") {
             ForEach(0..<20) { Text("Row \($0)").padding() }
         }
-        .safeAreaInset(edge: .bottom) {
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             CYBottomActionBar { Text("底栏 / Bottom bar") } trailing: { Button("完成 / Done") {} }
         }
     }
@@ -131,7 +132,7 @@ private struct AdditionalComponents: View {
                 LoadingView()
                 CYLoadMoreButton(isLoading: false, hasMore: true, action: {})
                 CYToastView(message: "Toast content", type: .info)
-                CYStickyBottomBar(leading: { Text("Selection") }, trailing: { Button("Save") {} })
+                CYBottomActionBar(leading: { Text("Selection") }, trailing: { Button("Save") {} })
                 Text("Typewriter").typewriter(text: "Updated text", trigger: true)
                 Button("Onboarding") { completed = false; onboarding = true }
             }.padding()
@@ -188,9 +189,14 @@ private struct PublicComponentIndex: View {
             "Buttons: loading / disabled; see Buttons section."
         ),
         .init(
-            "CYTextField CYSearchBar CYVerificationCodeInput",
+            "CYTextField CYSearchBar",
             "CYTextField(placeholder: \"Name\", text: $text)",
             "Input bindings; Form recipe demonstrates focus and submit."
+        ),
+        .init(
+            "CYVerificationCodeInput",
+            "CYVerificationCodeInput(code: $code, onComplete: { value in focus = .next }).focused($focus, equals: .code)",
+            "One visible system input; ASCII 0...9; initial/external normalization is silent. See Verification code recipe."
         ),
         .init(
             "CYPaginatedListView",
@@ -215,11 +221,6 @@ private struct PublicComponentIndex: View {
             "More combinations; shimmer placeholder, not actual loading ownership."
         ),
         .init(
-            "CYPageNavigationChrome",
-            "Text(\"Page\").cyPageNavigationChrome(title: \"Title\")",
-            "iOS navigation modifier; see NavigationChrome.swift for leading / trailing builders."
-        ),
-        .init(
             "CYPageActionBar",
             "CYPageActionBar(title: \"Title\")",
             "More combinations; one-line toolbar labels."
@@ -228,11 +229,6 @@ private struct PublicComponentIndex: View {
             "CYSearchFilterBar",
             "CYSearchFilterBar(text: $text, onSearch: {})",
             "Search recipe; native keyboard behavior."
-        ),
-        .init(
-            "CYSplitViewContainer",
-            "CYSplitViewContainer(sidebar: { Text(\"Sidebar\") }, content: { Text(\"Content\") }, detail: { Text(\"Detail\") })",
-            "NavigationSplitView; width and collapse behavior belong to the platform."
         ),
         .init(
             "CYPageContainer",
@@ -245,8 +241,8 @@ private struct PublicComponentIndex: View {
             "States section; optional action."
         ),
         .init(
-            "CYBottomActionBar CYBottomSafeAreaInset CYStickyBottomBar",
-            "Text(\"Content\").safeAreaInset(edge: .bottom) { CYBottomActionBar(leading: { Text(\"Selection\") }, trailing: { Button(\"Save\") {} }) }",
+            "CYBottomActionBar",
+            "Text(\"Content\").safeAreaInset(edge: .bottom, spacing: 0) { CYBottomActionBar(leading: { Text(\"Selection\") }, trailing: { Button(\"Save\") {} }) }",
             "Page recipe / More combinations; native safeAreaInset."
         ),
         .init(
@@ -329,11 +325,6 @@ private struct PublicComponentIndex: View {
             "CYShareSheet",
             "CYShareSheet(items: [\"Share text\"])",
             "iOS; present with native sheet. Native share targets depend on device."
-        ),
-        .init(
-            "CYKeyboardObserver",
-            "Text(\"Content\").keyboardAwarePadding()",
-            "iOS keyboard observer defaults to shared; prefer native safe-area handling where appropriate."
         ),
         .init(
             "CYOnboardingPage CYOnboardingView",

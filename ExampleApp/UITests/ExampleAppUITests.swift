@@ -2,6 +2,66 @@ import XCTest
 
 @MainActor
 final class ExampleAppUITests: XCTestCase {
+    func testOTPInitialPasteExternalUpdateDeletionAndHostFocus() {
+        let app = launchCode(arguments: ["--otp-prefill", "--otp-paste"])
+        let field = app.textFields["OTP"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertEqual(field.value as? String, "123456")
+        XCTAssertEqual(app.staticTexts["otp.callbacks"].label, "Callbacks: 0")
+        XCTAssertEqual(app.staticTexts["otp.focus"].label, "Focus: code")
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 6))
+        XCTAssertEqual(app.staticTexts["otp.value"].label, "Code: ")
+        field.press(forDuration: 1.2)
+        let paste = app.menuItems["Paste"]
+        if paste.waitForExistence(timeout: 2) { paste.tap() } else { app.buttons["Paste"].tap() }
+        XCTAssertEqual(field.value as? String, "123456")
+        XCTAssertEqual(app.staticTexts["otp.callbacks"].label, "Callbacks: 1")
+        XCTAssertEqual(app.staticTexts["otp.focus"].label, "Focus: next")
+        app.typeText("next")
+        XCTAssertEqual(app.textFields["Next field"].value as? String, "next")
+        app.buttons["otp.keyboardDone"].tap()
+        app.buttons["otp.external"].tap()
+        XCTAssertEqual(field.value as? String, "987654")
+        XCTAssertEqual(app.staticTexts["otp.callbacks"].label, "Callbacks: 1")
+        app.buttons["otp.clear"].tap()
+        app.buttons["otp.focusCode"].tap()
+        field.typeText("12345" + XCUIKeyboardKey.delete.rawValue + "56")
+        XCTAssertEqual(field.value as? String, "123456")
+        XCTAssertEqual(app.staticTexts["otp.callbacks"].label, "Callbacks: 2")
+        app.buttons["otp.keyboardDone"].tap()
+        app.switches["otp.disabled"].switches.firstMatch.tap()
+        XCTAssertFalse(field.isEnabled)
+    }
+
+    func testOTPAtNarrowWidthLargestTypeAndLongLength() {
+        let app = launchCode(arguments: ["--otp-layout", "--otp-long"])
+        let field = app.textFields["OTP"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertEqual(field.value as? String, "123456781234567812345678")
+        XCTAssertGreaterThan(field.frame.height, 40)
+        XCTAssertGreaterThanOrEqual(field.frame.minX, 0)
+        XCTAssertLessThanOrEqual(field.frame.maxX, app.frame.maxX)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "OTP - 240pt width accessibility5 24 digits"
+        shot.lifetime = .keepAlways
+        add(shot)
+        // A normal tap can place the caret at the beginning; select the complete numeric word before replacing it.
+        field.doubleTap()
+        field.typeText("123456781234567812345679")
+        XCTAssertEqual(field.value as? String, "123456781234567812345679")
+        XCTAssertEqual(app.staticTexts["otp.callbacks"].label, "Callbacks: 1")
+    }
+
+    private func launchCode(arguments: [String]) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"] + arguments
+        app.launch()
+        XCTAssertTrue(app.buttons["bookmark.1"].waitForExistence(timeout: 10))
+        app.tabBars.buttons.element(boundBy: 3).tap()
+        app.buttons["验证码 / Verification code"].tap()
+        return app
+    }
+
     func testSnackBarReplacementAndLocalTagWithLargeLongContent() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
@@ -111,6 +171,17 @@ final class ExampleAppUITests: XCTestCase {
         let email = app.textFields["name@example.com"]
         XCTAssertTrue(email.waitForExistence(timeout: 5))
         email.tap()
+        let submit = app.buttons["form.submit"]
+        XCTAssertTrue(submit.isHittable)
+        let keyboard = app.keyboards.firstMatch
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 3))
+        let gap = keyboard.frame.minY - submit.frame.maxY
+        XCTAssertGreaterThanOrEqual(gap, -2)
+        XCTAssertLessThan(gap, 100, "No second keyboard-height-sized blank region")
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "Form bottom action with keyboard"
+        shot.lifetime = .keepAlways
+        add(shot)
         email.typeText("fake@example.test\n")
         app.typeText("password-example\npassword-example\n")
         XCTAssertTrue(app.staticTexts["提交成功 / Submitted"].waitForExistence(timeout: 5))

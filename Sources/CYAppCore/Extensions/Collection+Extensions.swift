@@ -25,11 +25,7 @@ extension Collection {
     public var isNotEmpty: Bool {
         return !isEmpty
     }
-    
-    /// 元素数量（count 的别名）
-    public var length: Int {
-        return count
-    }
+
 }
 
 // MARK: - Array 扩展 扩展

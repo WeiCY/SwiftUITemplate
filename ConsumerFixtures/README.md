@@ -51,3 +51,11 @@ Custom A/B：各持有自己的 HostComposition。业务和修饰符传相同反
 Offline Tab 是既有 Note 模型的原生编辑 Recipe：先点 Add sample note，再点 Original 打开草稿。取消保留 Original，保存才写入 context；失败保留编辑页并显示错误。输入草稿不直接绑定 @Model，避免取消也修改持久化对象。其跨实体事务和编辑冲突仍由宿主负责。新增 UI 测试覆盖取消和保存，未注入真实磁盘写入失败。
 
 CoreOnly 的 Proof 同时验证负数抽样、非有限字节数和默认 cURL 脱敏，不增加其他 Product。第三轮运行不覆盖 Evidence 中前两轮构建/性能数据；最新验证和截图见 [工程记录](../docs/ENGINEERING_VALIDATION.md#第三轮组件与扩展专项2026-10-19)。
+
+## 第四轮公开 API 清理
+
+Inputs Tab 是最终公开接口的独立消费者：Form 中放 `CYVerificationCodeInput(code:)`，宿主 `.focused` 控制焦点；完成只收起键盘。Restart input 清空后重新聚焦，Done 随时收起。底栏由原生 `.safeAreaInset(edge: .bottom, spacing: 0)` 挂载 `CYBottomActionBar`，不额外补键盘高度，也不创建内部 NavigationStack。
+
+CoreOnly 使用注入独立 UserDefaults 的 `CYAppStorageHelper`，验证旧 JSON Data 可读、显式抛错接口及单 key 删除。简单偏好直接选系统 `@AppStorage`，Codable 载入的 nil 代表缺失，损坏应捕获错误；不能将旧 JSON Data key 直接改绑原始 String/Bool 偏好而假定编码兼容。
+
+本轮已同步移除低价值转发调用，无兼容壳。迁移表见 [当前 API 评审](../docs/MODULE_COMPONENT_REVIEW.md#迁移清单旧-api--推荐写法)，最新构建、分批 UI 测试与小屏截图见 [第四轮验证](../docs/ENGINEERING_VALIDATION.md#第四轮公开-api-清理与控件整顿2026-10-19)。Evidence 中前三轮构建/性能 JSON 未覆盖，本轮没有新的性能达标结论。

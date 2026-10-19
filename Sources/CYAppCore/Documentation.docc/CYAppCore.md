@@ -108,6 +108,7 @@ CYToastManager.shared.show("操作成功", type: .success)
 
 ### 工具类
 
+- ``CYAppStorageHelper``（显式 throws JSON 偏好；可注入 UserDefaults）
 - ``CYKeychainHelper``
 - ``CYBiometricAuth``
 - ``CYFormValidator``
@@ -149,7 +150,7 @@ CYToastManager.shared.show("操作成功", type: .success)
 - ``String`` 扩展（验证、本地化、编码、MD5）
 - ``Date`` 扩展（格式化、时间戳、相对时间、运算）
 - ``Data`` 扩展（Base64、Hex、JSON）
-- ``Optional`` 扩展（or、then、orThrow）
+- ``Optional`` 扩展（orThrow、isNilOrEmpty、isNilOrBlank）
 - ``Numeric`` 扩展（货币、字节、四舍五入）
 - ``Dictionary`` 扩展（合并、QueryString）
 - ``Bundle`` 扩展（JSON 解码）

@@ -1,3 +1,94 @@
+# 公开 API 与组件复用评审
+
+## 第四轮：公开 API 清理与控件整顿（当前，2026-10-19）
+
+> 下段工作区/不提交说明记录第四轮实施阶段；随后用户授权最终收尾保存本地Git基线。收尾未新增功能，结果见ENGINEERING_VALIDATION文末；当前API和迁移结论不变。
+
+本轮按用户授权执行破坏性清理；七个 Library、网络凭证/恢复、DI、分页和 Persistence 框架不变。没有外部业务 App，不为本轮移除项保留废弃壳、typealias 或兼容转发。工作开始时 git status 为空，index 已记录，后续不 stage/提交/推送。以下为先形成再执行的删除/替换清单。
+
+### 迁移清单：旧 API → 推荐写法
+
+| 旧 API（本表仅为迁移说明） | 决定与理由 | 推荐写法 |
+|---|---|---|
+| CYStickyBottomBar、CYBottomSafeAreaInset、cyBottomSafeAreaInset | 删除：原生定位转发或 ActionBar 别名，无独立行为 | safeAreaInset(edge:.bottom, spacing:0) { CYBottomActionBar … } |
+| navigationBarAppearance/navigationBarHidden/scrollEdgeAppearance及私有Modifier | 删除：指定标题色未实现、分隔线参数无效、透明度命名不符 | navigationTitle、navigationBarTitleDisplayMode、toolbar、toolbarBackground、toolbarColorScheme、toolbarVisibility、tint |
+| CYPageNavigationChrome/cyPageNavigationChrome | 删除：同样误导的背景参数，仅组合原生 toolbar，无额外品牌逻辑 | 宿主原生 toolbar 定义 leading/trailing |
+| CYPageContainer.showsNavigationBar | 改名：实际只控制自绘页内标题 | showsHeader；系统栏由原生 API 控制 |
+| keyboardAwarePadding及Modifier、CYKeyboardObserver | 删除：只服务整屏高度补偿，无独立调用，不能算视图交集 | 默认键盘安全区、FocusState、onSubmit、scrollDismissesKeyboard |
+| CYSplitViewContainer | 删除：三 builder 转发，妨碍列状态定制 | NavigationSplitView |
+| Collection.length、Dictionary.isNotEmpty重复实现 | 删除别名/重复实现；Collection.isNotEmpty统一保留 | count；字典继承Collection.isNotEmpty |
+| String.asURL/asData/toInt/toDouble | 删除：只是原生转换更名 | URL(string:) / data(using:.utf8) / Int(_) / Double(_) |
+| Dictionary.keysArray/valuesArray/hasKey/value(for:)/merge(_)/merged(with:) | 删除：集合转换、cast和冲突策略直接写更清楚 | Array(keys)/Array(values)、index(forKey:)、下标as?；原后者覆盖策略为merge/merging(other, uniquingKeysWith: { _, new in new }) |
+| Optional.or/isNil/isNotNil/then/countOrZero/orZero | 删除：重复原生且部分默认值急求值 | ??、==nil、!=nil、if let、?.count ?? 0 |
+| Result.value/error/isSuccess/isFailure/getOrDefault/success(Void) | 删除：不保留错误或仅模式匹配别名；不替换其他类型的同名属性 | try result.get() / switch / .success(()) |
+| Task.sleep(seconds:)/sleep(milliseconds:) | 删除：Duration原生已足够 | Task.sleep(for:.seconds(_)) / .milliseconds(_) |
+| UIImage.withTintColor/toPNG/toJPEG | 删除：撞系统API或只是更名；HEIC、尺寸/裁剪/旋转/模糊保留 | 原生withTintColor/pngData/jpegData(compressionQuality:0.8)；0.8对应原默认质量，tint采用系统渲染语义 |
+| CYVerificationCodeInput.boxSize/spacing | 重做：不保留固定格宽和透明字段 | 可见单系统字段；ASCII规范化、受控Binding、宿主focused、onComplete |
+| CYAppStorage属性包装、CYAppStorageHelper静态API/has/clearAll | 删除静默包装与隐式全局清理 | 原生@AppStorage；实例Helper注入defaults，throws load/save、显式remove |
+
+### 当前保留组件及理由
+
+CYBottomActionBar/CYPageActionBar提供明确的双侧排版与品牌样式；CYPageContainer统一自绘header/内容间距但不创建导航。Card/Tag/输入/分页/状态与反馈、Router/AppState及明确平台桥接继续保留，不机械合并不同职责。下表继承既有取证，C/T/I/D的历史范围见验证记录，不能外推全部设备/无障碍。
+
+| 公开类型 / 适用场景 | 状态输入 → 行为输出 | 内容 / 样式入口 | VM / 默认单例 | 组合边界 / 平台 | 已验证 | 额外未验证 / 设计限制 |
+|---|---|---|---|---|---|---|
+| PrimaryButton、SecondaryButton、CYScaledButtonStyle / 提交、次操作 | loading/disabled/按压 → action；失败/取消归宿主 | title；Token 字体/色/高度/前景、ButtonStyle | 无 VM；启动品牌 | List/ScrollView/底栏，共 | C/T/D；外部按钮接入 | 极长按钮文案和最大字号截断 |
+| CYTextField、CYSearchBar、CYVerificationCodeInput / 表单、搜索、ASCII短码 | Binding→submit/清除；OTP用户编辑完成边沿 | Token、title、length、isDisabled、onComplete | 无VM；本地化默认全局 | List/Form/ScrollView，普通系统输入适配宽度 | 本轮单元+UI见验证记录 | OTP短信自动填充和VoiceOver仍待真机，长输入原生字段自动换行增高 |
+| CYPaginatedListView / 兼容分页页面 | 模板 VM → refresh/loadMore 回调，retry 委托 VM | Row/Empty/Loading/Error、threshold；外部 List modifier | 具体 CYPaginatedListViewModel，默认文案全局 | 自带 List；禁止嵌套滚动，共 | C/T/I/D，旧搜索流程 | 游标/排序/跨页业务去重由宿主 |
+| CYPaginationState、CYPaginatedListContent / 独立状态分页 | 值快照 → refresh/append/retry；正常/空/加载/失败/恢复 | Row/Empty/Loading/Error、threshold、Token | 无模板 VM；默认本地化全局 | 自带 List，NavigationStack/Sheet，共 | C/T/I/D，独立状态；取消/旧响应 T | Host 必须 guard 并发与结果代次；全部布局矩阵 |
+| CYLoadMoreButton / 手动分页 | loading/hasMore → async action | 内置文案/Token，外层 modifier | 无 VM；全局文案 | 普通容器/列表底部，共 | C/D | 独立按钮 action Task 不保证页面退出取消；宿主按需管理；非无限滚动引擎 |
+| ShimmerModifier、SkeletonRow、SkeletonCard、SkeletonList / 占位 | shimmer active、rowCount → 无业务行为 | placeholder/尺寸/Token，`.shimmer()` | 无 VM | ScrollView/List 子项，共 | C/D | 占位不拥有请求；减弱动效实际视觉待测 |
+| CYPageActionBar、CYSearchFilterBar / 页面操作、筛选 | title/query/filter flag → leading/trailing/search/filter | Builder 或回调；Token | 无 VM；搜索内置文案全局 | 普通容器，共 | C/D；搜索 I | 单行 toolbar 长文案、大字号压缩；图标朗读需宿主补标签 |
+| CYPageContainer、CYEmptyStateView / 页面和空态 | 标题/文案/空态 action → 宿主回调 | content、action、图标；Token | 无 VM | Page 默认 ScrollView，可 usesScrollView:false；Empty 可嵌列表，共 | C/D；分页空/失败状态 T/I | 内含List时须usesScrollView:false；空态全部长文案布局待验 |
+| CYBottomActionBar / 底栏 | Builder中操作，宿主safeAreaInset定位 | leading/trailing/inset content、background/padding | 无 VM | 推荐原生 safeAreaInset，共 | C/D；表单底栏 I | 键盘与旋转、手势条/分屏安全区 |
+| CYFlowLayout / 标签换行布局 | 子视图/spacing → 布局 | 任意子视图；间距 | 无 VM | 有限宽容器，共 | C/T/D | 超宽单项/大量标签/RTL 性能 |
+| CYListRow、CYSectionHeader、CardView / 行、分组、卡片 | 标题/副标题/图标 → 宿主内容操作 | 行 leading/trailing、Card content；Token | 无 VM | List/ScrollView，共 | C/D；外部 Card C | 长行/附件挤压、辅助功能分组顺序 |
+| CYBadge、CYTag、CYTagGroup / 标签选择 | title/selected/selectedIDs 值快照 → tap/宿主更新 | 标签内容/选择回调、Token 与颜色参数 | 无 VM | FlowLayout/普通容器，共 | C/T/D | 多选焦点与长词溢出 |
+| CYLoadingIndicator、LoadingView / 局部加载 | message/style → 无请求行为 | CYLoadingStyle 或 Token | 无 VM；默认样式 | 任意容器，共 | C/T/D；loading I | 不负责超时/取消；重载样式全部组合 |
+| CYBottomSheetModifier / 半屏容器 | Binding/Detents → 系统 dismiss | sheetContent、detents/indicator | 无 VM | 原生 sheet；宿主负责展示状态，共 | C/D | 多层 Sheet、键盘改变 detent |
+| CYSnackBarManager、CYSnackBar、CYSnackBarModifier / 底部消息 | 可观察消息/时长/动作 → perform/dismiss | 文案/action；Token/内置布局 | 可独立 init，默认 shared | overlay，共 | C/D | 第三轮已修复替换/回调竞争、补关闭入口并取消两行截断；完整布局矩阵待测 |
+| CYBaseView、CYDefaultErrorView / 页面加载与错误 | 值 loading/CYAppError → retry/dismiss | content/errorView Builder、反馈样式 | 无具体 VM；默认共享样式 | overlay，宿主避免与页面全局 loading 重复，共 | C/T/D | 原错误/加载可同时存在；宿主定义优先级 |
+| CYAppDimens、CYDesignTokens、CYDesignConfiguration、CYAppColor、CYAppFont / 启动品牌 | 启动 Token → 计算读取样式 | 主色/对应前景、动态字体、间距/圆角/尺寸 | 进程级配置，非 VM | 共 | C/T/D，第二品牌消费者 | 运行时品牌刷新/窗口独立品牌不承诺 |
+| CYToastPosition、CYToastIconColorStrategy、CYFeedbackShadow、CYToastStyle / Toast 样式 | 值/位置/颜色策略 → 原生样式 | 字体、图标、背景、shadow、transition 等 | 值类型；默认 shared config 消费 | 共 | C/T/D | 所有自定义组合/对比度 |
+| CYLoadingIndicatorStyle、CYLoadingCardStyle、CYLoadingStyle、CYErrorStyle、CYFeedbackConfiguration / 反馈样式 | 配置 → Loading/Error 呈现 | 独立样式、configure/reset | 配置默认 shared；可构造配置，视图默认仍读共享 | 共 | C/T/D | 不保证窗口级配置；暗色/大字号完整组合 |
+| CYAppState / 通用偏好 | 注入 theme/localization → 可观察 theme/language | 宿主环境/Locale/重建；不存业务账号 | 默认共享管理器，可注入 | 共 | C/T/D | 模板 `.cyLocalized` 非窗口级语言；同 defaults 可共享偏好 |
+| CYAlertManagerModifier / Alert 挂载 | 可观察协议 → 系统按钮/确认/dismiss | 管理器 title/message/type/action | 注入管理器，默认 shared | 原生 alert，共 | C/T/I/D，自定义 Alert | 同时多个 Alert 来源、VoiceOver 焦点恢复 |
+| CYToastView、CYLoadingOverlay / 反馈展示 | message/type/style → 展示；交互由挂载层 | 显式 style，反馈配置 | 纯视图无业务 VM；挂载默认 shared manager | overlay，共 | C/T/I/D，独立 Toast/Loading | loading 遮挡与布局全矩阵；非业务队列实现 |
+| CYRemoteImageView / 可替换加载器 | URL/loader → loading/success/error/retry；离开/URL 变化取消 | contentMode/placeholder、accessibility；外部尺寸 | 协议注入，默认 Core loader | List/ScrollView/页面，共 | C/T/I/D，本地 GIF、取消、URL 替换 | iOS 大图解码/快速多图峰值未测；不承诺预取与降采样策略 |
+| TypewriterModifier / 打字文本 | text/trigger/speed/scene/reduceMotion → 任务播放/取消 | 原 View/文字，speed | 内部状态，无 VM | 共 | C/T/D | 实际读屏连续朗读/焦点、长文本性能 |
+| RectCorner / 圆角支撑 | 角集合 → 裁剪 | cornerRadius modifier | 无 VM | 共 | C/D | 特殊 shape 命中区域 |
+| CYMediaPicker、CYCameraView、CYShareSheet / 平台桥接 | source/filter/selection/items → confirm/cancel/系统回调 | label、配置项；native sheet | 无模板 VM；权限/Photos 是系统服务 | i，Photos/PhotosUI 条件 | C/T/D，选择状态/资源所有权 T | 真机相机、拒绝/有限权限、真实视频、分享目标均待测 |
+| CYMediaSelectionManager、CYMediaType、CYMediaPickerStyle、CYMediaSource、CYMediaFilter、CYMediaItem、CYAlbumInfo / 媒体支撑 | PHAsset/UIImage/视频URL、限制 → 选择/异步数据 | 宿主 maxSelection/filter/原图/预选 | Selection 可独立 init；非业务模型 | i + Photos | C/T/D | 大量真实资产、视频加载失败与资源生命周期现场验收 |
+| CYMediaPickerController、CYPhotoAssetLoader / 网格容器、系统资产加载 | selection/filter/album → confirm/cancel/load/cancel | 参数/回调、宿主权限说明 | Controller 内部 selection；Loader.shared，不支持替换 Photos 后端 | i + Photos | C/T/D，Photos 取消回调处理；未桥接 Task 取消到请求句柄 | 真机 Photos/缩略图压力、实际受限相册 |
+| CYOnboardingPage、CYOnboardingView / 引导 | pages/currentPage/完成 Binding → 完成/跳过 | icon/title/description、Token | 无 VM；默认演示 pages 可替换 | Page 共；View i，page TabView | C/T/D | 最大字体分页、读屏顺序；默认文案应由宿主替换 |
+| CYSheetItem、CYAppRouter / 路由支撑 | tabs/host Hashable route/Sheet View → paths/selection/sheetItem | 宿主 destination、sheet(item:)、Deep Link 校验 | 独立 init 可用，shared 仅默认入口 | NavigationStack/TabView/Sheet，共 | C/T/I/D，独立路径和路由挂载 | 恢复/多窗口/复杂 Deep Link 由宿主定义 |
+
+
+### 当前扩展与工具取舍
+
+- 保留Collection.safe/isNotEmpty、Array去重/分块/抽样与分组；统一Collection实现，没有Dictionary重复声明。
+- Optional仅保留orThrow/isNilOrEmpty/isNilOrBlank：表达错误与nil/空聚合；不再提供急求值默认或仅比较nil的别名。Result直接get/switch，未动其他类型同名属性。
+- Dictionary只保留queryString、jsonData、prettyJSON有边界的序列化/调试组；冲突策略、集合转换与动态cast由原生语法表达。queryString不处理重复参数/签名排序，关键JSON优先throws Codable。
+- String保留Unicode/grapheme操作、区域形状校验、本地化和编码；转换直接用原生。Date/Numeric格式化边界保持前轮取证，未改日期/错误含义。
+- Task保留retry/withTimeout，仍验证参数与传播取消；没有自定义sleep别名。UIImage保留有实际处理的HEIC/缩放/裁剪/旋转/模糊，没有撞系统tint或薄PNG/JPEG转发。
+- Codable偏好只有实例CYAppStorageHelper：注入defaults，throws load/save，remove单key；缺失nil、损坏原错。JSON字节/key不变，无静默属性赋值或自动清库；UserDefaults磁盘提交仍非事务性。
+- 通用鉴权能力、Keychain、缓存Result、Data/Decodable抛错、表单校验与图片/请求取消保持。业务账号流程、会话商业规则、支付/订单、服务端契约和编辑冲突留宿主。
+
+### OTP与布局设计
+
+选择始终可见的原生字段而非再造格子：默认就具备窄宽/大字体的普通输入表现，只有一个系统输入源，无重复装饰朗读、无透明焦点层、无无限缩字。最大字号时竖向随字体增高；超长输入使用TextField(axis:.vertical)自动换行增高，无省略号，caret保持可达。长度至少1，ASCII标量过滤后截取前length位。
+
+初始和外部更新只规范化；用户编辑后值变化且完整才回调。清空/删除再输入同值可再完成；同一完整值的无关刷新/重复设置不回调。disabled阻止用户编辑/回调，外部更新仍同步。宿主focused控制初始焦点和完成后去向，示例仅移焦，不认证。
+
+本轮已实际删除清单中的旧接口；剩余未整顿能力主要是媒体原图回传/Photos取消/大相册路径、手动LoadMore任务、骨架重播和极值等，不扩展为媒体或状态框架。运行结果在ENGINEERING_VALIDATION第四轮，未验真机短信/VoiceOver不标通过。
+
+## 历史记录（第二、三轮；不是当前 API 推荐）
+
+<details>
+<summary>展开历史取证与当时的兼容决策</summary>
+
+下文保留过去的取证与决策原貌。涉及本轮删除 API、兼容承诺与旧 OTP 的描述仅适用于当时快照；当前以第四轮清单和 GETTING_STARTED 为准。
+
 # 模块、组件与扩展复用评审
 
 最新专项结论见文末「第三轮：多 App 组件与扩展专项」。以下第二轮消费证据保留为历史；第三轮明确修正的限制以最新表为准。
@@ -252,3 +343,5 @@ A=已有组合；B=原生足够；C=补Recipe；D=确有公共组件依据；E=�
 5. 简单偏好用@AppStorage；唯一数据用宿主SwiftData/文件保存；缓存允许丢，写Result要处理；凭证用Keychain显式service/account和readResult。普通图片可注入RemoteImage，媒体先从系统Picker/ShareLink起步。
 
 第三轮改动文件、实际测试/构建/界面截图及未验证项见 [ENGINEERING_VALIDATION](ENGINEERING_VALIDATION.md#第三轮组件与扩展专项2026-10-19)。
+
+</details>

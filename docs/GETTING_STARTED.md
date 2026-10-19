@@ -294,9 +294,9 @@ func makeHostClient() -> any CYNetworkClientProtocol {
 
 原 `session: Alamofire.Session` 入口保持兼容，新参数没有默认值，因此原无 session 参数调用不产生歧义。网络实现仍基于 Alamofire；这个入口减少消费者代码对第三方类型的接触，不改变包级解析或链接成本。
 
-## 组件与扩展的选择（第三轮复用专项）
+## 当前组件与扩展的选择（第四轮破坏性清理）
 
-先用原生 `List/Form/NavigationStack/NavigationSplitView/toolbar/safeAreaInset` 表达页面，再按需用模板统一样式。`CYPageContainer` 默认有 ScrollView，但已经支持 `usesScrollView: false`；其 `showsNavigationBar` 控制页内标题，不控制系统导航。分页 renderer 自带 List。`CYStickyBottomBar` 只是 ActionBar 的兼容包装，固定位置仍需宿主 safeAreaInset。多行设置项优先原生 VStack/LabeledContent，`CYListRow` 当前标题和副标题均为单行；带 Toggle 的 trailing 不要再传整行 action。
+先用原生 `List/Form/NavigationStack/NavigationSplitView/toolbar/safeAreaInset` 表达页面，再按需用模板统一样式。`CYPageContainer` 默认有 ScrollView，但已经支持 `usesScrollView: false`；其 `showsHeader` 控制页内标题，不控制系统导航。分页 renderer 自带 List。底部操作用原生 `.safeAreaInset(edge: .bottom, spacing: 0)` 挂 `CYBottomActionBar`，定位、安全区和键盘避让归系统容器。多行设置项优先原生 VStack/LabeledContent，`CYListRow` 当前标题和副标题均为单行；带 Toggle 的 trailing 不要再传整行 action。
 
 局部覆盖标签背景时，同时覆盖前景；`CYTagGroup.selectedIDs` 是值快照，点击后由宿主更新集合：
 
@@ -320,11 +320,48 @@ struct LocalTags: View {
 
 Snackbar 适合带动作的底部提示，与无动作短 Toast 分工。用 `@State private var snack = CYSnackBarManager()` 并挂 `.snackBar(manager: snack)`。`show` 替换旧消息；action 在 MainActor 运行，先关闭旧消息再执行回调，可以安全显示后继。duration 有限且为正时计时，非正/非有限/超计时范围时保留到关闭按钮或 `dismiss()`。不要用常驻 Snackbar 承载整篇说明。自定义 `.dynamicTypeSize/.environment/.preferredColorScheme` 要放在 overlay 修饰符之后，才能同时作用于内容和反馈。
 
-验证码当前默认6×48+间距需348pt，窄屏要显式设置boxSize/spacing；它的 `isNumber` 过滤接收 Unicode 数字，不是服务端 ASCII 码规则。OTP 自动填充/粘贴和读屏需要宿主实际验收。键盘优先原生安全区、FocusState、scrollDismissesKeyboard；`keyboardAwarePadding` 是整屏键盘高度，可能与系统避让重复，不适合作为所有页面的默认修饰符。
+验证码使用始终可见的单个系统 TextField，默认仅接收 ASCII 0...9，length默认为6，非正长度按1。初始值、外部更新、手动输入和粘贴均过滤后截取前length位。没有固定格宽和装饰格重复朗读；字段随可用宽度布局，大字体按原生字段增高，长内容使用可增长的原生多行字段，不省略字符、不缩小字体。宿主用 `.focused` 设置初始焦点、完成后去向或取消焦点。
+
+`onComplete` 只在**用户编辑后的规范化值变化且达到length**时触发；初始/外部赋值、相同完整值、过滤后无变化均不触发。删除/清空后再次输入同一完整值会再触发，直接替换成另一个完整值也会触发。disabled阻止用户编辑/回调，但外部更新仍规范化。iOS保留oneTimeCode和numberPad；模拟器粘贴与键盘回归不等于真实短信自动填充或VoiceOver验收。库不发网络验证。
+
+键盘使用系统安全区、FocusState、onSubmit/submitLabel和scrollDismissesKeyboard；普通页面不忽略keyboard安全区。表单Recipe在键盘上方用native safeAreaInset承载提交按钮，可直接操作，不额外加全屏键盘高度。
+
+```swift
+// compile-check: code-entry-native-bottom-bar
+import SwiftUI
+import CYAppDesignSystem
+
+struct CodeEntry: View {
+    enum Field: Hashable { case code, next }
+    @State private var code = ""
+    @State private var note = ""
+    @FocusState private var focus: Field?
+    var body: some View {
+        Form {
+            CYVerificationCodeInput(code: $code) { _ in focus = .next }
+                .focused($focus, equals: .code)
+            TextField("Note", text: $note)
+                .focused($focus, equals: .next)
+                .submitLabel(.done)
+                .onSubmit { focus = nil }
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            CYBottomActionBar { EmptyView() } trailing: {
+                Button("Continue") { focus = nil }.disabled(code.count != 6)
+            }
+        }
+        .navigationTitle("Verification")
+        .task { focus = .code }
+    }
+}
+```
+
+导航直接用navigationTitle、navigationBarTitleDisplayMode、toolbar、toolbarBackground、toolbarColorScheme、toolbarVisibility和tint。iPad列状态直接用NavigationSplitView。`CYPageActionBar`保留页内HStack布局，与系统导航栏分工明确。
 
 简单媒体选择优先系统 `PhotosPicker` 或 `.system(source: .album)`，静态可分享内容优先跨平台 `ShareLink`。自定义网格有自己 NavigationStack，原图开关目前没有回传/改变导出策略，相机确认会写入相册，Photos 请求未桥接 Task 取消，视频在网格预览中不保证播放；这些都需要真实需求和真机验收。`CYMediaItem.loadData()` 可能把视频完整读入内存，上传大文件优先保留 item 并用 videoURL。示例的“模拟加载失败”只展示文案，不是Photos后端故障注入证明。
 
-本地编辑无需公共编辑框架：[OfflinePage](../ConsumerFixtures/Sources/OfflinePersistence/OfflineConsumer.swift) 使用原生 List/Form/Sheet，把输入留在 draft 中；取消不改 SwiftData 模型，保存显式处理错误。复杂编辑冲突、唯一性和跨实体事务归宿主。设置偏好用原生 `@AppStorage`；`CYAppStorage` Codable 包装不是 SwiftUI DynamicProperty，编码失败仍静默且损坏值回默认，不推荐关键数据写入。
+本地编辑无需公共编辑框架：[OfflinePage](../ConsumerFixtures/Sources/OfflinePersistence/OfflineConsumer.swift) 使用原生 List/Form/Sheet，把输入留在 draft 中；取消不改 SwiftData 模型，保存显式处理错误。复杂编辑冲突、唯一性和跨实体事务归宿主。简单界面偏好用原生 `@AppStorage`；Codable偏好用下面的显式工具，数据库模型继续用宿主Persistence/Repository。
 
 规则需要依赖另一个字段时，按当前值重新构造；默认错误文案也在规则创建时确定：
 
@@ -361,3 +398,25 @@ Keychain 保存按 service/account 更新，不存在时添加，竞争插入时
 `request.cURL` 现在默认复用日志脱敏并转义 shell 引号；它不是保留原始凭证的完整重放。仅本地确需原请求时显式 `request.cURL(redactingSensitiveData: false)`，不要把原文写日志。脱敏只认识既定字段名，URL路径和普通字段不能放秘密。Double字节数格式化遇NaN/Infinity/Int64越界返回原数值文本；负数sample返回空数组；`Color(hex:)`仅接受可选单个#、3/6/8位完整十六进制和两端空白。
 
 完整保留/调整/补示例/建议废弃/宿主分类及未解决项见 [专项清单](MODULE_COMPONENT_REVIEW.md#第三轮多-app-组件与扩展专项2026-10-19)。
+
+### Codable 偏好：显式错误与现有字节
+
+```swift
+// compile-check: explicit-codable-preferences
+import Foundation
+import CYAppCore
+
+struct ReaderPreferences: Codable { var favoriteIDs: [String] }
+func updatePreferences(defaults: UserDefaults) throws {
+    let storage = CYAppStorageHelper(defaults: defaults)
+    let current = try storage.load(ReaderPreferences.self, forKey: "readerPreferences")
+    try storage.save(current ?? ReaderPreferences(favoriteIDs: []), forKey: "readerPreferences")
+    // 用户明确要求删除时：storage.remove(forKey: "readerPreferences")
+}
+```
+
+missing返回nil；存在但不是Data、JSON损坏或模型不匹配都会抛错，保留原始DecodingError/codingPath，不删除或清空数据。save先编码，失败保留旧字节。默认仍是同key的JSONEncoder/Decoder Data，读取既有JSON数据不需要重写或迁移。旧key注册元数据不会被自动清理，也不再被读作隐式clear-all范围。
+
+原生@AppStorage的Bool/String等直接值与JSON Data格式不同，不可把同key的旧JSON Data直接当成原生Bool；若宿主实际有这类数据，应先用上述工具解码，显式写入选定的原生key。仓库没有真实属性包装调用，不存在本轮强制改key或清库。UserDefaults不提供抛错的磁盘提交/事务保证；工具的throws保证编码/解码错误可感知，不替代唯一业务数据存储。
+
+已删除接口的完整映射仅见[迁移清单](MODULE_COMPONENT_REVIEW.md#迁移清单旧-api--推荐写法)，当前示例只使用最终保留API。

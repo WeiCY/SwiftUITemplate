@@ -91,3 +91,9 @@
 
 "dismiss" = "关闭";
 "filter" = "筛选";
+
+/* Verification Code */
+"verification_code" = "验证码";
+"verification_code_placeholder" = "输入验证码";
+"verification_code_hint" = "请输入 %ld 位数字，仅支持 0 到 9。";
+"verification_code_progress" = "已输入 %ld / %ld 位";

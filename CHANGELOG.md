@@ -10,6 +10,20 @@
 
 ### [Unreleased]
 
+#### 最终交付收尾（2026-10-19）
+
+- 核对源码、资源、回归测试、ExampleApp工程、独立消费者、脚本及文档引用完整性，保留必要小屏验证截图；无新增功能或架构重构。
+- 补齐ROADMAP第三/四轮完成状态与当前复核入口，区分历史记录、前轮本机验证与本次交付检查；经授权保存本地Git基线，不推送、打tag或发布，不宣称远端CI通过。
+
+#### 破坏性公开 API 清理（第四轮，2026-10-19）
+
+- 本轮明确允许源码不兼容：没有外部业务App，移除项不保留deprecated/typealias/转发壳。七个Library和依赖版本不变，不改发布tag/版本；网络凭证注入、恢复协调、DI、Persistence与分页框架保留。
+- 删除底部定位别名、两套导航外观、键盘整屏高度补偿与Observer、Split转发容器；保留CYBottomActionBar和CYPageActionBar实际排版。页面自绘标题参数改为showsHeader。所有现有调用使用原生safeAreaInset/toolbar/NavigationSplitView和默认键盘安全区。
+- 删除Collection/Dictionary/String/Optional/Result/Task/UIImage低收益同义扩展；保留Collection.isNotEmpty、安全下标、格式化、orThrow、空值判定、HEIC转换、错误保留和请求取消。逐项旧API映射见MODULE_COMPONENT_REVIEW第四轮迁移清单。
+- 重做CYVerificationCodeInput：可见单系统字段，ASCII数字、初始/外部规范化、禁用与完成边沿；宿主focused控制焦点；iOS oneTimeCode保留，无固定boxSize/spacing。新增规则回归与真实输入/粘贴/焦点/窄宽最大字号UI。
+- 删除CYAppStorage属性包装；CYAppStorageHelper改为可注入UserDefaults的实例load/save/remove，编码/解码显式throws，缺失和损坏区分；保留既有JSON Data及key，失败不覆盖旧数据，无全局自动清理。
+- 同步ExampleApp、ConsumerFixtures、DocC、文档编译与组件登记/删除断言。验证详见ENGINEERING_VALIDATION第四轮；前几轮记录在下方仅为历史，不代表当前API仍提供。
+
 #### 组件与扩展复用专项（第三轮，2026-10-19）
 
 - 保留全部前两轮未提交成果及七库结构，不新增第三方依赖。完整组件/扩展分类、真实缺口、原生/Recipe替代和宿主边界写回 MODULE_COMPONENT_REVIEW；不按数量或无标准精确评分判断成熟度。
