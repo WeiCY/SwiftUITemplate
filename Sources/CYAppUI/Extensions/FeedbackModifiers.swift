@@ -24,11 +24,11 @@ public extension View {
 
 private struct CYToastModifier: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var manager: CYToastManagerProtocol
+    private let manager: any CYToastManagerProtocol
     @State private var configuration = CYFeedbackConfiguration.shared
 
     init(manager: CYToastManagerProtocol = CYToastManager.shared) {
-        self._manager = State(initialValue: manager)
+        self.manager = manager
     }
 
     func body(content: Content) -> some View {
@@ -64,11 +64,11 @@ private struct CYToastModifier: ViewModifier {
 
 private struct CYLoadingOverlayModifier: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var manager: CYLoadingManagerProtocol
+    private let manager: any CYLoadingManagerProtocol
     @State private var configuration = CYFeedbackConfiguration.shared
 
     init(manager: CYLoadingManagerProtocol = CYLoadingManager.shared) {
-        self._manager = State(initialValue: manager)
+        self.manager = manager
     }
 
     func body(content: Content) -> some View {

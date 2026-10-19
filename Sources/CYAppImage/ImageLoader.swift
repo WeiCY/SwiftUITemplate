@@ -12,51 +12,48 @@ public enum CYAppImageConfig {
     }
 }
 
-// MARK: - 跨平台 PNG 数据扩展
-
-#if canImport(UIKit)
-import UIKit
-#elseif canImport(AppKit)
-import AppKit
-extension NSImage {
-    func pngData() -> Data? {
-        guard let tiffData = tiffRepresentation,
-              let bitmap = NSBitmapImageRep(data: tiffData) else { return nil }
-        return bitmap.representation(using: .png, properties: [:])
-    }
-}
-#endif
-
 // MARK: - Kingfisher 实现
 
 /// Kingfisher 图片加载器实现
-public final class CYKingfisherImageLoader: CYImageLoaderProtocol, @unchecked Sendable {
+public final class CYKingfisherImageLoader: CYImageLoaderProtocol, Sendable {
     
     public nonisolated static let shared = CYKingfisherImageLoader()
     
-    private let manager = KingfisherManager.shared
+    private let manager: KingfisherManager
     
-    public init() {}
+    public init(manager: KingfisherManager = .shared) { self.manager = manager }
     
     public func loadImage(from url: URL) async throws -> Data {
-        return try await withCheckedThrowingContinuation { continuation in
-            manager.retrieveImage(with: .network(url)) { result in
-                switch result {
-                case .success(let value):
-                    if let data = value.image.pngData() {
-                        continuation.resume(returning: data)
-                    } else {
-                        continuation.resume(throwing: ImageLoaderError.decodeFailed)
+        let state = CYImageRequestState()
+        let data = try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { continuation in
+                state.install(continuation)
+                let task = manager.retrieveImage(
+                    with: .network(url),
+                    options: [.callbackQueue(.dispatch(.global(qos: .userInitiated)))],
+                    downloadTaskUpdated: { task in
+                        if let task { state.setCancellation { task.cancel() } }
                     }
-                case .failure(let error):
-                    continuation.resume(throwing: ImageLoaderError.loadFailed(error))
+                ) { result in
+                    switch result {
+                    case .success(let value):
+                        if let data = value.data() { state.complete(.success(data)) } else { state.complete(.failure(ImageLoaderError.decodeFailed)) }
+                    case .failure(let error):
+                        state.complete(.failure(error.isTaskCancelled ? CancellationError() : ImageLoaderError.loadFailed(error)))
+                    }
                 }
+                if let task { state.setCancellation { task.cancel() } }
             }
+        } onCancel: {
+            state.cancel()
         }
+        try Task.checkCancellation()
+        return data
     }
-    
+
     public func prefetch(urls: [URL]) {
-        let prefetcher = ImagePrefetcher(urls: urls)
+        let prefetcher = ImagePrefetcher(urls: urls, options: [.downloader(manager.downloader), .targetCache(manager.cache)])
         prefetcher.start()
     }
     

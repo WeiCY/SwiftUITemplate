@@ -1,3 +1,4 @@
+import CYTestSupport
 import Alamofire
 import Foundation
 import XCTest
@@ -8,8 +9,8 @@ private final class URLProtocolStub: URLProtocol, @unchecked Sendable {
     static let lock = NSLock()
     nonisolated(unsafe) static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
 
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override static func canInit(with request: URLRequest) -> Bool { true }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
         do {
@@ -132,7 +133,10 @@ final class NetworkIOTests: XCTestCase {
         }
     }
 
+    @MainActor
     func testUploadRejectsOversizedPayload() async {
+        let globalState = CYGlobalTestState()
+        defer { globalState.restore() }
         // 将上传上限临时调低到 1MB，验证超限文件在发起请求前被拒绝
         let original = CYAppConstants.configuration
         defer { CYAppConstants.configure(original) }
@@ -172,7 +176,10 @@ final class NetworkIOTests: XCTestCase {
     private func makeClient(requestInterceptors: [any CYRequestInterceptor] = [], responseInterceptors: [any CYResponseInterceptor] = []) -> CYNetworkClient {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [URLProtocolStub.self]
-        return CYNetworkClient(baseURL: "https://example.test", requestInterceptors: requestInterceptors, responseInterceptors: responseInterceptors, session: Session(configuration: configuration))
+        return CYNetworkClient(
+            baseURL: "https://example.test", requestInterceptors: requestInterceptors,
+            responseInterceptors: responseInterceptors, session: Session(configuration: configuration)
+        )
     }
 
     private static func response(for request: URLRequest) -> HTTPURLResponse {

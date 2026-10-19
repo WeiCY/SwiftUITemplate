@@ -75,30 +75,41 @@ let package = Package(
             name: "CYAppPersistence",
             path: "Sources/CYAppPersistence"
         ),
+        // Test-only helpers; no public product and no production target depends on this target.
+        .target(
+            name: "CYTestSupport",
+            dependencies: ["CYAppCore", "CYFeedbackStyle", "CYAppDesignSystem", .product(name: "FactoryKit", package: "Factory")],
+            path: "Tests/Support"
+        ),
         // Tests
         .testTarget(
+            name: "CYAppImageTests",
+            dependencies: ["CYAppImage", .product(name: "Kingfisher", package: "Kingfisher")],
+            path: "Sources/CYAppImageTests"
+        ),
+        .testTarget(
             name: "CYAppCoreTests",
-            dependencies: ["CYAppCore"],
+            dependencies: ["CYTestSupport", "CYAppCore", .product(name: "FactoryKit", package: "Factory")],
             path: "Sources/CYAppCoreTests"
         ),
         .testTarget(
             name: "CYFeedbackStyleTests",
-            dependencies: ["CYFeedbackStyle"],
+            dependencies: ["CYTestSupport", "CYFeedbackStyle"],
             path: "Sources/CYFeedbackStyleTests"
         ),
         .testTarget(
             name: "CYAppDesignSystemTests",
-            dependencies: ["CYAppDesignSystem", "CYFeedbackStyle"],
+            dependencies: ["CYTestSupport", "CYAppDesignSystem", "CYFeedbackStyle"],
             path: "Sources/CYAppDesignSystemTests"
         ),
         .testTarget(
             name: "CYAppUITests",
-            dependencies: ["CYAppUI", "CYAppCore", "CYFeedbackStyle"],
+            dependencies: ["CYTestSupport", "CYAppUI", "CYAppCore", "CYFeedbackStyle"],
             path: "Sources/CYAppUITests"
         ),
         .testTarget(
             name: "CYAppNetworkTests",
-            dependencies: ["CYAppNetwork", "CYAppCore", .product(name: "Alamofire", package: "Alamofire")],
+            dependencies: ["CYTestSupport", "CYAppNetwork", "CYAppCore", .product(name: "Alamofire", package: "Alamofire")],
             path: "Sources/CYAppNetworkTests"
         ),
         .testTarget(

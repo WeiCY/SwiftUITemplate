@@ -20,7 +20,7 @@ import Foundation
 //     .minLength(8)
 //
 // // 2. 创建验证器
-// let validator = CYFormValidator(fields: [email, password])
+// let validator = CYFormValidator([.init(key: "email", field: email), .init(key: "password", field: password)])
 //
 // // 3. 绑定到 ViewModel
 // @Observable
@@ -148,7 +148,7 @@ public struct CYFormField: Sendable {
         rule(message ?? "validation_email".cyLocalized) { $0.isValidEmail }
     }
     
-    /// 手机号格式
+    /// 中国大陆手机号形状检查；不验证号码归属、可达性或其他地区号码。
     public func phone(message: String? = nil) -> CYFormField {
         rule(message ?? "validation_phone".cyLocalized) { $0.isValidPhoneNumber }
     }
@@ -173,7 +173,7 @@ public struct CYFormField: Sendable {
         rule(message) { $0.matches(pattern: pattern) }
     }
     
-    /// 与另一个字段值一致（确认密码场景）
+    /// 与捕获的字符串快照一致。依赖字段改变后应重新构造规则（确认密码场景）。
     public func match(_ other: String, message: String? = nil) -> CYFormField {
         rule(message ?? "validation_match".cyLocalized) { $0 == other }
     }

@@ -61,6 +61,8 @@ public struct CYMediaPicker<Label: View>: View {
     let preselected: [String]
     private let selectionIDs: Binding<[String]>?
     let onPicked: ([CYMediaItem]) -> Void
+    let onCancel: () -> Void
+    let onImportFailure: () -> Void
     let label: () -> Label
 
     // MARK: - Grid 样式状态
@@ -86,6 +88,8 @@ public struct CYMediaPicker<Label: View>: View {
         allowsCamera: Bool = true,
         allowsOriginal: Bool = false,
         preselected: [String] = [],
+        onCancel: @escaping () -> Void = {},
+        onImportFailure: @escaping () -> Void = {},
         onPicked: @escaping ([CYMediaItem]) -> Void,
         @ViewBuilder label: @escaping () -> Label
     ) {
@@ -98,6 +102,8 @@ public struct CYMediaPicker<Label: View>: View {
         self.preselected = preselected
         self.selectionIDs = nil
         self.onPicked = onPicked
+        self.onCancel = onCancel
+        self.onImportFailure = onImportFailure
         self.label = label
     }
 
@@ -109,6 +115,8 @@ public struct CYMediaPicker<Label: View>: View {
         allowsCamera: Bool = true,
         allowsOriginal: Bool = false,
         selectionIDs: Binding<[String]>,
+        onCancel: @escaping () -> Void = {},
+        onImportFailure: @escaping () -> Void = {},
         onPicked: @escaping ([CYMediaItem]) -> Void,
         @ViewBuilder label: @escaping () -> Label
     ) {
@@ -121,6 +129,8 @@ public struct CYMediaPicker<Label: View>: View {
         self.preselected = []
         self.selectionIDs = selectionIDs
         self.onPicked = onPicked
+        self.onCancel = onCancel
+        self.onImportFailure = onImportFailure
         self.label = label
     }
 
@@ -130,6 +140,8 @@ public struct CYMediaPicker<Label: View>: View {
         source: CYMediaSource = .both,
         maxSelection: Int = 1,
         filter: CYMediaFilter = .images,
+        onCancel: @escaping () -> Void = {},
+        onImportFailure: @escaping () -> Void = {},
         onPicked: @escaping ([CYMediaItem]) -> Void,
         @ViewBuilder label: @escaping () -> Label
     ) {
@@ -142,6 +154,8 @@ public struct CYMediaPicker<Label: View>: View {
         self.preselected = []
         self.selectionIDs = nil
         self.onPicked = onPicked
+        self.onCancel = onCancel
+        self.onImportFailure = onImportFailure
         self.label = label
     }
 
@@ -176,6 +190,7 @@ public struct CYMediaPicker<Label: View>: View {
                         onPicked(items)
                     },
                     onCancel: {
+                        onCancel()
                         showGridPicker = false
                     }
                 )
@@ -207,7 +222,7 @@ public struct CYMediaPicker<Label: View>: View {
                 showCamera = false
                 if let image {
                     onPicked([CYMediaItem(image: image)])
-                }
+                } else { onCancel() }
             }
             .ignoresSafeArea()
         }
@@ -241,6 +256,7 @@ public struct CYMediaPicker<Label: View>: View {
                 }
             }
             guard !Task.isCancelled else { return }
+            if items.count != newItems.count { onImportFailure() }
             if !items.isEmpty { onPicked(items) }
             // 清空选择，允许重复选择同一媒体再次触发回调。
             photoItems = []

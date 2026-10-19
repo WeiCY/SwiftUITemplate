@@ -61,18 +61,26 @@ public final class CYSnackBarManager: @unchecked Sendable {
     public private(set) var actionTitle: String?
 
     @ObservationIgnored
-    private var action: (@Sendable () -> Void)?
+    private var action: (@MainActor @Sendable () -> Void)?
     @ObservationIgnored
-    private var dismissTask: Task<Void, Never>?
+    private(set) var dismissTask: Task<Void, Never>?
+    @ObservationIgnored
+    private let wait: @Sendable (TimeInterval) async throws -> Void
 
-    public nonisolated init() {}
+    public nonisolated init() {
+        wait = { try await Task.sleep(for: .seconds($0)) }
+    }
 
-    /// 显示 SnackBar。
+    nonisolated init(wait: @escaping @Sendable (TimeInterval) async throws -> Void) {
+        self.wait = wait
+    }
+
+    /// 替换当前消息。有限正 duration 自动关闭；非正、非有限或超出计时范围时保留至手动关闭。
     public func show(
         message: String,
         actionTitle: String? = nil,
         duration: TimeInterval = 3.0,
-        action: (@Sendable () -> Void)? = nil
+        action: (@MainActor @Sendable () -> Void)? = nil
     ) {
         self.message = message
         self.actionTitle = actionTitle
@@ -80,15 +88,22 @@ public final class CYSnackBarManager: @unchecked Sendable {
         self.isPresented = true
 
         dismissTask?.cancel()
+        dismissTask = nil
+        guard duration.isFinite, duration > 0, duration < Double(Int64.max) / 2 else { return }
+        let wait = wait
         dismissTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(duration))
-            self?.dismiss()
+            do {
+                try await wait(duration)
+                try Task.checkCancellation()
+                self?.dismiss()
+            } catch { /* A replaced or dismissed message must not close its successor. */ }
         }
     }
 
     /// 关闭 SnackBar。
     public func dismiss() {
         dismissTask?.cancel()
+        dismissTask = nil
         isPresented = false
         message = nil
         actionTitle = nil
@@ -97,8 +112,9 @@ public final class CYSnackBarManager: @unchecked Sendable {
 
     /// 触发 SnackBar 上的动作按钮。
     public func performAction() {
-        action?()
+        let action = action
         dismiss()
+        action?()
     }
 }
 
@@ -126,7 +142,7 @@ public struct CYSnackBar: View {
             Text(message)
                 .font(CYAppFont.bodyMedium)
                 .foregroundStyle(.white)
-                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
 
             Spacer()
 
@@ -137,6 +153,14 @@ public struct CYSnackBar: View {
                 .font(CYAppFont.button)
                 .foregroundStyle(CYAppColor.accent)
             }
+
+            Button(action: dismiss) {
+                Image(systemName: "xmark")
+                    .frame(minWidth: 44, minHeight: 44)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.white)
+            .accessibilityLabel("dismiss".cyLocalized)
         }
         .padding(CYAppDimens.marginM)
         .background(Color.black.opacity(0.88))

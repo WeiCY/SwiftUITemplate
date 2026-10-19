@@ -14,14 +14,16 @@ import SwiftUI
 extension Color {
     /// 通过十六进制字符串创建颜色
     /// - Parameter hex: 十六进制字符串（支持 "#FF0000"、"FF0000"、"FF000080" 格式）
-    /// - Note: 8 位格式按 **RRGGBBAA** 解析（与 CSS / Android 惯例一致），
+    /// - Note: 8 位格式按 **RRGGBBAA** 解析（与 CSS 惯例一致），
     ///   而非 ARGB。如需不透明红色：`"FF0000FF"`。
     ///   非法输入（空串、非十六进制字符、长度非 3/6/8）时返回透明色（.clear），
     ///   而非产生「近透明黑黄」等误导性颜色。
     public init(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var hex = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        if hex.hasPrefix("#") { hex.removeFirst() }
         var int: UInt64 = 0
         guard !hex.isEmpty,
+              hex.utf8.allSatisfy({ (48...57).contains($0) || (65...70).contains($0) || (97...102).contains($0) }),
               Scanner(string: hex).scanHexInt64(&int),
               [3, 6, 8].contains(hex.count)
         else {

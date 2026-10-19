@@ -39,7 +39,7 @@ private struct TestItemRepository: CYRepositoryProtocol {
 @MainActor
 final class PersistenceTests: XCTestCase {
     func testHostModelsWorkWithPersistenceFoundation() throws {
-        let controller = CYPersistenceController(for: [TestItem.self], inMemory: true)
+        let controller = try CYPersistenceController.create(for: [TestItem.self], inMemory: true)
         let repository = TestItemRepository(context: controller.container.mainContext)
         let item = TestItem(name: "Example")
 

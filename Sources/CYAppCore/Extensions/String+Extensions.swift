@@ -22,7 +22,7 @@ extension String {
     
     // MARK: - 验证
     
-    /// 是否为合法的邮箱格式
+    /// 简单 ASCII 邮箱形状检查；不覆盖国际化邮箱，也不验证地址可达性。
     public var isValidEmail: Bool {
         let emailRegEx = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}"
         let emailPred = NSPredicate(format: "SELF MATCHES %@", emailRegEx)
@@ -36,7 +36,7 @@ extension String {
         return phonePred.evaluate(with: self)
     }
     
-    /// 是否为合法的 URL 格式
+    /// 兼容的域名式网页地址正则；并非通用 URL 校验，不能用于允许列表或安全决策。
     public var isValidURL: Bool {
         let urlRegEx = "^(https?://)?([\\w-]+\\.)+[\\w-]+(/[\\w-./?%&=]*)?$"
         let urlPred = NSPredicate(format: "SELF MATCHES %@", urlRegEx)
@@ -48,7 +48,7 @@ extension String {
         return range(of: pattern, options: .regularExpression) != nil
     }
     
-    /// 是否为合法的身份证号格式（简单校验）
+    /// 中国大陆居民身份证号的形状检查；不验证校验位、真实日期或身份。
     public var isValidIDCard: Bool {
         let idCardRegEx = "^[1-9]\\d{5}(18|19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])\\d{3}[\\dXx]$"
         return NSPredicate(format: "SELF MATCHES %@", idCardRegEx).evaluate(with: self)
@@ -61,7 +61,7 @@ extension String {
         return !self.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     
-    /// 是否全为数字
+    /// 是否全部由 Unicode 数字 Character 组成（包括非 ASCII 数字）；不是十进制数解析。
     public var isNumeric: Bool {
         return !isEmpty && allSatisfy { $0.isNumber }
     }
@@ -125,9 +125,10 @@ extension String {
             .joined()
     }
     
-    /// 截断到指定长度并添加后缀
+    /// 截断到指定字符数并添加后缀；长度 <= 0 返回空字符串（不追加后缀）。
     /// 用法: "Hello World".truncated(to: 5) → "Hello..."
     public func truncated(to length: Int, suffix: String = "...") -> String {
+        guard length > 0 else { return "" }
         guard count > length else { return self }
         return String(prefix(length)) + suffix
     }
@@ -137,7 +138,7 @@ extension String {
         return trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
-    /// 移除所有 HTML 标签
+    /// 以正则移除形如 <...> 的文本；不解析 HTML、不解码实体，不用于内容消毒。
     public var strippedHTML: String {
         return replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
     }
@@ -170,7 +171,7 @@ extension String {
         return removingPercentEncoding ?? self
     }
     
-    /// 返回 MD5 哈希字符串
+    /// 返回 MD5 摘要，仅用于兼容指纹，不用于密码或安全签名。
     public var md5: String {
         guard let data = data(using: .utf8) else { return self }
         let digest = Insecure.MD5.hash(data: data)

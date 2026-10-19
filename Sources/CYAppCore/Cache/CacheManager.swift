@@ -225,15 +225,7 @@ public final class CYCacheManager: Sendable {
     ///   - directoryName: 缓存子目录名，默认取 `CYAppConstants.cacheDirectoryName`
     ///   - baseDirectory: 缓存根目录，默认使用系统 caches 目录（测试可注入临时目录避免污染真实缓存）
     ///
-    /// **性能优化建议**：
-    /// - 小对象（< 1KB）：使用默认 `CYJSONSerializer()`
-    /// - 大对象（> 10KB）或高频读写：使用 `CYPropertyListSerializer()`
-    ///
-    /// 示例：
-    /// ```swift
-    /// // 高性能缓存实例（用于列表数据）
-    /// let fastCache = CYCacheManager(serializer: CYPropertyListSerializer())
-    /// ```
+    /// serializer 按数据格式需求选择；切换前验证真实模型往返，不按未经测量的大小阈值选格式。
     public init(
         serializer: CYCacheSerializer = CYJSONSerializer(),
         directoryName: String = CYAppConstants.cacheDirectoryName,

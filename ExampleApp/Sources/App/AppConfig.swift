@@ -15,6 +15,7 @@ struct ExampleAppConfig {
 
     var core: CYAppConfig
     var network: Network?
+    var usesMockNetwork = true
     var usesKingfisher: Bool
     var toastStyle: CYToastStyle
     var loadingStyle: CYLoadingStyle

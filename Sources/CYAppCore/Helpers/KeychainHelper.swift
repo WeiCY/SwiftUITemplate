@@ -39,12 +39,21 @@ public enum CYKeychainAccessibility: Sendable {
 
 public final class CYKeychainHelper: Sendable {
     public static let standard = CYKeychainHelper()
-    
-    private init() {}
+
+    private let updateItem: @Sendable (CFDictionary, CFDictionary) -> OSStatus
+    private let addItem: @Sendable (CFDictionary) -> OSStatus
+
+    init(
+        update: @escaping @Sendable (CFDictionary, CFDictionary) -> OSStatus = { SecItemUpdate($0, $1) },
+        add: @escaping @Sendable (CFDictionary) -> OSStatus = { SecItemAdd($0, nil) }
+    ) {
+        updateItem = update
+        addItem = add
+    }
     
     // MARK: - Data 操作
     
-    /// 保存 Data 到 Keychain
+    /// 按 service/account 更新，条目不存在时添加；失败不主动删除旧条目。
     @discardableResult
     public func save(
         _ data: Data,
@@ -52,34 +61,35 @@ public final class CYKeychainHelper: Sendable {
         account: String,
         accessibility: CYKeychainAccessibility = .afterFirstUnlock
     ) -> Result<Void, CYKeychainError> {
-        let query = [
-            kSecValueData: data,
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecAttrAccount: account,
-            kSecAttrAccessible: accessibility.secValue
-        ] as CFDictionary
-        
-        // 先删除已有项
-        let deleteStatus = SecItemDelete(query)
-        guard deleteStatus == errSecSuccess || deleteStatus == errSecItemNotFound else {
-            return .failure(.operationFailed(status: deleteStatus))
+        let identity: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        let values: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: accessibility.secValue
+        ]
+        var status = updateItem(identity as CFDictionary, values as CFDictionary)
+        if status == errSecItemNotFound {
+            let item = identity.merging(values, uniquingKeysWith: { _, new in new })
+            status = addItem(item as CFDictionary)
+            // Another writer may have inserted the same identity after the initial update.
+            if status == errSecDuplicateItem {
+                status = updateItem(identity as CFDictionary, values as CFDictionary)
+            }
         }
-        
-        // 添加新项
-        let status = SecItemAdd(query, nil)
-        
         guard status == errSecSuccess else { return .failure(.operationFailed(status: status)) }
         return .success(())
     }
-    
+
     /// 从 Keychain 读取 Data
     public func read(service: String, account: String) -> Data? {
         switch readResult(service: service, account: account) {
         case .success(let data):
             return data
         case .failure(let error):
-            CYLogger.auth.error("Failed to read keychain item for account: \(account)", error: error)
+            CYLogger.auth.error("Failed to read keychain item", error: error)
             return nil
         }
     }

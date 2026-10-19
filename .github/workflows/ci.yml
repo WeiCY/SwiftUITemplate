@@ -22,6 +22,19 @@ jobs:
       - name: Test
         run: swift test --configuration debug
 
+      - name: Verify public-only consumers and optional link boundaries
+        run: python3 scripts/verify-consumers.py --cache-from .build --output /tmp/consumer-proof.json
+
+      - name: Verify documentation and public component coverage
+        run: |
+          python3 scripts/verify-doc-examples.py
+          python3 scripts/verify-component-matrix.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: consumer-proof
+          path: /tmp/consumer-proof.json
+
   lint:
     name: SwiftLint
     runs-on: macos-15
@@ -48,12 +61,22 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
 
-      # 仓库为纯 SwiftPM 包（无 .xcodeproj），xcodebuild -scheme 不可用。
-      # 改用 swift build 交叉编译验证 iOS Simulator 目标（全部 Library + ExampleApp）。
-      - name: Cross-compile package and ExampleApp for iOS Simulator
+      - name: Build iOS Example host without signing
         run: |
-          SDK="$(xcrun --sdk iphonesimulator --show-sdk-path)"
-          swift build \
-            --sdk "$SDK" \
-            --triple arm64-apple-ios18.0-simulator \
-            -Xlinker -syslibroot -Xlinker "$SDK"
+          xcodebuild -project ExampleApp/ExampleApp.xcodeproj -scheme ExampleApp \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath /tmp/cy-example-derived CODE_SIGNING_ALLOWED=NO build
+
+      - name: Run iOS regression and UI tests
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(v["udid"] for a in d["devices"].values() for v in a if v["name"].startswith("iPhone")))')
+          xcodebuild -project ExampleApp/ExampleApp.xcodeproj -scheme ExampleApp \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
+            -derivedDataPath /tmp/cy-example-derived -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO test
+
+      - name: Build and run external consumer UI tests
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(v["udid"] for a in d["devices"].values() for v in a if v["name"].startswith("iPhone")))')
+          xcodebuild -project ConsumerFixtures/Host/Consumers.xcodeproj -scheme Consumers \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
+            -derivedDataPath /tmp/cy-consumer-derived -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO test

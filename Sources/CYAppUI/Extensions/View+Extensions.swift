@@ -41,7 +41,7 @@ extension View {
     
     /// 隐藏键盘
     #if canImport(UIKit)
-    public func hideKeyboard() {
+    @MainActor public func hideKeyboard() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
     #endif
@@ -199,49 +199,46 @@ private struct ShakeModifier: ViewModifier {
     let trigger: Bool
     let amplitude: CGFloat
     let duration: Double
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @State private var offset: CGFloat = 0
-    
+
     func body(content: Content) -> some View {
-        content
-            .offset(x: offset)
-            .onChange(of: trigger) { _, _ in
-                guard trigger else { return }
-                let steps = 6
-                let stepDuration = duration / Double(steps)
-                Task { @MainActor in
-                    for i in 0..<steps {
-                        let direction: CGFloat = i.isMultiple(of: 2) ? 1 : -1
-                        let decay = 1.0 - (CGFloat(i) / CGFloat(steps))
-                        withAnimation(.easeInOut(duration: stepDuration)) {
-                            offset = amplitude * direction * decay
+        content.offset(x: offset)
+            .task(id: trigger && !reduceMotion && scenePhase == .active) {
+                offset = 0
+                guard trigger, !reduceMotion, scenePhase == .active,
+                      duration.isFinite, duration > 0, amplitude.isFinite else { return }
+                defer { offset = 0 }
+                let step = duration / 6
+                do {
+                    for index in 0..<6 {
+                        try Task.checkCancellation()
+                        let direction: CGFloat = index.isMultiple(of: 2) ? 1 : -1
+                        withAnimation(.easeInOut(duration: step)) {
+                            offset = amplitude * direction * (1 - CGFloat(index) / 6)
                         }
-                        try? await Task.sleep(for: .seconds(stepDuration))
+                        try await Task.sleep(for: .seconds(step))
                     }
-                    withAnimation(.easeOut(duration: stepDuration)) {
-                        offset = 0
-                    }
-                }
+                } catch { /* lifecycle cancellation */ }
             }
     }
 }
 
-/// 脉冲动画修饰符
 private struct PulseModifier: ViewModifier {
     let scale: CGFloat
     let duration: Double
-    @State private var isPulsing = false
-    
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var visible = false
+
     func body(content: Content) -> some View {
+        let active = visible && !reduceMotion && scenePhase == .active && duration.isFinite && duration > 0 && scale.isFinite
         content
-            .scaleEffect(isPulsing ? scale : 1.0)
-            .animation(
-                .easeInOut(duration: duration / 2)
-                .repeatForever(autoreverses: true),
-                value: isPulsing
-            )
-            .onAppear {
-                isPulsing = true
-            }
+            .scaleEffect(active ? scale : 1)
+            .animation(active ? .easeInOut(duration: duration / 2).repeatForever(autoreverses: true) : nil, value: active)
+            .onAppear { visible = true }
+            .onDisappear { visible = false }
     }
 }
 
@@ -249,7 +246,7 @@ private struct PulseModifier: ViewModifier {
 
 /// 尺寸 PreferenceKey
 private struct SizePreferenceKey: PreferenceKey, Sendable {
-    nonisolated(unsafe) static var defaultValue: CGSize = .zero
+    static let defaultValue: CGSize = .zero
     static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
         value = nextValue()
     }

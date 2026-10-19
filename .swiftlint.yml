@@ -42,7 +42,10 @@ nesting:
 included:
   - Sources
   - ExampleApp
+  - ConsumerFixtures
+  - Tests
 
 excluded:
   - .build
   - .swiftpm
+  - ConsumerFixtures/.build

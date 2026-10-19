@@ -6,6 +6,7 @@ import CYAppImage
 import CYFeedbackStyle
 import CYAppDesignSystem
 import CYAppUI
+import CYAppPersistence
 
 // MARK: - 可运行示例 App
 //
@@ -16,17 +17,20 @@ import CYAppUI
 @MainActor
 @main
 struct DemoApp: App {
-    private let persistence = ExamplePersistence.controller
-    private let dependencies: AppDependencies
+    @State private var persistence = ExamplePersistence()
 
     init() {
         AppBootstrap.start(with: .default)
-        CYToastManager.shared.queueMode = .replace
-
-        dependencies = AppDependencies(
-            networkClient: CYFactoryContainer.shared.networkClient,
-            modelContext: ExamplePersistence.controller.container.mainContext
-        )
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+            var shouldFail = ProcessInfo.processInfo.arguments.contains("--fail-store-once")
+            _persistence = State(initialValue: ExamplePersistence {
+                if shouldFail {
+                    shouldFail = false
+                    throw NSError(domain: "ExampleInjectedFailure", code: 1)
+                }
+                return try CYPersistenceController.create(for: [BookmarkItem.self, BookmarkTag.self], inMemory: true)
+            })
+        }
     }
 
     @State private var appState = CYAppState()
@@ -37,14 +41,32 @@ struct DemoApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView(dependencies: dependencies)
-                .environment(appState)
-                .environment(router)
-                .preferredColorScheme(appState.theme.colorScheme)
-                .environment(\.locale, Locale(identifier: appState.language))
-                .id(appState.language)
+            Group {
+                if let controller = persistence.controller, let dependencies = persistence.dependencies {
+                    RootView(dependencies: dependencies)
+                        .modelContainer(controller.container)
+                } else if let error = persistence.error {
+                    ContentUnavailableView {
+                        Label("无法打开本地数据 / Storage unavailable", systemImage: "externaldrive.badge.exclamationmark")
+                    } description: {
+                        Text(error.localizedDescription)
+                    } actions: {
+                        Button("重试 / Retry") { openStore() }
+                            .accessibilityIdentifier("storage.retry")
+                    }
+                } else { ProgressView() }
+            }
+            .task { openStore() }
+            .environment(appState)
+            .environment(router)
+            .preferredColorScheme(appState.theme.colorScheme)
+            .environment(\.locale, Locale(identifier: appState.language))
+            .id(appState.language)
         }
-        .modelContainer(persistence.container)
+
+    }
+    private func openStore() {
+        persistence.open(networkClient: CYFactoryContainer.shared.networkClient)
     }
 }
 
@@ -55,6 +77,7 @@ struct RootView: View {
     @Environment(CYAppRouter.self) private var router
 
     var body: some View {
+        @Bindable var router = router
         TabView(selection: Binding(
             get: { router.selectedTab },
             set: { router.selectTab($0) }
@@ -70,7 +93,20 @@ struct RootView: View {
                 .tag(tab.id)
             }
         }
-        .feedbackOverlay()
+        .sheet(item: $router.sheetItem) { $0.content }
+        .onOpenURL { url in
+            guard url.scheme == "cyexample", url.host == "article",
+                  let id = Int(url.lastPathComponent), let article = Article.samples.first(where: { $0.id == id }) else { return }
+            router.navigate(to: AppRoute.articleDetail(article), on: AppTab.home.id)
+        }
+        .feedbackOverlay(toastManager: dependencies.toast, loadingManager: dependencies.loading)
+        .alertManager(manager: dependencies.alert)
+        .overlay {
+            if dependencies.loading.isLoading {
+                Button("关闭加载 / Stop loading") { dependencies.loading.hideAll() }
+                    .padding().background(.regularMaterial)
+            }
+        }
     }
 
     @ViewBuilder
@@ -78,7 +114,8 @@ struct RootView: View {
         switch tab {
         case .home: HomeView(viewModel: dependencies.homeViewModel)
         case .bookmarks: BookmarkView(viewModel: dependencies.bookmarkViewModel)
-        case .settings: SettingsView()
+        case .settings: SettingsView(toast: dependencies.toast)
+        case .components: ComponentCatalog(dependencies: dependencies)
         }
     }
 

@@ -1,1197 +1,363 @@
-# 完整接入指南
+# 从零接入
 
-> 本文档对应当前主干（含 Unreleased 变更）；使用已发布 tag 时以该 tag 的文档为准。
->
-> 本文档涵盖从零接入到各模块使用的完整说明。如果只需 5 分钟快速预览，请先阅读 [README](../README.md)。
+适用于当前主干 Unreleased，iOS 18+ / macOS 15+、Swift 6。规则见 [TEMPLATE_RULES](TEMPLATE_RULES.md)，网络细节统一见 [NETWORK_GUIDE](NETWORK_GUIDE.md)。
 
----
+## 1. 先启动宿主
 
-## 目录
+打开 `ExampleApp/ExampleApp.xcodeproj`，选 `ExampleApp` 和模拟器运行。无需签名，默认 Mock。工程直接编译 `ExampleApp/Sources` 并引用上一级本地 Package。
 
-- [1. 集成到项目](#1-集成到项目)
-- [2. 启动配置](#2-启动配置)
-- [3. 核心默认值配置](#3-核心默认值配置)
-- [4. 多环境配置](#4-多环境配置)
-- [5. 网络请求](#5-网络请求)
-- [6. 高级网络功能](#6-高级网络功能)
-- [7. 模型与解析](#7-模型与解析替代-mjextension)
-- [8. 状态管理](#8-状态管理)
-  - [语言切换与资源包](#语言切换与资源包)
-- [9. 导航路由](#9-导航路由)
-- [10. 缓存](#10-缓存)
-- [11. Keychain 安全存储](#11-keychain-安全存储)
-- [12. 宿主认证](#12-宿主认证)
-- [13. 反馈样式自定义](#13-反馈样式自定义)
-- [14. 组件速查](#14-组件速查)
-  - [系统媒体选择器的视频](#系统媒体选择器的视频)
-- [15. 常见问题](#15-常见问题)
-- [16. 项目特异化指南](#16-项目特异化指南)
-- [17. 模板开发规范](#17-模板开发规范)
-- [18. iOS 18+ 推荐页面范式](#18-ios-18-推荐页面范式)
+```bash
+xcodebuild -project ExampleApp/ExampleApp.xcodeproj -scheme ExampleApp \
+  -destination 'generic/platform=iOS Simulator' \
+  -derivedDataPath /tmp/cy-example-derived CODE_SIGNING_ALLOWED=NO build
 
----
-
-## 1. 集成到项目
-
-在 Xcode 中选择 **File → Add Package Dependencies**，输入仓库地址：
-
-```
-https://github.com/WeiCY/SwiftUITemplate
+# 将设备名称替换为 xcrun simctl list devices available 的结果
+xcodebuild -project ExampleApp/ExampleApp.xcodeproj -scheme ExampleApp \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
+  -derivedDataPath /tmp/cy-example-derived CODE_SIGNING_ALLOWED=NO test
 ```
 
-按需引入以下 7 个库：
+Scheme 包含 `ExampleAppUnitTests` 和 `ExampleAppUITests`。真机运行时需要宿主自行配置签名和 Bundle ID。
 
-| 库名 | 用途 | 何时引入 |
-|---|---|---|
-| `CYAppCore` | 协议、扩展、日志、DI、管理器、权限 | **必选** |
-| `CYAppNetwork` | Alamofire 网络实现（可选） | 需要 HTTP 请求时引入 |
-| `CYAppImage` | Kingfisher 图片加载（可选） | 需要远程图片时引入 |
-| `CYFeedbackStyle` | Toast/Loading 样式定义 | 有 UI 反馈时引入 |
-| `CYAppDesignSystem` | 颜色、字体、间距、基础组件 | 有 UI 时引入 |
-| `CYAppUI` | 路由、AppState、Toast 视图、Loading 视图、引导页 | 有 UI 时引入 |
-| `CYAppPersistence` | SwiftData 持久化（可选） | 需本地存储时引入 |
+ExampleApp 的相机和自定义网格相册访问在 `HostInfo.plist` 配置用途说明。没有声明定位、麦克风或跟踪权限。系统 PhotosPicker 的选择授权与完整相册权限不同，不要为只用系统 Picker 的宿主强制申请整个相册。
 
-### 推荐接入组合
+## 2. 选择 Products
 
-为了让新项目更快落地，建议按下面的组合开始，而不是一开始把所有模块都加满。
+最小界面组合：`CYAppCore`、`CYFeedbackStyle`、`CYAppDesignSystem`、`CYAppUI`。有需要再添加 Network / Image / Persistence。
 
-#### 组合 A：个人项目最小闭环
+SPM 地址：[WeiCY/SwiftUITemplate](https://github.com/WeiCY/SwiftUITemplate)。离线 App 不调用 `networkClient`，也不导入 Network。
 
-适合：先把首页、主题、路由、反馈和基础 UI 跑起来。
+推荐宿主目录：
 
-- `CYAppCore`
-- `CYFeedbackStyle`
-- `CYAppDesignSystem`
-- `CYAppUI`
+```text
+App/          AppConfig、AppBootstrap、AppDependencies、AppTab、AppRoute
+Features/     每个功能的 View / ViewModel
+Models/       业务模型及 SwiftData Schema
+Services/     网络与其他业务服务
+Resources/    品牌、本地化及隐私资源
+```
 
-可选再加：
-- `CYAppNetwork`（需要接口时再加）
-- `CYAppImage`（需要远程图片时再加）
-- `CYAppPersistence`（需要本地数据时再加）
+## 3. 装配与依赖注入
 
-#### 组合 B：标准业务项目
-
-适合：有列表、详情、登录、设置和网络请求的常规 App。
-
-- `CYAppCore`
-- `CYFeedbackStyle`
-- `CYAppDesignSystem`
-- `CYAppUI`
-- `CYAppNetwork`
-
-按需再加：
-- `CYAppImage`
-- `CYAppPersistence`
-
-#### 组合 C：图片 / 内容密集型项目
-
-适合：Feed 流、图文内容、头像和素材较多的项目。
-
-- `CYAppCore`
-- `CYFeedbackStyle`
-- `CYAppDesignSystem`
-- `CYAppUI`
-- `CYAppNetwork`
-- `CYAppImage`
-
-#### 组合 D：带本地数据能力的项目
-
-适合：收藏、书签、离线缓存、草稿箱、阅读记录等场景。
-
-- `CYAppCore`
-- `CYFeedbackStyle`
-- `CYAppDesignSystem`
-- `CYAppUI`
-- `CYAppNetwork`
-- `CYAppPersistence`
-
----
-
-## 2. 启动配置
-
-推荐在宿主 App 的 `AppConfig` / `AppBootstrap` 中配置，**不需要修改模板源码**。
-`App.swift` 只负责调用 Bootstrap 和挂载根状态。下面是直接调用现有 API 的兼容写法；
-新 App 建议参考 `ExampleApp/Sources/App/AppBootstrap.swift` 集中编排这些调用：
+`AppBootstrap` 负责框架配置，`AppDependencies` 创建 Service / Repository / ViewModel。Feature 优先通过初始化获取所需协议，容器主要在组合根使用。保留 CYFactoryContainer / CYAppContainer 兼容入口，不要求整体迁移 DI 框架。
 
 ```swift
+// AppBootstrap 中，按需配置
+CYCoreBootstrap.configure(CYAppConfig(environment: .development))
+CYFeedbackConfiguration.configure(toastStyle: .default, loadingStyle: .default)
+
+// 有 HTTP 接口时才调用；同一进程只能配置一次
+CYNetworkConfiguration.configure(baseURL: "https://api.example.com")
+
+// 希望用 Kingfisher 缓存/预取时才注册
+CYAppImageConfig.configure()
+```
+
+ExampleApp 在 `ExampleAppConfig.usesMockNetwork` 切换 Mock / 真实网络。默认 true；设为 false，并把 `network.baseURL`、端点和返回模型改为实际后端契约。Mock 中的样例 Article 由组合根注册。
+
+`DIContainerProtocol` 只含基础能力。确实需要整体容器的网络功能可声明 `any DIContainerProtocol & NetworkProviding`，更小的 Feature 直接接收 `any CYNetworkClientProtocol` 或业务 Service 协议。
+
+## 4. 反馈管理器必须和挂载实例一致
+
+```swift
+// compile-check: feedback-root
 import SwiftUI
 import CYAppCore
-import CYAppNetwork
-import CYFeedbackStyle
 import CYAppUI
 
-@main
-struct MyApp: App {
-    init() {
-        // 1. 配置环境与网络请求
-        CYNetworkConfiguration.configure(
-            environment: .production,
-            baseURL: "https://api.your-domain.com",
-            defaultHeaders: [
-                "X-App-Platform": "iOS",
-                "X-App-Version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
-            ],
-            timeoutInterval: 30
-        )
-
-        // 2. 配置业务状态码策略
-        CYBusinessCodePolicy.configure {
-            $0.successCodes = [0, 200]
-            $0.tokenExpiredCodes = [401, 10001]
-            $0.reLoginCodes = [403]
-            $0.silentCodes = [90001]   // 静默不打扰；默认 Toast，可用 alertCodes 改为弹窗
-        }
-
-        // 3. 配置全局反馈样式
-        CYFeedbackConfiguration.configure(
-            toastStyle: CYToastStyle(position: .center),
-            loadingStyle: .default
-        )
-    }
-
-    @State private var appState = CYAppState()
-    @State private var router = CYAppRouter.shared
-
-    var body: some Scene {
-        WindowGroup {
-            RootView()
-                .environment(appState)
-                .environment(router)
-                .preferredColorScheme(appState.theme.colorScheme)
-                .id(appState.language)
-                .feedbackOverlay()
-        }
-    }
-}
-```
-
-> 启动顺序由宿主 `AppBootstrap` 统一编排。离线 App 只配置 Core；网络 App 再调用 `CYNetworkConfiguration.configure(...)`。网络配置重复调用会触发 `precondition`。
-
-### 推荐启动顺序
-
-为了让行为更统一，建议按下面顺序初始化：
-
-1. `CYAppConstants.configure(...)`：覆盖缓存目录、Keychain service、分页等默认值
-2. `CYNetworkConfiguration.configure(...)`：仅网络 App 注册网络客户端
-3. `CYBusinessCodePolicy.configure { ... }`：统一业务码规则
-4. `CYFeedbackConfiguration.configure(...)`：统一反馈样式
-5. 如有需要，再注册自定义 DI 实现
-
-这样可以保证默认值、网络层和 UI 层都在 App 启动阶段一次性准备好。
-
----
-
-## 3. 核心默认值配置
-
-在启动阶段、创建缓存或宿主账号服务之前，可覆盖模板默认的缓存目录、Keychain service 与分页设置：
-
-```swift
-CYAppConstants.configure(CYAppConfigurationValues(
-    cacheDirectoryName: "MyAppCache",
-    keychainService: "com.example.myapp.auth",
-    defaultPageSize: 30
-))
-```
-
-支持的配置项包括：缓存目录名、Keychain service、默认分页大小、Toast 默认时长、上传大小限制（超限上传会被 `CYNetworkClient.upload` 直接拒绝）等。
-
----
-
-## 4. 多环境配置
-
-在业务 App 的 Build Configuration 中通过 `.xcconfig` 注入：
-
-**Debug.xcconfig**
-```
-API_BASE_URL = https:/$()/dev-api.example.com
-```
-
-**Release.xcconfig**
-```
-API_BASE_URL = https:/$()/api.example.com
-```
-
-**Info.plist**
-```xml
-<key>API_BASE_URL</key>
-<string>$(API_BASE_URL)</string>
-```
-
-**App 启动代码**
-```swift
-let baseURL = Bundle.main.object(forInfoDictionaryKey: "API_BASE_URL") as? String ?? ""
-
-CYNetworkConfiguration.configure(
-    environment: .production,
-    baseURL: baseURL,
-    defaultHeaders: ["X-App-Platform": "iOS"]
-)
-```
-
----
-
-## 5. 网络请求
-
-> 完整、权威的网络层使用说明（请求 API、响应策略、业务码、可选凭证、上传下载、去重与 Mock）请阅读 [docs/NETWORK_GUIDE.md](NETWORK_GUIDE.md)。本节为快速上手。
-
-### Step 1: 定义 CYEndpoint（API 路径）
-
-```swift
-import CYAppCore
-
-enum UserEndpoint: CYEndpoint {
-    case profile
-    case list(page: Int)
-    case update
-
-    var path: String {
-        switch self {
-        case .profile:  return "/api/user/profile"
-        case .list:     return "/api/user/list"
-        case .update:   return "/api/user/update"
-        }
-    }
-
-    var method: CYHTTPMethod {
-        switch self {
-        case .profile, .list: return .get
-        case .update:         return .post
-        }
-    }
-
-    var queryItems: [URLQueryItem]? {
-        switch self {
-        case .list(let page):
-            return [URLQueryItem(name: "page", value: "\(page)")]
-        default: return nil
-        }
-    }
-}
-```
-
-### Step 2: 定义数据模型（struct + Codable）
-
-```swift
-struct User: Decodable, Sendable, Identifiable {
-    let id: Int
-    let name: String
-    let avatar: String?
-    let email: String?
-}
-
-struct UpdateProfileBody: Encodable, Sendable {
-    let name: String
-    let email: String
-}
-```
-
-> **为什么用 `struct` 而不是 `NSObject`？**
-> Swift 的 `Codable` 协议由编译器自动生成 JSON 解析代码，无需 MJExtension 等运行时反射库。
-> 字段写错 → 编译报错，而非运行时崩溃。
-
-### Step 3: 发起请求（最常用）
-
-Service 拿到 `CYNetworkClientProtocol` 后即可发起请求：
-
-```swift
-// 后端返回 {"code": 0, "data": {...}, "message": "ok"} 时自动解包
-let user: User = try await client.request(UserEndpoint.profile)
-
-// 带 Encodable body 的 POST
-let updatedUser: User = try await client.request(UserEndpoint.update, body: body)
-```
-
-需要完整 envelope、响应策略、上传下载、去重或 Mock 时，见 [网络框架使用指南](NETWORK_GUIDE.md)。
-
-### Step 4: 定义 Service（显式注入）
-
-网络访问只在 Service 中出现，`client` 由组合根显式注入，不提供默认值、不引用全局容器：
-
-```swift
-import CYAppCore
-
 @MainActor
-protocol ProfileServiceProtocol: AnyObject {
-    func fetchProfile() async throws -> User
-}
+struct FeedbackExample: View {
+    let toast: any CYToastManagerProtocol
+    let loading: any CYLoadingManagerProtocol
+    let alert: any CYAlertManagerProtocol
 
-@MainActor
-final class ProfileService: ProfileServiceProtocol {
-    private let client: any CYNetworkClientProtocol
-
-    init(client: any CYNetworkClientProtocol) {
-        self.client = client
-    }
-
-    func fetchProfile() async throws -> User {
-        try await client.request(UserEndpoint.profile)
+    var body: some View {
+        Button("Save") { toast.show("Saved", type: .success) }
+            .feedbackOverlay(toastManager: toast, loadingManager: loading)
+            .alertManager(manager: alert)
     }
 }
 ```
 
-### Step 5: 定义 ViewModel（显式注入）
+无参数 `.feedbackOverlay().alertManager()` 使用默认共享实例，不会读取 Factory 注册。注册自定义实现后，需要解析一次并把同一实例传给业务和挂载视图；不要在工厂每次解析时创建不同管理器。
 
-ViewModel 只依赖 Service 协议，状态交给 `executeTask`：
+协议是 `AnyObject`，自定义实现必须用 class。SwiftUI 的状态变化来自 Observation：实现应为 `@MainActor @Observable`，或转发可观察实例的属性。单纯遵循协议不会自动产生观察通知。Alert 支持 `any CYAlertManagerProtocol` 和兼容泛型修饰符；不再要求调用方解包存在类型。
+
+完整可编译的转发实现见 `ExampleApp/Sources/App/AppDependencies.swift` 的 `ExampleToastManager` / `ExampleAlertManager`。使用 `--custom-feedback` 运行可验证自定义 Toast、MockLoading 和自定义 Alert。其界面驱动有模拟器 UI 测试保护。
+
+## 5. 主题、语言与品牌
+
+`CYAppState` 通过 Environment 注入，根视图挂 `.preferredColorScheme(state.theme.colorScheme)`。`CYThemeManaging.apply` 与 `CYThemeManager.saveAndApply` 是 `@MainActor`；后台调用请 `await manager.apply(theme)`。保存和读取偏好仍可在非主 actor 使用。
+
+`CYDeviceHelper.isPad`、`vibrate`、`CYHapticFeedback` 需要 MainActor。不要为 UIKit 隔离问题把整个业务层变为 MainActor。
+
+语言通过 `state.setLanguage("zh-Hans")` 更新；根视图用 `.id(state.language)`，系统控件再挂 `.environment(\.locale, Locale(identifier: state.language))`。模板文案来自 Core 的 Bundle.module；SPM ExampleApp 文案用自己的 Bundle.module，Xcode 宿主则用 Bundle.main，见 `ExampleLocalization.swift`。复制代码时不能把模板包资源当成宿主主 Bundle。
 
 ```swift
-@MainActor
-@Observable
-final class ProfileViewModel: CYBaseViewModel {
-    private let service: any ProfileServiceProtocol
-    var user: User?
+// compile-check: branding
+import SwiftUI
+import CYAppDesignSystem
 
-    init(service: any ProfileServiceProtocol) {
-        self.service = service
-        super.init()
-    }
-
-    func fetchProfile() async {
-        await executeTask { [weak self] in
-            self?.user = try await self?.service.fetchProfile()
-        }
-    }
+func configureBrand() {
+    var tokens = CYDesignTokens()
+    tokens.primary = .teal
+    tokens.onPrimary = .white
+    tokens.accent = .orange
+    tokens.fontDesign = .rounded
+    tokens.spacingScale = 1.1
+    tokens.cornerScale = 1.5
+    tokens.buttonHeight = 52
+    CYDesignConfiguration.configure(tokens)
 }
 ```
 
-`executeTask` 自动管理 `isLoading` / `error` / `retry` 三种状态。
+在创建界面之前配置一次。当前不支持保证刷新通知的运行时换品牌；用户的深浅色、语言切换不受此限制。`CYAppColor.configure(primary:accent:)` 仍可用，与统一配置共享同一存储。主要按钮、输入框、卡片、标签、字体和间距读取 Token。
 
-### Step 6: Composition Root（组合根）
+`CYAppFont.*` 是只读的计算属性，通过配置调整；不能赋值覆盖。自定义字体在宿主注册后设置 `fontName`，使用 relativeTo 保持 Dynamic Type；等宽数字字体保留系统等宽设计。更细的产品样式在宿主扩展，不再引入另一套主题引擎。
 
-Service / Repository / ViewModel 由宿主 Composition Root 统一创建并注入，全局容器只出现在这里。完整写法参考 `ExampleApp/Sources/App/AppDependencies.swift`：
+ExampleApp 默认品牌与 `--alternate-brand` 启动参数分别演示两种配置。
 
-```swift
-@MainActor
-final class AppDependencies {
-    let profileViewModel: ProfileViewModel
+## 6. 分页、表单和搜索
 
-    init(networkClient: any CYNetworkClientProtocol) {
-        let service = ProfileService(client: networkClient)
-        self.profileViewModel = ProfileViewModel(service: service)
-    }
-}
-```
+子类重写 `fetchPage(page:pageSize:)`，页码从 1 开始：
 
 ```swift
-@main
-struct MyApp: App {
-    private let dependencies: AppDependencies
-
-    init() {
-        AppBootstrap.start(with: .default)
-        dependencies = AppDependencies(
-            networkClient: CYFactoryContainer.shared.networkClient
-        )
-    }
-
-    var body: some Scene {
-        WindowGroup { RootView(dependencies: dependencies) }
-    }
-}
-```
-
-> `CYFactoryContainer.shared` 是 Factory 实现，可以出现在组合根；`CYAppContainer` 是可替换旧代码的 **Legacy / Compatibility Facade**，新业务代码不推荐使用。
->
-> 需要网络能力的 Feature 可声明 `any DIContainerProtocol & NetworkProviding`；离线 Feature 只依赖 `DIContainerProtocol`。
-
-### Step 7: 在 View 中使用（接收外部 ViewModel）
-
-View 不负责寻找 Service / Repository；依赖由组合根构造后传入：
-
-```swift
+// compile-check: pagination
 import SwiftUI
 import CYAppCore
 import CYAppDesignSystem
 
-struct ProfileView: View {
-    @State private var viewModel: ProfileViewModel
-
-    init(viewModel: ProfileViewModel) {
-        _viewModel = State(initialValue: viewModel)
-    }
-
+struct DemoRow: Identifiable, Sendable { let id: Int }
+@MainActor
+final class DemoPages: CYPaginatedListViewModel<DemoRow> {
+    override func fetchPage(page: Int, pageSize: Int) async throws -> [DemoRow] { [] }
+}
+struct PagingExample: View {
+    @State private var model = DemoPages()
     var body: some View {
-        CYBaseView(
-            isLoading: viewModel.isLoading,
-            error: viewModel.error,
-            onRetry: { Task { await viewModel.fetchProfile() } }
-        ) {
-            if let user = viewModel.user {
-                VStack {
-                    Text(user.name).font(CYAppFont.h2)
-                    Text(user.email ?? "").font(CYAppFont.bodyMedium)
-                }
-            }
-        }
-        .task { await viewModel.fetchProfile() }
+        CYPaginatedListView(viewModel: model,
+                            onRefresh: { await model.refresh() },
+                            onLoadMore: { await model.loadMore() }) { Text("\($0.id)") }
+            .task { await model.load() }
     }
 }
 ```
 
-```text
-View 不负责寻找 Service / Repository
-ViewModel 不负责寻找 NetworkClient
-依赖由 Composition Root 统一构造
-```
+- 首次加载显示 loading，首次失败显示错误和重试，成功为空时保留可刷新的 List 和重新加载按钮。
+- 有数据刷新时保留内容；刷新失败保留数据、页码和 hasMore，并显示失败重试。
+- 追加失败记录 `.append(page:)`，行再次出现不会自动重试。`retry()` 重试同一页，成功后才提交页码。
+- 取消不展示错误；请求代次阻止旧响应覆盖新状态。`reset()` 立即使旧请求失效并清空分页，适合搜索条件变化。
+- 自定义 `emptyView` 的完整初始化还可传 `loadingView: () -> AnyView` 和 `errorView: (CYAppError, retry) -> AnyView`。
+- 当前只支持页码分页，`hasMore` 通过返回数量与 pageSize 比较推导。不处理游标、服务端总数、动态数据快照或跨页去重；数据排序和稳定 ID 是宿主契约。
 
----
+组件目录 → 搜索示例可切换首次/追加失败；关闭开关后点重试。输入 `empty` 返回空结果。搜索使用 `.task(id:)` 防抖和取消，条件变化先 `reset()`，保留过期响应隔离。
 
-## 6. 高级网络功能
+表单示例演示 FocusState、next/done、字段规则、确认密码跨字段校验、提交中、失败与重试。提交依赖可注入，不在公共 Core 引入业务表单框架。
 
-> 响应策略（`send`）、上传 / 下载、请求去重、可选凭证恢复、日志脱敏与 Mock 等高级能力，统一由 [网络框架使用指南](NETWORK_GUIDE.md) 说明，本节不再重复。
-
-最常用的自定义拦截器示例：
+## 7. SwiftData 初始化与迁移
 
 ```swift
-import CYAppCore
-
-struct EncryptionInterceptor: CYRequestInterceptor {
-    func intercept(_ request: inout URLRequest) async {
-        if let body = request.httpBody {
-            let encrypted = encrypt(body)
-            request.httpBody = encrypted
-            request.setValue("encrypted", forHTTPHeaderField: "X-Content-Encoding")
-        }
-    }
-
-    private func encrypt(_ data: Data) -> Data {
-        return data
-    }
-}
-
-// 在 App 启动时注册
-CYNetworkConfiguration.configure(
-    environment: .production,
-    baseURL: "https://api.example.com",
-    requestInterceptors: [
-        EncryptionInterceptor(),
-        CYLoggingInterceptor()
-    ]
+// 宿主组合根中；BookmarkItem/BookmarkTag 由宿主声明
+let persistence = try CYPersistenceController.create(
+    for: [BookmarkItem.self, BookmarkTag.self]
 )
+RootView().modelContainer(persistence.container)
 ```
 
-内置拦截器：`CYLoggingInterceptor`、`CYCredentialInterceptor`、`CYAuthenticationFailureInterceptor`。凭证格式和失败后的账号状态处理由宿主 App 决定。
+用 do/catch 捕获错误，并提供错误页和重试。`ExamplePersistence` 保留 controller、dependencies、error，失败后只重试打开；不删除数据库，不回退内存。`--fail-store-once --ui-testing` 仅用于示例内存故障演示。
 
-其余高级主题请直接查阅 [NETWORK_GUIDE](NETWORK_GUIDE.md)：
+旧 `CYPersistenceController(for:)` 仍保留 fail-fast 语义并已废弃；改为 `try .create(...)`。不存在 `.shared` 控制器。`currentSchemaVersion` 只是历史常量，已废弃，不构成迁移机制。
 
-- 五种请求 API 与 `send` 响应策略
-- 自定义业务码（`CYBusinessCodePolicy`）
-- 上传（单/多文件、进度、大小限制）与下载（进度、取消）
-- 可选凭证与恢复（`authentication` + `CYCredentialRecovery`）
-- 请求去重与日志脱敏
-- Mock（测试 / SwiftUI Preview）与请求参数断言
+版本化宿主用 `Schema(versionedSchema: HostV2.self)`、自有 `SchemaMigrationPlan` 和 `ModelConfiguration` 调用 `create(schema:migrationPlan:configurations:)`。自定义 builder 的错误会原样抛出。
 
----
+最小 V1→V2 可复制实现见 `Sources/CYAppPersistenceTests/MigrationTests.swift`：V2 添加可选 details 字段，轻量迁移后在实际磁盘存储中查询并验证 V1 title 保留。模型仍在宿主/测试中。修改真实生产模型前，使用旧版本真实数据库副本测试迁移；不要通过改版本数字代替迁移计划。
 
-## 7. 模型与解析（替代 MJExtension）
+## 8. Router、Deep Link 与 Sheet
 
-### OC → Swift 对照表
-
-| OC 时代 | Swift 方案 | 说明 |
-|---|---|---|
-| `NSObject` + `MJExtension` | `struct: Codable` | 编译器生成解析代码，非运行时反射 |
-| `[User yy_modelWithJSON:dict]` | `JSONDecoder().decode(User.self, from: data)` | 类型安全 |
-| `[User mj_objectArrayWithKeyValuesArray:arr]` | `JSONDecoder().decode([User].self, from: data)` | 数组也一行搞定 |
-| `model.mj_keyValues` | `JSONEncoder().encode(model)` | 模型转 JSON |
-| 字段名不匹配 → 运行时 nil | 字段名不匹配 → **编译报错** | 提前发现问题 |
-
-### 字段名映射
-
-模板已配置全局 `convertFromSnakeCase`，后端 `created_at` 自动映射到 `createdAt`。如需特殊映射：
+宿主定义 AppTab / AppRoute，创建一个 `CYAppRouter(tabs:selectedTab:)` 并注入。TabView 的 selection 读取 `router.selectedTab`，写入 `router.selectTab`；每个 Tab 用 `NavigationStack(path: router.binding(for: tab.id))` 和 `.navigationDestination(for: AppRoute.self)` 注册目标。
 
 ```swift
-struct Product: Decodable {
-    let id: Int
-    let createdAt: String
-
-    enum CodingKeys: String, CodingKey {
-        case id
-        case createdAt = "created_at"
-    }
-}
-```
-
-### 可选字段与嵌套模型
-
-```swift
-struct OrderResponse: Decodable, Sendable {
-    let order: Order
-    let items: [OrderItem]
-}
-
-struct User: Decodable, Sendable {
-    let id: Int
-    let name: String
-    let avatar: String?     // 可选 - 后端可能不返回
-    let bio: String?        // 可选
-}
-```
-
-`JSONDecoder` 自动处理缺失字段和嵌套结构的递归解析。
-
----
-
-## 8. 状态管理
-
-### CYAppState（全局状态，位于 CYAppUI 层）
-
-跨页面共享的状态放 `CYAppState`：
-
-```swift
-struct SettingsView: View {
-    @Environment(CYAppState.self) private var appState
-
-    var body: some View {
-        @Bindable var state = appState
-        Picker("Theme", selection: $state.theme) {
-            ForEach(CYAppTheme.allCases, id: \.self) { theme in
-                Text(theme.displayName).tag(theme)
-            }
-        }
-    }
-}
-```
-
-> `CYAppState` 只负责主题与语言等全局偏好；User / 登录状态 / 业务 Tab 属于宿主 App，不进入模板 `CYAppState`。
-
-### 语言切换与资源包
-
-`language` 是只读的可观察状态，通过 `appState.setLanguage("zh-Hans")` 修改，
-`resetAll()` 也会同步恢复语言并通知视图。根视图挂 `.id(appState.language)`，需要系统
-控件跟随语言时再挂 `.environment(\.locale, Locale(identifier: appState.language))`。
-
-模板内置文案用 `"action_retry".cyLocalized`，读取 Core 的 `en.lproj` /
-`zh-Hans.lproj`；宿主文案留在宿主的同名资源目录中。SPM 宿主可以参考 ExampleApp：
-
-```swift
-CYLocalizationManager.shared.localized("home_title", bundle: .module)
-```
-
-普通 App target 默认读取 `Bundle.main`。新建 SPM 资源包应声明
-`defaultLocalization: "en"` 和 `.process("Resources")`。需要独立资源与偏好存储时：
-
-```swift
-let manager = CYLocalizationManager(bundle: .module, defaults: myDefaults)
-let appState = CYAppState(localizationManager: manager)
-// 宿主文案也使用同一 manager 读取。
-let title = manager.localized("home_title")
-```
-
-语言匹配保留地区/文字变体；缺少目标语言时回退英语，再回退 key。默认模板的
-`cyLocalized` 使用 `CYLocalizationManager.shared` 的语言；仅注入自定义管理器或在 Factory
-注册实现，不会自动替换这个读取入口。需要两套文案跟随语言时，宿主须同步共享管理器的
-语言，或使用自定义文案/视图。
-
-### CYBaseViewModel（页面级状态）
-
-单页面的 loading/error/data 放 `CYBaseViewModel` 子类，数据通过注入的 Service 获取：
-
-```swift
-@Observable
-final class HomeViewModel: CYBaseViewModel {
-    private let service: any ArticleServiceProtocol
-    var items: [Item] = []
-
-    init(service: any ArticleServiceProtocol) {
-        self.service = service
-        super.init()
-    }
-
-    func fetchItems() async {
-        await executeTask { [weak self] in
-            self?.items = try await self?.service.fetchItems()
-        }
-    }
-}
-```
-
-### 分工原则
-
-| 放 CYAppState | 放 ViewModel |
-|---|---|
-| 主题偏好 / 语言 | 搜索关键词 |
-| App 生命周期通用偏好 | 页面列表数据 / loading / error |
-
----
-
-## 9. 导航路由
-
-### 定义宿主 Tab 与路由
-
-Tab 和 Route 均由宿主定义，不修改 Core。以下示例使用 home/profile 两个宿主 Tab：
-
-```swift
+// compile-check: router-sheet
 import SwiftUI
-import CYAppCore
 import CYAppUI
 
-enum AppTab: String, CaseIterable, Identifiable {
-    case home, profile
-    var id: CYTabID { CYTabID(rawValue: rawValue) }
-    var title: String { self == .home ? "首页" : "我的" }
-    var icon: String { self == .home ? "house" : "person" }
-}
-
-enum Route: Hashable {
-    case productDetail(id: Int)
-    case settings
-    case profile(userId: String)
-}
-```
-
-### 导航操作
-
-以下 router 是宿主持有的同一实例，可通过 Environment 注入子页面：
-
-```swift
-// 前进
-router.navigate(to: Route.productDetail(id: 123))
-
-// 后退
-router.pop()
-
-// 回到根页面
-router.popToRoot()
-
-// 跨 Tab 导航（自动切换到目标 Tab）
-router.navigate(to: Route.settings, on: AppTab.profile.id)
-```
-
-### 在 View 中使用
-
-```swift
-struct RootView: View {
-    @State private var router = CYAppRouter(
-        tabs: AppTab.allCases.map(\.id),
-        selectedTab: AppTab.home.id
-    )
-
+struct SheetRoot: View {
+    @State private var router = CYAppRouter()
     var body: some View {
-        TabView(selection: Binding(
-            get: { router.selectedTab },
-            set: { router.selectTab($0) }
-        )) {
-            ForEach(AppTab.allCases) { tab in
-                NavigationStack(path: router.binding(for: tab.id)) {
-                    // 实际项目替换成已注入 ViewModel 的 Feature 根视图。
-                    Text(tab.title)
-                        .navigationDestination(for: Route.self) { route in
-                            switch route {
-                            case .productDetail(let id):
-                                Text("商品 #\(id)")
-                            case .settings:
-                                Text("设置")
-                            case .profile(let userId):
-                                Text("用户 \(userId)")
-                            }
-                        }
-                }
-                .tabItem { Label(tab.title, systemImage: tab.icon) }
-                .tag(tab.id)
+        Button("Open") { router.presentSheet(Text("Details")) }
+            .sheet(item: $router.sheetItem) { $0.content }
+    }
+}
+```
+
+`presentSheet` 接收 View，由 Router 自动包装为 CYSheetItem。只调用它而未挂载 `.sheet` 不会显示。
+
+Deep Link 在宿主 Info.plist 声明 URL scheme，然后 `.onOpenURL` 解析业务参数并导航。ExampleApp 支持 `cyexample://article/1`；该示例直接解析，复杂分发可注册 `CYDeepLinkHandler.shared.register(scheme:host:handler:)`，再在 `.onOpenURL` 调用 `handle(url:)`。Universal Links 还需宿主 Associated Domains 和服务端配置。
+
+## 9. 图片和媒体
+
+`CYRemoteImageView(url:imageLoader:)` 可注入加载器，默认使用 Core URLSession 实现；注册 Image 模块后可使用 Kingfisher。URL 更换会清空旧状态；旧请求不能覆盖新资源。取消映射为 CancellationError，不参与失败重试。
+
+Kingfisher 8.11.0 桥接会取消实际 DownloadTask，并处理句柄晚于取消、同步完成和重复回调。网络成功使用 `RetrieveImageResult.data()` 返回原始字节；缓存命中可能序列化。Data 协议和视图解码仍保留重复处理限制，测量范围见 [验证记录](ENGINEERING_VALIDATION.md)。
+
+媒体示例位于组件目录：相册授权、拒绝后的设置入口、网格取消、加载失败、图片预览、视频导入与释放。网格/相机的 `onCancel`、系统导入的 `onImportFailure` 有默认闭包，旧初始化可继续使用。系统 PhotosPicker 取消不会产生新媒体，也不会清空宿主已有内容；当前不提供系统取消回调保证。
+
+系统视频通过 `CYMediaItem.videoURL` 获取文件；异步使用时保留 item，长期保存需复制到宿主目录。导入副本随最后一个媒体项释放而清理；`CYMediaItem(videoURL:)` 不删除调用方原文件。PHAsset 网格项不保证有 videoURL。
+
+## 10. Codable、日期与并发工具
+
+Codable 的模型定义和调用受类型检查，但 JSON 字段缺失/类型不匹配是运行时 `DecodingError`，不是编译错误。端点默认 convertFromSnakeCase，特殊 CodingKeys 必须与实际 decoder 策略一起验证。
+
+`Decodable.decode(jsonString:)` / `decode(dictionary:)` 保留原始错误；旧 `from` 返回 nil 的语义不变。
+
+`Date.toString(format:locale:timeZone:calendar:)` 默认使用系统设置；App 内语言需显式传 Locale。缓存键覆盖全部配置。`cyMultiFormat` 是格式猜测：歧义斜杠日期先 MM/dd，再 dd/MM，数字按秒时间戳解释；确定后端格式时优先使用明确策略。
+
+`String.truncated(to:)` 在零/负数返回空字符串，不追加后缀。手机号和身份证号只做中国大陆格式检查；不是身份核验。
+
+`Task.retry(times:)` 的 times 是总尝试次数，<=0 抛 exhausted；delay/backoff 必须非负且有限，取消立即停止。`withTimeout` 的 seconds 必须有限且 >0。超时通过协作式取消实现，会等待不配合取消的子任务退出，不能强行杀死任意操作。
+
+typewriter 在文本/trigger/speed 更新、返回页面时重播；离开/后台取消。shake/pulse/typewriter 尊重减弱动态效果，不在消失视图中保留更新任务。
+
+## 11. 测试与接入验收
+
+运行 `swift build`、`swift test`、`swiftlint lint --strict --quiet` 和上面的 iOS 宿主命令。缓存受限时：
+
+```bash
+CLANG_MODULE_CACHE_PATH=/tmp/cy-modules SWIFTPM_MODULECACHE_OVERRIDE=/tmp/cy-modules \
+  swift test --disable-sandbox
+```
+
+测试可复用 `Tests/Support/GlobalTestState.swift` 的快照恢复模式；Factory 修改用 CYGlobalTestState.withScope，结合 manager.push/pop 与 TaskLocal singleton.clone；单独 push/pop 不保存 singleton 缓存。全局可变配置测试在同一进程串行，普通 Feature 优先用独立实例测试。不要将恢复到默认值误当作恢复测试前状态。
+
+编译、UI 测试、模拟器权限和真机测试分别记录。当前结果及剩余限制见 [ENGINEERING_VALIDATION](ENGINEERING_VALIDATION.md)。
+
+## 12. 常用基础工具
+
+缓存和 Keychain 的失败都应由宿主处理，避免忽略初始化和写入错误：
+
+```swift
+let result = await CYCacheManager.shared.save(value: "Example", forKey: "sample", namespace: "Articles")
+if case .failure(let error) = result { /* 展示或记录安全的错误上下文 */ }
+let value: String? = await CYCacheManager.shared.load(forKey: "sample", namespace: "Articles")
+
+let save = CYKeychainHelper.standard.save("FAKE_VALUE", service: "com.example.app", account: "sample")
+if case .failure(let error) = save { /* 宿主处理 */ }
+```
+
+缓存 namespace 与键使用摘要文件名，nil 与空 namespace 相同；当前 v2 缓存不会读取旧目录。Keychain 的访问级别按宿主后台/解锁需求配置。不要用普通缓存代替敏感凭证存储，也不要把凭证写入日志。
+
+## 独立接入验证与本轮新增入口
+
+开始新 App 时先按场景选 Product，直接注入 Feature 需要的协议。五个可运行的外部样例在 [ConsumerFixtures](../ConsumerFixtures/README.md)，不使用 ExampleApp 内部类型。CoreOnly 不需要注册网络；离线 SwiftData 使用宿主 Model 与原生 SwiftUI；高级第三方配置留在组合根。完整依赖与可接受限制见 [模块和组件评审](MODULE_COMPONENT_REVIEW.md)。
+
+### 自己的状态管理接分页
+
+不需要继承模板 ViewModel 的宿主使用 `CYPaginationState` + `CYPaginatedListContent`；三个操作属于同一个宿主。以下展示最小视图边界，状态更新、页码/取消/旧请求隔离的完整可运行实现见 `ConsumerFixtures/Sources/DesignSystemConsumer/DesignConsumer.swift`：
+
+```swift
+// compile-check: host-pagination
+import SwiftUI
+import CYAppDesignSystem
+
+struct HostRow: Identifiable, Sendable { let id: Int }
+struct HostList: View {
+    let state: CYPaginationState<HostRow>
+    let refresh: () async -> Void
+    let append: () async -> Void
+    let retry: () async -> Void
+    var body: some View {
+        CYPaginatedListContent(state: state, onRefresh: refresh, onLoadMore: append, onRetry: retry) {
+            Text("Row \($0.id)")
+        }
+    }
+}
+```
+
+renderer 拥有 List，直接放在页面/NavigationStack/Sheet，不放进另一个 List/ScrollView。宿主必须防止重复请求并隔离旧结果。失败快照同时提供 errorMessage 与 `failure`（refresh/append），取消时清除错误，失败后显式重试；刷新失败可保留 items。默认文案仍使用模板全局语言，需要窗口独立文案时传自定义 empty/loading/error 内容。
+
+旧 `CYPaginatedListView(viewModel:onRefresh:onLoadMore:)` 无需迁移，仍使用 `viewModel.retry()`；两种入口共用同一个 renderer。继续使用模板 VM 时，刷新和追加回调应操作传入的同一 VM。外部 `LegacyConsumerPage` 和原搜索示例作为兼容编译/运行入口保留。
+
+### 不 import Alamofire 的会话配置
+
+```swift
+// compile-check: foundation-network-session
+import Foundation
+import CYAppCore
+import CYAppNetwork
+
+func makeHostClient() -> any CYNetworkClientProtocol {
+    let configuration = URLSessionConfiguration.ephemeral
+    // 本地桩可通过 configuration.protocolClasses 注入；完整实现见 NetworkOnly
+    return CYNetworkClient(baseURL: "https://example.invalid", sessionConfiguration: configuration)
+}
+```
+
+原 `session: Alamofire.Session` 入口保持兼容，新参数没有默认值，因此原无 session 参数调用不产生歧义。网络实现仍基于 Alamofire；这个入口减少消费者代码对第三方类型的接触，不改变包级解析或链接成本。
+
+## 组件与扩展的选择（第三轮复用专项）
+
+先用原生 `List/Form/NavigationStack/NavigationSplitView/toolbar/safeAreaInset` 表达页面，再按需用模板统一样式。`CYPageContainer` 默认有 ScrollView，但已经支持 `usesScrollView: false`；其 `showsNavigationBar` 控制页内标题，不控制系统导航。分页 renderer 自带 List。`CYStickyBottomBar` 只是 ActionBar 的兼容包装，固定位置仍需宿主 safeAreaInset。多行设置项优先原生 VStack/LabeledContent，`CYListRow` 当前标题和副标题均为单行；带 Toggle 的 trailing 不要再传整行 action。
+
+局部覆盖标签背景时，同时覆盖前景；`CYTagGroup.selectedIDs` 是值快照，点击后由宿主更新集合：
+
+```swift
+// compile-check: local-tag-colors
+import SwiftUI
+import CYAppDesignSystem
+
+struct LocalTags: View {
+    @State private var selected: Set<String> = []
+    let tags = ["SwiftUI", "Offline"]
+    var body: some View {
+        CYTagGroup(tags, selectedIDs: selected) { value, isSelected in
+            CYTag(title: value, isSelected: isSelected, selectedColor: .yellow, selectedTextColor: .black) {
+                if isSelected { selected.remove(value) } else { selected.insert(value) }
             }
         }
-        .environment(router)
-        .feedbackOverlay()
     }
 }
 ```
 
----
+Snackbar 适合带动作的底部提示，与无动作短 Toast 分工。用 `@State private var snack = CYSnackBarManager()` 并挂 `.snackBar(manager: snack)`。`show` 替换旧消息；action 在 MainActor 运行，先关闭旧消息再执行回调，可以安全显示后继。duration 有限且为正时计时，非正/非有限/超计时范围时保留到关闭按钮或 `dismiss()`。不要用常驻 Snackbar 承载整篇说明。自定义 `.dynamicTypeSize/.environment/.preferredColorScheme` 要放在 overlay 修饰符之后，才能同时作用于内容和反馈。
 
-## 10. 缓存
+验证码当前默认6×48+间距需348pt，窄屏要显式设置boxSize/spacing；它的 `isNumber` 过滤接收 Unicode 数字，不是服务端 ASCII 码规则。OTP 自动填充/粘贴和读屏需要宿主实际验收。键盘优先原生安全区、FocusState、scrollDismissesKeyboard；`keyboardAwarePadding` 是整屏键盘高度，可能与系统避让重复，不适合作为所有页面的默认修饰符。
 
-`CYCacheManager` 是 Actor 隔离的内存 + 磁盘缓存，支持 TTL 过期。
+简单媒体选择优先系统 `PhotosPicker` 或 `.system(source: .album)`，静态可分享内容优先跨平台 `ShareLink`。自定义网格有自己 NavigationStack，原图开关目前没有回传/改变导出策略，相机确认会写入相册，Photos 请求未桥接 Task 取消，视频在网格预览中不保证播放；这些都需要真实需求和真机验收。`CYMediaItem.loadData()` 可能把视频完整读入内存，上传大文件优先保留 item 并用 videoURL。示例的“模拟加载失败”只展示文案，不是Photos后端故障注入证明。
 
-```swift
-let cache = CYCacheManager.shared
+本地编辑无需公共编辑框架：[OfflinePage](../ConsumerFixtures/Sources/OfflinePersistence/OfflineConsumer.swift) 使用原生 List/Form/Sheet，把输入留在 draft 中；取消不改 SwiftData 模型，保存显式处理错误。复杂编辑冲突、唯一性和跨实体事务归宿主。设置偏好用原生 `@AppStorage`；`CYAppStorage` Codable 包装不是 SwiftUI DynamicProperty，编码失败仍静默且损坏值回默认，不推荐关键数据写入。
 
-// 写入（返回 Result，可感知失败）
-let saveResult = await cache.save(value: token, forKey: "access_token", namespace: "Auth")
-if case .failure(let error) = saveResult { print(error.localizedDescription) }
-
-// 读取
-let token: String? = await cache.load(forKey: "access_token", namespace: "Auth")
-
-// 删除
-let removeResult = await cache.remove(forKey: "access_token", namespace: "Auth")
-```
-
-缓存目录名可通过 `CYAppConstants.configure(...)` 自定义。
-
-缓存键与 namespace 使用稳定 SHA-256 文件名，namespace 不作为路径拼接。
-nil 与空 namespace 含义一致；`clear(namespace: "")` 与 `clear()` 一样清除全部当前缓存。
-缓存文件格式已升级到 `v2` 子目录，旧缓存会作为未命中处理；SwiftData / Keychain 数据不受影响。
-
----
-
-## 11. Keychain 安全存储
+规则需要依赖另一个字段时，按当前值重新构造；默认错误文案也在规则创建时确定：
 
 ```swift
-let result = CYKeychainHelper.standard.save(
-    refreshToken,
-    service: "com.app.auth",
-    account: "refresh_token",
-    accessibility: .afterFirstUnlock
-)
-if case .failure(let error) = result {
-    // 上报、重试或提示用户
-    print(error.localizedDescription)
+// compile-check: dependent-validation
+import CYAppCore
+
+func confirmationError(password: String, confirmation: String) -> String? {
+    CYFormField(name: "Confirmation").required().match(password).validate(confirmation)
 }
-
-let token = try? CYKeychainHelper.standard
-    .readStringResult(service: "com.app.auth", account: "refresh_token")
-    .get()
-
-let deleteResult = CYKeychainHelper.standard.delete(service: "com.app.auth", account: "refresh_token")
 ```
 
-Keychain service 默认值可通过 `CYAppConstants.configure(...)` 统一覆盖。
+`phone()` 只检查中国大陆形状；邮箱不覆盖所有国际地址；`regex`/`matches` 是局部匹配，完整匹配需锚点。`String.isValidURL` 是旧域名式正则，不是通用 URL 或安全允许列表。URL/日期协议优先显式 URLComponents/Calendar/TimeZone/Locale；日期区间查询优先 `Calendar.dateInterval(of:for:)`，旧 endOfDay 不包含最后一秒的小数部分，endOfMonth 是末日零点。
 
----
-
-## 12. 宿主认证
+需要保留 Bundle 解码原始 codingPath 并指定日期策略时，不用旧的固定日期 `Bundle.decode`：
 
 ```swift
-let credential = CYCredentialInterceptor {
-    await accountStore.authorizationHeader // 例如 "Bearer ..." 或自定义格式
-}
-networkClient.addRequestInterceptor(credential)
-networkClient.setCredentialRecovery(CYCredentialRecovery(action: {
-    try await accountStore.refreshCredential()
-}))
-```
+// compile-check: explicit-bundle-decoding
+import Foundation
+import CYAppCore
 
-模板不提供 User、登录状态或 AuthService。需要账号的宿主 App 自行拥有这些模型；无需账号的 App 不做任何认证配置。
-
----
-
-## 13. 反馈样式自定义
-
-```swift
-// 启动时全局配置
-CYFeedbackConfiguration.configure(
-    toastStyle: CYToastStyle(
-        position: .bottom,
-        cornerRadius: 16,
-        backgroundColor: .indigo,
-        textColor: .white,
-        iconColorStrategy: .fixed(.yellow)
-    ),
-    loadingStyle: CYLoadingStyle(
-        maskOpacity: 0.3,
-        cornerRadius: 20,
-        indicatorColor: .mint
-    )
-)
-```
-
----
-
-## 14. 组件速查
-
-### 系统媒体选择器的视频
-
-系统样式使用 `.videos` 或 `.any` 过滤时，视频通过文件导入；例如：
-
-```swift
-CYMediaPicker(style: .system, source: .album, maxSelection: 3, filter: .videos) { items in
-    for item in items where item.isVideo {
-        if let url = item.videoURL {
-            // 使用 url 播放，或复制到宿主目录保存。
-            // 异步使用期间保留 item，避免导入副本提前释放。
-        }
+func readConfiguration<T: Decodable>(_ file: String, bundle: Bundle, decoder: JSONDecoder) throws -> T {
+    guard let url = bundle.url(forResource: file, withExtension: nil) else {
+        throw CYBundleDecodingError.fileNotFound(file)
     }
-} label: {
-    Label("选择视频", systemImage: "video")
+    return try Data(contentsOf: url).decoded(as: T.self, decoder: decoder)
 }
 ```
 
-返回的视频具有 `isVideo == true`；`videoURL` 提供文件位置，`loadData()` 可读取视频内容。
-`videoURL` 针对系统导入的视频和 `CYMediaItem(videoURL:)`；网格选择器返回的 PHAsset
-仍通过 `asset` 获取，不保证具有文件 URL。
-导入时会复制 PhotosPicker 的临时文件；副本在最后一个媒体项释放后清理。
-需要长期保存时复制到宿主目录。`CYMediaItem(videoURL:)` 不会删除调用方提供的文件。
+`CYCacheManager.save/remove/clear` 的 Result 要处理；load 的 nil 可表示缺失、过期或失败，缓存不能作为唯一数据源。nil/空 namespace 的 clear 清全部缓存；按需提供非空命名空间。PropertyList 支持嵌套 Codable，不承诺比 JSON 快固定比例；用实际模型往返和测量选择格式。
 
-### Toast 提示
+Keychain 保存按 service/account 更新，不存在时添加，竞争插入时再更新一次；失败返回原 OSStatus，不主动删旧条目。用 `readResult/readStringResult` 区分系统错误与缺失；坏UTF8当前仍会在字符串入口合并为nil，需要精确区分时读取Data自行解码。
 
-```swift
-// 默认用法（全局单例）
-CYToastManager.shared.show("保存成功", type: .success)
-CYToastManager.shared.show("网络错误", type: .error, duration: 3.0)
+`request.cURL` 现在默认复用日志脱敏并转义 shell 引号；它不是保留原始凭证的完整重放。仅本地确需原请求时显式 `request.cURL(redactingSensitiveData: false)`，不要把原文写日志。脱敏只认识既定字段名，URL路径和普通字段不能放秘密。Double字节数格式化遇NaN/Infinity/Int64越界返回原数值文本；负数sample返回空数组；`Color(hex:)`仅接受可选单个#、3/6/8位完整十六进制和两端空白。
 
-// 通过 Factory 注入（可替换实现）
-@Injected(\.toastManager) var toastManager
-toastManager.show("来自 DI 的消息", type: .info)
-```
-
-### Loading 遮罩
-
-```swift
-// 默认用法
-CYLoadingManager.shared.show("加载中…")
-// ... 执行操作 ...
-CYLoadingManager.shared.hide()
-
-// 通过 Factory 注入
-@Injected(\.loadingManager) var loadingManager
-loadingManager.show("自定义加载")
-```
-
-### Alert 弹窗
-
-```swift
-// 默认用法
-CYAlertManager.shared.showAlert(title: "提示", message: "操作成功")
-CYAlertManager.shared.showSuccess("保存成功")
-CYAlertManager.shared.showError("网络错误")
-
-// 确认对话框
-CYAlertManager.shared.showConfirmation(
-    title: "确认删除",
-    message: "此操作不可撤销",
-    confirmTitle: "删除",
-    confirmStyle: true
-) {
-    // 执行删除
-}
-
-// 通过 Factory 注入
-@Injected(\.alertManager) var alertManager
-alertManager.showWarning("自定义警告")
-```
-
-### 分析服务
-
-```swift
-// 通过 Factory 注入
-@Injected(\.analyticsService) var analytics
-
-// 上报事件
-analytics.track(event: "purchase", properties: ["amount": 29.9, "item": "pro_plan"])
-
-// 用户识别
-analytics.identify(userId: "12345", traits: ["plan": "pro"])
-
-// 页面浏览追踪
-analytics.trackScreen("Settings", category: "profile")
-
-// 批量发送（可选，框架按需调用）
-analytics.flush()
-```
-
-### 权限请求
-
-```swift
-let status = await CYPermissionManager.shared.request(.camera)
-if status == .granted {
-    // 打开相机
-}
-```
-
----
-
-## 15. 常见问题
-
-### Q: 如何处理不同后端的业务码规则？
-
-在 App 启动时配置：
-
-```swift
-CYBusinessCodePolicy.configure {
-    $0.successCodes = [0, 200, 1000]
-    $0.tokenExpiredCodes = [401, 10001]
-    $0.reLoginCodes = [403, 10003]
-    $0.silentCodes = [20005]   // 静默忽略
-    $0.alertCodes = [50000]    // 弹窗强提示
-}
-```
-
-### Q: 如何 Mock 网络请求进行测试？
-
-模板内置 `MockNetworkClient`，无需自行实现协议：
-
-```swift
-// SwiftUI Preview / 测试中直接使用
-let mock = MockNetworkClient()
-mock.registerResponse(User(id: 1, name: "Test"))
-let user: User = try await mock.request(UserEndpoint.profile)
-```
-
-也可通过 Factory DI 注入到全局容器：
-
-```swift
-import FactoryKit
-
-Container.shared.networkClient.register {
-    MockNetworkClient()
-}
-```
-
-完整 Mock 用法（按端点注册、注册错误、断言请求参数）见 [NETWORK_GUIDE 第 15 节](NETWORK_GUIDE.md#15-mock测试--swiftui-preview)。
-
-### Q: 如何替换 Toast/Loading/Alert 管理器？
-
-在 App 启动时注册自定义实现：
-
-```swift
-Container.shared.toastManager.register {
-    MyCustomToastManager()
-}
-
-struct MyCustomToastManager: CYToastManagerProtocol {
-    // 实现协议方法
-}
-```
-
-视图层通过 Factory 注入后传入自定义管理器：
-
-```swift
-@Injected(\.toastManager) var toastManager
-@Injected(\.loadingManager) var loadingManager
-@Injected(\.alertManager) var alertManager
-
-ContentView()
-    .feedbackOverlay(toastManager: toastManager, loadingManager: loadingManager)
-    .alertManager(manager: alertManager)
-```
-
-### Q: 能否直接使用 Alamofire 的高级功能？
-
-可以。虽然模板封装了 `CYNetworkClient`，但你仍可在业务代码中直接 `import Alamofire` 使用原生 API。
-
----
-
-## 16. 项目特异化指南
-
-模板通过 **协议 + DI** 实现全部可替换。以下展示如何在消费项目中对各模块进行特异化处理，无需修改模板源码。
-
-### 网络层特异化
-
-**场景：替换为自定义加密网络客户端**
-
-```swift
-// 1. 实现协议
-final class EncryptedNetworkClient: CYNetworkClientProtocol {
-    // 包装 Alamofire 或自定义 URLSession
-}
-
-// 2. 注册到 DI（App 启动时）
-Container.shared.networkClient.register { EncryptedNetworkClient() }
-```
-
-### 主题特异化
-
-**场景：云端同步主题偏好**
-
-```swift
-// 1. 实现 CYThemeManaging 协议
-final class CloudThemeManager: CYThemeManaging {
-    func savedTheme() -> CYAppTheme {
-        // 从服务端读取
-    }
-    func save(_ theme: CYAppTheme) {
-        // 同步到服务端 + 本地缓存
-    }
-    func apply(_ theme: CYAppTheme) { /* UIKit overlay */ }
-}
-
-// 2. 注册到 DI
-Container.shared.themeManager.register { CloudThemeManager() }
-
-// 3. 创建 AppState 时注入（默认使用 CYThemeManager.shared）
-@State private var appState = CYAppState(
-    themeManager: CYFactoryContainer.shared.themeManager
-)
-```
-
-### 多语言特异化
-
-**场景：服务端下发翻译**
-
-```swift
-// 1. 实现 CYLocalizationManaging 协议
-final class RemoteLocalizationManager: CYLocalizationManaging {
-    private var translations: [String: [String: String]] = [:]
-    // ...
-}
-
-// 2. 注册到 DI
-Container.shared.localizationManager.register { RemoteLocalizationManager() }
-
-// 3. 注入 AppState
-@State private var appState = CYAppState(
-    localizationManager: CYFactoryContainer.shared.localizationManager
-)
-```
-
-### 品牌色特异化
-
-`CYAppColor` 提供线程安全的品牌色覆盖入口，无需修改模板源码：
-
-```swift
-// App 启动时调用一次（通常在 AppBootstrap 中）
-CYAppColor.configure(
-    primary: Color(hex: "#FF6B00"),   // 主色（默认 .indigo）
-    accent: Color(hex: "#00A3FF")     // 强调色（默认系统 AccentColor）
-)
-```
-
-`background` / `textPrimary` / `separator` 等语义色基于系统语义色，自动适配深浅色，只读；如需品牌衍生色，在业务侧扩展：
-
-```swift
-extension CYAppColor {
-    static var brandSurface: Color { primary.opacity(0.08) }
-}
-```
-
-### Toast/Loading/Alert 特异化
-
-**方式一：全局反馈样式配置**
-
-```swift
-CYFeedbackConfiguration.configure(
-    toastStyle: CYToastStyle(
-        position: .bottom,
-        cornerRadius: 16,
-        backgroundColor: .indigo,
-        textColor: .white,
-        iconColorStrategy: .fixed(.yellow)
-    ),
-    loadingStyle: CYLoadingStyle(
-        maskOpacity: 0.3,
-        cornerRadius: 20,
-        indicatorColor: .mint
-    )
-)
-```
-
-**方式二：替换管理器实现**
-
-```swift
-// 注册自定义管理器
-Container.shared.toastManager.register { MyCustomToastManager() }
-
-// 通过 Factory 注入后传给视图层
-@Injected(\.toastManager) var toastManager
-@Injected(\.loadingManager) var loadingManager
-@Injected(\.alertManager) var alertManager
-
-ContentView()
-    .feedbackOverlay(toastManager: toastManager, loadingManager: loadingManager)
-    .alertManager(manager: alertManager)
-```
-
-### 业务码策略特异化
-
-```swift
-CYBusinessCodePolicy.configure {
-    $0.successCodes = [0, 200, 1000]
-    $0.tokenExpiredCodes = [401, 10001]
-    $0.reLoginCodes = [403]
-    $0.silentCodes = [20005]  // 静默忽略的错误码
-    $0.alertCodes = [50000]   // 弹窗强提示
-}
-```
-
-### 测试中 Mock 注入
-
-模板提供了全套 Mock 实现（`CYAppCore/Mock/`），直接使用：
-
-```swift
-// 替换所有关键组件为 Mock
-Container.shared.networkClient.register { MockNetworkClient() }
-Container.shared.analyticsService.register { MockAnalyticsService() }
-Container.shared.toastManager.register { MockToastManager() }
-Container.shared.loadingManager.register { MockLoadingManager() }
-```
-
-### 特异化层级总结
-
-| 层级 | 入口 | 适用场景 |
-|------|------|---------|
-| 零代码配置 | `.configure(...)` | 切换环境、样式、业务码 |
-| 协议实现 | 实现 `*Protocol` + DI 注册 | 替换网络、认证、分析、管理器 |
-| 注入实例 | AppState init 参数 | 替换主题/语言管理策略 |
-| 品牌色配置 | `CYAppColor.configure(primary:accent:)` | 零源码修改换主色 |
-| 静态覆盖 | `CYAppFont.*` / 扩展 `CYAppColor` | 字体/衍生色定制 |
-
----
-
-## 17. 模板开发规范
-
-如果你要在这个模板上持续做个人或中小团队项目，建议先阅读并遵守 [模板开发规范](TEMPLATE_RULES.md)。
-
-它会明确：
-
-- 这套模板适合什么场景
-- 哪些模块是必选、推荐、可选
-- 如何保持快速接入
-- 代码、文档、示例和测试应遵守什么规则
-- 模板目录结构应如何保持稳定
-
-这份规范的目标是让模板长期保持“好起步、好维护、好扩展”的状态。
-
----
-
-## 18. iOS 18+ 推荐页面范式
-
-随着模板进入 iOS 18+ SwiftUI 项目标准，建议业务页面优先使用以下范式，而不是每个页面都自行拼装结构。
-
-### 18.1 页面优先级
-
-推荐优先使用：
-
-- `CYPageContainer`：标准页面容器，统一标题、内容、工具栏布局
-- `CYBaseView`：统一加载 / 错误 / 内容三态
-- `CYEmptyStateView`：统一空状态
-- `CYPaginatedListView`：统一分页列表
-- `CYLoadingOverlay`、`CYToastView`、`CYAlertManagerModifier`：统一反馈层
-
-### 18.2 页面类型映射
-
-#### 列表页
-
-优先组合：
-
-- `CYPageContainer`
-- `CYPaginatedListView`
-- `CYEmptyStateView`
-- `CYLoadingOverlay`
-
-#### 详情页
-
-优先组合：
-
-- `CYPageContainer`
-- `CYBaseView`
-- `CYLoadingOverlay`
-- `CYToastView`
-
-#### 设置页
-
-优先组合：
-
-- `CYPageContainer`
-- `CYListRow`
-- `CYSectionHeader`
-- `CYTagGroup`
-- `CYBottomSheetModifier`
-
-#### 表单页
-
-优先组合：
-
-- `CYPageContainer`
-- `CYTextField`
-- `CYSearchBar`
-- `CYVerificationCodeInput`
-- `PrimaryButton` / `SecondaryButton`
-
-### 18.3 现代 SwiftUI 使用建议
-
-- 页面优先使用 `@Observable` 状态模型
-- 顶层状态优先通过 `@Environment(CYAppState.self)` 注入
-- 列表页优先使用 `refreshable` 和分页加载
-- 输入页优先使用键盘可感知布局
-- 需要更复杂多栏布局时，再逐步引入 `NavigationSplitView`
-
-这部分范式的目标是：让新项目从一开始就贴近 iOS 18+ 的 SwiftUI 体验，而不是自己重复搭一套页面壳。
+完整保留/调整/补示例/建议废弃/宿主分类及未解决项见 [专项清单](MODULE_COMPONENT_REVIEW.md#第三轮多-app-组件与扩展专项2026-10-19)。

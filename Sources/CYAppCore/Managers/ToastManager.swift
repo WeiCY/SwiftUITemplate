@@ -160,3 +160,9 @@ public enum CYToastType: Sendable {
         }
     }
 }
+
+public extension CYToastManagerProtocol {
+    func show(_ message: String, type: CYToastType = .info) {
+        show(message, type: type, duration: CYAppConstants.toastDuration)
+    }
+}

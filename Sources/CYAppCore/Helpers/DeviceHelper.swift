@@ -16,7 +16,7 @@ import UIKit
 public struct CYDeviceHelper {
     
     /// 是否为 iPad
-    public static var isPad: Bool {
+    @MainActor public static var isPad: Bool {
         UIDevice.current.userInterfaceIdiom == .pad
     }
     
@@ -31,7 +31,7 @@ public struct CYDeviceHelper {
     }
     
     /// 触发触觉反馈震动
-    public static func vibrate(style: UIImpactFeedbackGenerator.FeedbackStyle = .medium) {
+    @MainActor public static func vibrate(style: UIImpactFeedbackGenerator.FeedbackStyle = .medium) {
         let generator = UIImpactFeedbackGenerator(style: style)
         generator.prepare()
         generator.impactOccurred()

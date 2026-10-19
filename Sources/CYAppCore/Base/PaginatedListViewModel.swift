@@ -45,15 +45,22 @@ open class CYPaginatedListViewModel<Item: Identifiable & Sendable>: CYBaseViewMo
     public var pageSize: Int
     @ObservationIgnored private var generation = UUID()
     
+    /// 失败发生的请求。追加失败后自动加载暂停，必须显式 retry。
+    public enum Failure: Equatable, Sendable {
+        case refresh
+        case append(page: Int)
+    }
+    public private(set) var failure: Failure?
+
     /// 是否为空列表（无数据且非加载中）
     public var isEmpty: Bool {
-        items.isEmpty && !isLoading
+        items.isEmpty && !isLoading && error == nil
     }
     
     // MARK: - Init
     
     public init(pageSize: Int = CYAppConstants.defaultPageSize) {
-        self.pageSize = pageSize
+        self.pageSize = max(1, pageSize)
         super.init()
     }
     
@@ -85,28 +92,35 @@ open class CYPaginatedListViewModel<Item: Identifiable & Sendable>: CYBaseViewMo
         generation = id
         isLoadingMore = false
         
-        await executeTask { [weak self] in
-            guard let self else { return }
-            let newItems = try await self.fetchPage(page: 1, pageSize: self.pageSize)
+        isLoading = true
+        clearError()
+        failure = nil
+        do {
+            let newItems = try await fetchPage(page: 1, pageSize: pageSize)
             try Task.checkCancellation()
-            guard self.generation == id else { return }
-            self.items = newItems
-            self.hasMore = newItems.count >= self.pageSize
-            self.currentPage = 1
+            guard generation == id else { return }
+            items = newItems
+            hasMore = newItems.count >= pageSize
+            currentPage = 1
+        } catch {
+            guard generation == id else { return }
+            let resolved = CYAppError.resolve(error)
+            if !resolved.isCancellation {
+                self.error = resolved
+                failure = .refresh
+            }
         }
+        guard generation == id else { return }
+        isLoading = false
     }
-    
-    // MARK: - 加载更多
-    
-    /// 上拉加载更多（无限滚动）
+
+    /// 自动追加；失败后不因行再次出现而重复请求。
     public func loadMore() async {
-        guard hasMore, !isLoadingMore, !isLoading else { return }
-        
+        guard hasMore, !isLoadingMore, !isLoading, failure == nil else { return }
         isLoadingMore = true
         let id = generation
-        error = nil
         let nextPage = currentPage + 1
-        
+        error = nil
         do {
             let newItems = try await fetchPage(page: nextPage, pageSize: pageSize)
             try Task.checkCancellation()
@@ -116,13 +130,38 @@ open class CYPaginatedListViewModel<Item: Identifiable & Sendable>: CYBaseViewMo
             hasMore = newItems.count >= pageSize
         } catch {
             guard generation == id else { return }
-            let appError = CYAppError.resolve(error)
-            if !appError.isCancellation { self.error = appError }
+            let resolved = CYAppError.resolve(error)
+            if !resolved.isCancellation {
+                self.error = resolved
+                failure = .append(page: nextPage)
+            }
         }
-        
+        guard generation == id else { return }
         isLoadingMore = false
     }
-    
+
+    /// 首次/刷新失败重试第一页；追加失败重试未提交的同一页。
+    public override func retry() async {
+        guard !isLoading, !isLoadingMore, let failure else { return }
+        self.failure = nil
+        switch failure {
+        case .refresh: await refresh()
+        case .append: await loadMore()
+        }
+    }
+
+    /// 搜索/筛选条件改变时立即失效旧请求并清空分页；随后由宿主防抖并 load。
+    public func reset() {
+        generation = UUID()
+        items = []
+        currentPage = 1
+        hasMore = true
+        isLoading = false
+        isLoadingMore = false
+        failure = nil
+        clearError()
+    }
+
     // MARK: - 数据管理
     
     /// 追加单条数据到列表头部

@@ -1,3 +1,4 @@
+import CYTestSupport
 import XCTest
 import SwiftUI
 @testable import CYAppUI
@@ -118,6 +119,8 @@ final class AppUITests: XCTestCase {
 
     @MainActor
     func testFeedbackConfigurationDefaultsAndCustomStyles() {
+        let globalState = CYGlobalTestState()
+        defer { globalState.restore() }
         let configuration = CYFeedbackConfiguration()
         XCTAssertEqual(configuration.toastStyle.position, .center)
         XCTAssertEqual(configuration.toastStyle.horizontalMargin, 16)

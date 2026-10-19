@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-19",
+  "device": "iPhone 17 Simulator",
+  "os": "iOS 26.5 (23F77)",
+  "configuration": "Debug",
+  "rows": 10000,
+  "iterations": 3,
+  "image": "Injected local 1x1 GIF; cancellation lifecycle only",
+  "scope": "Swipe up/down, enter image page, leave/back, return to paging; includes XCTest automation waits. Not FPS, large-image performance or leak proof.",
+  "fresh_derived_data": true,
+  "downloaded_sources_reused": true,
+  "ui_tests_passed": 3,
+  "metrics": [
+    {
+      "metric": "Memory Peak Physical (CYConsumerHost), kB",
+      "average": 63583.171,
+      "samples": [
+        63605.016,
+        63555.864,
+        63588.632
+      ]
+    },
+    {
+      "metric": "Clock Monotonic Time, s",
+      "average": 8.281,
+      "samples": [
+        8.280985,
+        8.264725,
+        8.298418
+      ]
+    },
+    {
+      "metric": "Memory Physical (CYConsumerHost), kB",
+      "average": -27.307,
+      "samples": [
+        -49.152,
+        -32.768,
+        0.0
+      ]
+    },
+    {
+      "metric": "Absolute Memory Physical (CYConsumerHost), kB",
+      "average": 63091.651,
+      "samples": [
+        63113.496,
+        63080.728,
+        63080.728
+      ]
+    }
+  ]
+}

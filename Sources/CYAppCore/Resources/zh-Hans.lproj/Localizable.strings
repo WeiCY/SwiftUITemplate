@@ -88,3 +88,6 @@
 "connection_cellular" = "蜂窝数据";
 "connection_wired" = "有线网络";
 "connection_unknown" = "未知";
+
+"dismiss" = "关闭";
+"filter" = "筛选";

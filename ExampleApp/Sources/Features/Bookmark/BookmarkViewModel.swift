@@ -10,11 +10,13 @@ import CYAppCore
 @Observable
 final class BookmarkViewModel: CYBaseViewModel {
     private let repository: BookmarkRepository
+    private let toast: any CYToastManagerProtocol
 
     var bookmarks: [BookmarkItem] = []
 
-    init(repository: BookmarkRepository) {
+    init(repository: BookmarkRepository, toast: any CYToastManagerProtocol) {
         self.repository = repository
+        self.toast = toast
         super.init()
     }
 
@@ -39,9 +41,9 @@ final class BookmarkViewModel: CYBaseViewModel {
         do {
             try repository.delete(items)
             bookmarks = try repository.fetch(predicate: nil)
-            CYToastManager.shared.show("bookmark_deleted".exampleLocalized, type: .info)
+            toast.show("bookmark_deleted".exampleLocalized, type: .info)
         } catch {
-            CYToastManager.shared.show("bookmark_delete_failed".exampleLocalized, type: .error)
+            toast.show("bookmark_delete_failed".exampleLocalized, type: .error)
         }
     }
 }

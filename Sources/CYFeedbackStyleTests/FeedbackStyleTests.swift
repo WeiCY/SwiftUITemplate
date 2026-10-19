@@ -1,3 +1,4 @@
+import CYTestSupport
 import XCTest
 import SwiftUI
 @testable import CYFeedbackStyle
@@ -20,6 +21,8 @@ final class FeedbackStyleTests: XCTestCase {
 
     @MainActor
     func testCustomLoadingStyleUpdatesSharedConfiguration() {
+        let globalState = CYGlobalTestState()
+        defer { globalState.restore() }
         let custom = CYLoadingStyle(
             maskOpacity: 0.45,
             indicator: CYLoadingIndicatorStyle(color: .purple, scale: 1.6, size: 72),

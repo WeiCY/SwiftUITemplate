@@ -1,0 +1,105 @@
+{
+  "measured_at_utc": "2026-10-18T04:33:15.688697+00:00",
+  "machine": "arm64",
+  "host_os": "26.6.2",
+  "configuration": "debug",
+  "first_build_scope": "One fresh scratch shared sequentially across products; later first builds reuse earlier compiled dependencies",
+  "downloaded_sources_reused": true,
+  "fresh_compiled_artifacts": true,
+  "products": {
+    "CoreOnly": {
+      "first_seconds": 17.519,
+      "incremental_seconds": 2.024,
+      "linked_modules": [
+        "CYAppCore",
+        "CoreOnly",
+        "CoreOnlyProof",
+        "FactoryKit"
+      ],
+      "compiled_modules": [
+        "CYAppCore",
+        "CoreOnly",
+        "CoreOnlyProof",
+        "FactoryKit"
+      ],
+      "binary_bytes": 2641520
+    },
+    "OfflinePersistence": {
+      "first_seconds": 3.02,
+      "incremental_seconds": 1.829,
+      "linked_modules": [
+        "CYAppCore",
+        "CYAppPersistence",
+        "FactoryKit",
+        "OfflinePersistence",
+        "OfflinePersistenceProof"
+      ],
+      "compiled_modules": [
+        "CYAppPersistence",
+        "OfflinePersistence",
+        "OfflinePersistenceProof"
+      ],
+      "binary_bytes": 2698928
+    },
+    "NetworkOnly": {
+      "first_seconds": 5.785,
+      "incremental_seconds": 1.784,
+      "linked_modules": [
+        "Alamofire",
+        "CYAppCore",
+        "CYAppNetwork",
+        "FactoryKit",
+        "NetworkOnly",
+        "NetworkOnlyProof"
+      ],
+      "compiled_modules": [
+        "Alamofire",
+        "CYAppNetwork",
+        "NetworkOnly",
+        "NetworkOnlyProof"
+      ],
+      "binary_bytes": 6494560
+    },
+    "DesignSystemConsumer": {
+      "first_seconds": 4.262,
+      "incremental_seconds": 1.876,
+      "linked_modules": [
+        "CYAppCore",
+        "CYAppDesignSystem",
+        "CYFeedbackStyle",
+        "DesignSystemConsumer",
+        "DesignSystemConsumerProof",
+        "FactoryKit"
+      ],
+      "compiled_modules": [
+        "CYAppDesignSystem",
+        "CYFeedbackStyle",
+        "DesignSystemConsumer",
+        "DesignSystemConsumerProof"
+      ],
+      "binary_bytes": 4707024
+    },
+    "CustomComposition": {
+      "first_seconds": 3.829,
+      "incremental_seconds": 1.775,
+      "linked_modules": [
+        "CYAppCore",
+        "CYAppDesignSystem",
+        "CYAppUI",
+        "CYFeedbackStyle",
+        "CustomComposition",
+        "CustomCompositionProof",
+        "FactoryKit"
+      ],
+      "compiled_modules": [
+        "CYAppUI",
+        "CustomComposition",
+        "CustomCompositionProof"
+      ],
+      "binary_bytes": 5397712
+    }
+  },
+  "behavior_test_count": 7,
+  "behavior_tests_passed": true,
+  "public_api_only": true
+}

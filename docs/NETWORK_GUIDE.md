@@ -357,15 +357,20 @@ query 保留顺序和 nil 值，Encodable body 使用端点编码策略和 sorte
 
 | 类型 | 脱敏内容 |
 |---|---|
+| 请求/响应 URL | 敏感 query 参数 → `***`，移除 user/password/fragment |
 | 请求头 | `Authorization` / `Proxy-Authorization` / `Cookie` / `X-Api-Key` / `Token` 等 → `***` |
-| 请求/响应体 | `password` / `token` / `access_token` / `refresh_token` / `secret` / `api_key` 等字段 → `***` |
+| 请求/响应体 | `password` / `token` / `access_token` / `refresh_token` / `secret` / `api_key` 等字段 → `***`，递归覆盖对象和数组，字段名忽略大小写、下划线和连字符 |
 
 ```swift
 CYLoggingInterceptor()                      // 打印请求 + 响应 Body
 CYLoggingInterceptor(includeBody: false)    // 只打印请求行与 Header
 ```
 
-错误日志自动带上下文：`[GET /api/user/profile] HTTP 500 | <错误描述>`。
+所有内置入口共用 `CYNetworkLogRedactor`。非 JSON 对象/数组的 Body（包括表单、二进制、损坏 JSON 和标量 JSON）只输出隐藏提示和字节数，不回退全文。响应 Body 在脱敏后截断。
+
+终态错误日志保留方法、脱敏路径、HTTP 状态及错误类型，例如 `[GET /api/user/profile] HTTP 500 | CYNetworkError (details omitted)`。任意底层错误或服务端描述可能包含 URL/Body，因此不再输出原文。正常 JSON 字段和非敏感 query 保留。
+
+规则依赖已知字段名，无法识别普通字段、路径或未知 Header 中任意放置的秘密；宿主自定义日志也需要遵守这一边界。
 
 ---
 

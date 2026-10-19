@@ -153,3 +153,9 @@ public final class CYAlertManager: CYAlertManagerProtocol, @unchecked Sendable {
         isPresented = false
     }
 }
+
+public extension CYAlertManagerProtocol {
+    func showAlert(title: String, message: String? = nil) {
+        showAlert(title: title, message: message, type: .info)
+    }
+}

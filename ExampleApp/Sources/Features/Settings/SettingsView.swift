@@ -8,6 +8,7 @@ import CYAppUI
 // 演示宿主如何把模板的全局状态（主题 / 语言）暴露给用户。
 
 struct SettingsView: View {
+    let toast: any CYToastManagerProtocol
     @Environment(CYAppState.self) private var appState
 
     private let languages: [(code: String, name: String)] = [
@@ -61,7 +62,7 @@ struct SettingsView: View {
                             },
                             action: {
                                 appState.setLanguage(language.code)
-                                CYToastManager.shared.show("language_changed".exampleLocalized, type: .success)
+                                toast.show("language_changed".exampleLocalized, type: .success)
                             }
                         )
                     }

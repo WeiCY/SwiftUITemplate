@@ -72,4 +72,26 @@ final class RemoteImageRegressionTests: XCTestCase {
         XCTAssertNil(state.loadedImage)
         XCTAssertNotNil(state.error)
     }
+    func testFailureCanRetryAndCancellationDoesNotRetry() async {
+        let state = CYRemoteImageLoadState()
+        let loader = ControlledImageLoader()
+        let url = URL(string: "https://example.test/retry")!
+        let load = Task { await state.load(url: url, imageLoader: loader, maxRetries: 1, retryDelay: 0) }
+        while !(await loader.isPending(url)) { await Task.yield() }
+        await loader.finish(url, result: .failure(URLError(.badServerResponse)))
+        while !(await loader.isPending(url)) { await Task.yield() }
+        await loader.finish(url, result: .success(imageData))
+        await load.value
+        XCTAssertNotNil(state.loadedImage)
+        XCTAssertNil(state.error)
+
+        let cancelled = Task { await state.load(url: url, imageLoader: loader, maxRetries: 3, retryDelay: 0) }
+        while !(await loader.isPending(url)) { await Task.yield() }
+        await loader.finish(url, result: .failure(ImageLoaderError.loadFailed(CancellationError())))
+        await cancelled.value
+        XCTAssertNil(state.error)
+        let retried = await loader.isPending(url)
+        XCTAssertFalse(retried)
+    }
+
 }

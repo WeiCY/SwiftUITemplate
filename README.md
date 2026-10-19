@@ -1,155 +1,86 @@
 # CYSwiftTemplate
 
-iOS SwiftUI 工程模板 —— 协议驱动、按需引入、采用 Swift 6。
+iOS 18+ / macOS 15+、Swift 6 的 SwiftUI 模板。保留 7 个 Library，网络、图片实现和 SwiftData 均可按需接入；业务模型、路由和 Schema 留在宿主。
 
-> 文档对应当前仓库主干；`Unreleased` 中的能力尚未发布，使用已发布 tag 时请阅读该 tag 的文档。
+## 先运行示例
 
-面向个人开发和中小型团队的 SwiftUI 模板底座，目标是让新项目能快速接入、风格统一、长期迭代。开始使用前建议先阅读 [docs/TEMPLATE_RULES.md](docs/TEMPLATE_RULES.md) 了解规则，再查看 [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) 完成接入。
+1. 用 Xcode 打开 `ExampleApp/ExampleApp.xcodeproj`。
+2. 选择 `ExampleApp` Scheme 和任意 iOS Simulator，运行。默认使用 Mock，无需后端和开发者签名。
+3. 首页验证列表、详情、收藏；设置页切换主题/语言；组件页查看按钮、输入、状态、反馈、图片、媒体、布局及表单/搜索组合示例。
 
----
-
-## 快速开始
-
-启动配置建议集中在宿主 App 的 `AppConfig` / `AppBootstrap` 中。`CYCoreBootstrap`
-只负责 Core 配置；Network、Image 和 Feedback 仍由宿主按需调用已有配置入口，因此
-完全离线的 App 不需要导入 `CYAppNetwork`。
-
-先阅读 [模板开发规范](docs/TEMPLATE_RULES.md) 与 [完整接入指南](docs/GETTING_STARTED.md)，确认当前项目是否需要核心模块、UI 模块和可选模块，再执行接入。
-
-### 安装
-
-在 Xcode 中选择 **File -> Add Package Dependencies**，输入仓库地址：
-
-```
-https://github.com/WeiCY/SwiftUITemplate
+```bash
+xcodebuild -project ExampleApp/ExampleApp.xcodeproj -scheme ExampleApp \
+  -destination 'generic/platform=iOS Simulator' \
+  -derivedDataPath /tmp/cy-example-derived CODE_SIGNING_ALLOWED=NO build
 ```
 
-### 最小初始化
+宿主复用 `ExampleApp/Sources`，通过相对路径引用本地 Package，没有复制框架或重复 `@main`。
+组件页可切换深浅色、大字体和长文案；第二种品牌在 Scheme → Run → Arguments 添加 `--alternate-brand` 后运行。
+
+## 新项目的最小接入
+
+在 Xcode 添加 [Swift Package](https://github.com/WeiCY/SwiftUITemplate)，按功能选择 Product：纯工具仅 Core，离线存储 Core + Persistence，需要模板页面时选择 DesignSystem/UI。在宿主组合根完成配置，再通过初始化注入 Feature：
 
 ```swift
+// compile-check: minimal-app
 import SwiftUI
 import CYAppCore
-import CYFeedbackStyle
 import CYAppUI
 
 @main
 struct MyApp: App {
-    init() {
-        CYCoreBootstrap.configure(CYAppConfig(environment: .production))
-
-        CYFeedbackConfiguration.configure(
-            toastStyle: CYToastStyle(position: .center),
-            loadingStyle: .default
-        )
-    }
-
-    @State private var appState = CYAppState()
-    @State private var router = CYAppRouter.shared
+    @State private var state = CYAppState()
+    @State private var router = CYAppRouter()
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environment(appState)
+            Text("Hello")
+                .environment(state)
                 .environment(router)
-                .preferredColorScheme(appState.theme.colorScheme)
-                .id(appState.language)
+                .preferredColorScheme(state.theme.colorScheme)
+                .environment(\.locale, Locale(identifier: state.language))
+                .id(state.language)
                 .feedbackOverlay()
+                .alertManager()
         }
     }
 }
 ```
 
-完整组合示例见 `ExampleApp/Sources/App/AppConfig.swift` 和
-`ExampleApp/Sources/App/AppBootstrap.swift`。旧的 `CYAppConfiguration` 网络命名空间仍保留
-为兼容 API，新代码应使用 `CYNetworkConfiguration`。
+`feedbackOverlay` 包含 Toast 和 Loading；Alert 需另外挂载。使用自定义管理器时，业务和视图必须传入同一实例。
+完整的 Bootstrap、服务、Repository、ViewModel 接线见 [接入指南](docs/GETTING_STARTED.md)。
 
-语言通过 `appState.setLanguage(...)` 切换，`language` 会通知 SwiftUI；模板文案来自包内
-`en.lproj` / `zh-Hans.lproj`，宿主文案使用宿主自己的资源。`CYLocalizationManager` 支持注入
-`bundle` / `defaults`，详见接入指南。系统媒体选择器支持图片和视频，视频通过
-`CYMediaItem.videoURL` 访问；使用文件期间应保留媒体项或复制到宿主目录。
+| Library | 职责 |
+|---|---|
+| CYAppCore | 协议、DI、状态、工具、权限、默认 URLSession 图片加载 |
+| CYFeedbackStyle | 反馈样式 |
+| CYAppDesignSystem | 品牌 Token 与基础组件 |
+| CYAppUI | AppState、Router、反馈视图、媒体和远程图片 |
+| CYAppNetwork | 可选 Alamofire 实现 |
+| CYAppImage | 可选 Kingfisher 实现 |
+| CYAppPersistence | 可选 SwiftData 基础设施 |
 
-> 完整接入说明（网络 / 缓存 / Keychain / 主题 / 特异化等）请阅读 [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)。
+## 验证与文档
 
----
-
-## 核心模块概览
-
-| 库名 | 用途 | 依赖 |
-|---|---|---|
-| `CYAppCore` | 协议、扩展、日志、DI、管理器、权限 | **必选** |
-| `CYAppNetwork` | Alamofire 网络实现 | 可选 |
-| `CYAppImage` | Kingfisher 图片加载 | 可选 |
-| `CYFeedbackStyle` | Toast/Loading 样式定义 | 有 UI 时引入 |
-| `CYAppDesignSystem` | 颜色、字体、间距、基础组件 | 有 UI 时引入 |
-| `CYAppUI` | 路由、AppState、Toast/Loading 视图、引导页 | 有 UI 时引入 |
-| `CYAppPersistence` | SwiftData 持久化 | 可选 |
-
-### 使用规则
-
-- 先看规则，再看接入文档
-- 先接入必选和推荐模块，再按需加入可选模块
-- 如果只是个人项目的最小闭环，优先保证 `CYAppCore`、`CYFeedbackStyle`、`CYAppUI`、`CYAppDesignSystem` 可用
-- 如果项目需要网络、图片或本地存储，再引入相应实现模块
-
-### 分层架构
-
-```
-Layer 0  CYAppCore (协议 + 工具 + DI)  ← 仅依赖 FactoryKit
-         CYAppNetwork (+Alamofire)     ← 可选实现
-         CYAppImage (+Kingfisher)      ← 可选实现
-         CYFeedbackStyle (纯样式)
-         CYAppPersistence (独立 SwiftData)
-Layer 1  CYAppDesignSystem (颜色/字体/组件)
-Layer 2  CYAppUI (AppState/Router/反馈视图)
-         ExampleApp（接入范例）
+```bash
+swift build
+swift test
+swiftlint lint --strict --quiet
+python3 scripts/verify-consumers.py --cache-from .build --output /tmp/consumer-proof.json
+python3 scripts/verify-doc-examples.py
+python3 scripts/verify-component-matrix.py
 ```
 
-> 架构设计详情请阅读 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
+前两轮的独立消费者证据继续保留；第三轮逐项评审组件与扩展，修复 Snackbar 生命周期、Keychain 更新、输入边界与调试导出，并补原生草稿编辑示例。严格 lint 覆盖消费者和测试辅助代码。当前验证结果、环境限制和图片测量方法见 [工程验证记录](docs/ENGINEERING_VALIDATION.md)。App 编译、模拟器 UI 测试与真机验证分别记录，不能相互替代。
 
----
+- [独立消费者与运行入口](ConsumerFixtures/README.md)
+- [组件与扩展分类、使用边界、缺口和选择指南](docs/MODULE_COMPONENT_REVIEW.md)
+- [模板规则](docs/TEMPLATE_RULES.md)
+- [接入指南](docs/GETTING_STARTED.md)
+- [架构与扩展边界](docs/ARCHITECTURE.md)
+- [网络指南](docs/NETWORK_GUIDE.md)
+- [当前复核结论](docs/REVIEW.md)
+- [路线图](docs/ROADMAP.md)
+- [变更与迁移](CHANGELOG.md)
 
-## 核心特性
-
-- **类型安全网络**：`CYEndpoint` 协议 + `Codable` 替代 MJExtension，编译时检查
-- **业务码可配置**：`CYBusinessCodePolicy` 避免全局硬编码 `code == 0`
-- **可选凭证机制**：公开/可选/强制鉴权按端点声明，宿主决定凭证格式与恢复逻辑
-- **请求去重**：Actor 隔离，防止快速点击重复请求
-- **协议驱动 DI**：基于 Factory，所有服务可替换，全套 Mock 实现
-- **Swift 6 并发模型**：使用 `Sendable`、`@MainActor`、`actor` 与锁管理共享状态
-- **SwiftUI 状态管理**：`@Observable` + `NavigationStack` + 多 Tab Router
-
----
-
-## 验证状态
-
-| 项目 | 结果 |
-|---|---|
-| SPM 构建 | ✅ 通过（macOS 宿主；本机沙箱环境需 `--disable-sandbox`） |
-| 单元测试 | ✅ 全部通过（数量见 CHANGELOG 最新版本） |
-| iOS Simulator 构建 | ✅ 通过（`swift build` 交叉编译验证全部目标，无需 `.xcodeproj`；CI 步骤已同步修复） |
-| 平台 | iOS 18+, macOS 15+ |
-| Swift | 6.0 (strict concurrency) |
-
----
-
-## 文档
-
-| 文档 | 说明 |
-|---|---|
-| [docs/TEMPLATE_RULES.md](docs/TEMPLATE_RULES.md) | 模板开发规范：适用场景、分层、模块选择、接入、新 App 工作流与边界 |
-| [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) | 完整接入指南：网络、缓存、Keychain、主题、路由、特异化 |
-| [docs/NETWORK_GUIDE.md](docs/NETWORK_GUIDE.md) | 网络框架使用指南：请求、上传下载、可选凭证、业务码、去重与 Mock |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架构设计：模块依赖、DI、状态管理、网络层、扩展方式 |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | 路线图：版本规划与后续开发计划 |
-| [docs/REVIEW.md](docs/REVIEW.md) | 工程化评测：分维度评分、主要问题与下一步（随版本更新） |
-| [CHANGELOG.md](CHANGELOG.md) | 已发布版本变更记录 |
-| [ExampleApp](ExampleApp/Sources/App/ExampleApp.swift) | ExampleApp（接入范例）：网络 → loading/error/retry → 路由 → SwiftData → 设置 |
-| [docs/archive/](docs/archive/) | 历史归档：网络重构执行记录、评测快照（不代表当前代码） |
-
----
-
-## 联系与贡献
-
-- GitHub: https://github.com/WeiCY/SwiftUITemplate
-- Issues: https://github.com/WeiCY/SwiftUITemplate/issues
-- Pull Requests: 欢迎提交改进建议
+文档对应主干 Unreleased；使用已发布 tag 时请阅读该 tag 的文档。

@@ -1,661 +1,119 @@
-# 架构设计
+# 架构与扩展边界
 
-> 本文档对应当前主干（含 Unreleased 变更），描述 CYSwiftTemplate 的模块分层、依赖注入、状态管理、路由与网络架构，以及扩展方式。
+文档对应主干 Unreleased。接入步骤见 [GETTING_STARTED](GETTING_STARTED.md)，网络契约见 [NETWORK_GUIDE](NETWORK_GUIDE.md)。
 
----
+## 模块与依赖
 
-## 目录
-
-- [1. 设计原则](#1-设计原则)
-- [2. 模块分层与依赖图](#2-模块分层与依赖图)
-- [3. 各模块职责](#3-各模块职责)
-- [4. 依赖注入（DI）](#4-依赖注入di)
-- [5. 状态管理](#5-状态管理)
-- [6. 路由系统](#6-路由系统)
-- [7. 网络层架构](#7-网络层架构)
-- [8. 反馈与 UI 覆盖层](#8-反馈与-ui-覆盖层)
-- [9. 持久化层](#9-持久化层)
-- [10. 并发模型](#10-并发模型)
-- [11. 扩展方式](#11-扩展方式)
-- [12. 项目目录结构](#12-项目目录结构)
-
----
-
-## 1. 设计原则
-
-### 启动配置与 Optional Module
-
-Core 提供 `CYAppConfig` 和 `CYCoreBootstrap`，只处理 Core 能理解的基础配置。
-宿主 App 负责作为 Composition Root 的 `AppBootstrap`，按需调用 Network、Image、
-Feedback 等现有配置入口。Core 不反向依赖 Optional Module；完全离线的 App 可以不
-引入 `CYAppNetwork`，需要网络的 App 再组合 `CYNetworkConfiguration`。
-
-| 原则 | 实践 |
-|---|---|
-| **协议驱动** | 稳定基础能力以协议暴露：网络、分析、图片加载、反馈管理器、主题、多语言、权限、持久化 Repository |
-| **按需引入** | 网络实现（Alamofire）、图片实现（Kingfisher）、持久化（SwiftData）均为独立 target，业务代码只依赖协议 |
-| **DI 可替换** | 基于 Factory 的三层 DI 架构，任何服务都可在启动时或测试中替换 |
-| **Swift 6 并发模型** | 跨域数据使用 `Sendable`，Actor 隔离状态，锁保护非 actor 共享状态；框架桥接的 unchecked 类型按实现约束审查 |
-| **零源码修改** | 所有特异化通过 `.configure(...)`、协议实现 + DI 注册、AppState 注入参数完成，不修改模板源码 |
-
----
-
-## 2. 模块分层与依赖图
-
-```
-Layer 0 — 纯逻辑 / 实现层（无 SwiftUI）
-┌─────────────────────────────────────────────────────────────┐
-│                                                             │
-│   CYAppCore ──────► FactoryKit                              │
-│   (协议 + 工具 + DI)                                        │
-│      ▲                                                      │
-│      │                                                      │
-│   ┌──┴──────────┬──────────────┐                           │
-│   │             │              │                            │
-│ CYAppNetwork  CYAppImage    CYFeedbackStyle                │
-│ (+Alamofire)  (+Kingfisher)  (无依赖, 纯样式)                │
-│   (+FactoryKit) (+FactoryKit)                               │
-│                                                             │
-│   CYAppPersistence (无依赖, 独立 SwiftData)                  │
-└─────────────────────────────────────────────────────────────┘
-                         │
-                         ▼
-Layer 1 — UI 基础
-┌─────────────────────────────────────────────────────────────┐
-│  CYAppDesignSystem ──► CYAppCore + CYFeedbackStyle          │
-│  (颜色 / 字体 / 间距 / 基础组件)                              │
-└─────────────────────────────────────────────────────────────┘
-                         │
-                         ▼
-Layer 2 — UI 功能
-┌─────────────────────────────────────────────────────────────┐
-│  CYAppUI ──► CYAppCore + CYFeedbackStyle + CYAppDesignSystem│
-│  (AppState / Router / Toast 视图 / Loading 视图 / 引导页)    │
-└─────────────────────────────────────────────────────────────┘
-                         │
-                         ▼
-                    ExampleApp（接入范例）
+```text
+CYAppCore -> FactoryKit
+    ↑ CYAppNetwork -> Alamofire + FactoryKit       可选
+    ↑ CYAppImage   -> Kingfisher + FactoryKit      可选
+CYAppPersistence -> SwiftData                     可选、无其他模板依赖
+CYFeedbackStyle                                  纯样式
+CYAppDesignSystem -> Core + FeedbackStyle
+CYAppUI -> Core + FeedbackStyle + DesignSystem
+ExampleApp -> 按需组合以上 Products
 ```
 
-**关键规则**：`CYAppCore` 定义网络协议并提供 URLSession 图片加载默认实现；真正的网络客户端只由可选的 `CYAppNetwork` 注册。离线 App 不应访问 `networkClient`。
+7 个 Library product 保持不变。额外的 ExampleApp executable 和 CYTestSupport target 不属于 Library product；生产模块不依赖测试支持 target。
 
-### 依赖矩阵
+Core 定义网络、图片、反馈等稳定协议，提供 URLSession 图片默认实现。不反向依赖 Network / Image / Persistence。无网络 App 不访问 `networkClient`。
 
-| Target | 依赖 |
-|---|---|
-| `CYAppCore` | FactoryKit |
-| `CYAppNetwork` | CYAppCore, Alamofire, FactoryKit |
-| `CYAppImage` | CYAppCore, Kingfisher, FactoryKit |
-| `CYFeedbackStyle` | （无） |
-| `CYAppDesignSystem` | CYAppCore, CYFeedbackStyle |
-| `CYAppUI` | CYAppCore, CYFeedbackStyle, CYAppDesignSystem |
-| `CYAppPersistence` | （无，独立） |
-| `ExampleApp` | CYAppCore, CYAppNetwork, CYAppImage, CYFeedbackStyle, CYAppDesignSystem, CYAppUI, CYAppPersistence |
-
----
-
-## 3. 各模块职责
-
-### CYAppCore（Layer 0 — 核心骨架）
-
-整个模板的基础，遵循 **协议驱动 + DI 注入** 的设计原则。
-
-| 子目录 | 职责 | 关键类型 |
+| 模块 | 内容 | 不承担 |
 |---|---|---|
-| `Network/` | 网络协议层 | `CYEndpoint`, `CYNetworkClientProtocol`, `CYAuthenticationPolicy`, `CYCredentialInterceptor`, `CYCredentialRecovery`, `CYRequestDeduplicator` |
-| `Services/` | 通用服务 | `CYAnalyticsServiceProtocol` |
-| `DI/` | 依赖注入 | `DIContainerProtocol`, `NetworkProviding`, `CYFactoryContainer`, `CYAppContainer` |
-| `Configuration/` | 环境配置 | `CYAppEnvironment` |
-| `Constants/` | 全局常量 | `CYAppConstants`, `CYAppConfigurationValues`, `CYSFSymbol` |
-| `Cache/` | Actor 隔离缓存 | `CYCacheManager`, `CYCacheSerializer` |
-| `Managers/` | 反馈管理器（协议 + 单例） | `CYToastManager`, `CYLoadingManager`, `CYAlertManager` |
-| `Permissions/` | 权限管理 | `CYPermissionManager`, `CYPermissionType`, `CYPermissionRequester` |
-| `Image/` | 图片加载协议 | `CYImageLoaderProtocol`, `CYDefaultImageLoader` |
-| `Logger/` | 日志 | `CYLogger`, `CYLogLevel` |
-| `Helpers/` | 工具类 | `CYKeychainHelper`, `CYBiometricAuth`, `CYFormValidator`, `CYDebouncer`, `CYThrottler`, `CYDeepLinkHandler`, `CYNetworkMonitor`, `CYThemeManager`, `CYLocalizationManager` |
-| `Mock/` | 测试 Mock | `MockNetworkClient`, `MockAnalyticsService`, `MockToastManager`, `MockLoadingManager` |
-| `Base/` | ViewModel 与基础状态 | `CYBaseViewModel`, `CYPaginatedListViewModel<Item>`, `CYAppError`, `CYTabID`, `CYAppTheme` |
-| `Extensions/` | Foundation 扩展 | Collection, String, Date, Data, Optional, Numeric, Dictionary, Bundle 等 16 个文件 |
+| Core | 协议、DI、缓存、日志、权限、Foundation 扩展、基础 ViewModel | 账号、业务模型、业务 Tab/Route、具体 HTTP 实现 |
+| Network | URLRequest、响应策略、鉴权拦截、上传下载、去重接线 | 登录流程与凭证持久化 |
+| Image | Kingfisher 桥接、取消、缓存和预取 | 业务图片模型 |
+| Persistence | ModelContainer 创建与 Repository 协议 | 宿主 Schema、模型、迁移计划和业务 Repository |
+| FeedbackStyle | Toast / Loading / Error 样式 | 管理器状态和业务逻辑 |
+| DesignSystem | 语义 Token、通用布局与组件 | Feature 状态和业务规则 |
+| UI | AppState、Router、反馈挂载、图片与媒体视图 | 业务路由和账号状态 |
 
-Core 默认缓存使用 v2 目录和摘要文件名，旧缓存按未命中处理；namespace 与文件系统路径隔离。
-Debouncer/Throttler 的可变状态受锁保护，调用方 action 在锁外执行。
+只在多个真实 App 出现稳定重复需求后提取公共能力，不引入新的架构框架。表单、搜索和媒体组合场景保留在 ExampleApp。
 
-### CYAppNetwork（Layer 0 — 网络实现）
+## 组合根与 DI
 
-Alamofire 桥接层，按职责拆分为多个文件：
-
-| 文件 | 职责 |
-|---|---|
-| `AppConfiguration.swift` | `CYNetworkConfiguration` — 启动配置器，构建 `CYNetworkClient` 并注册到 Factory |
-| `Network/NetworkClient.swift` | `CYNetworkClient` 类核心：`Mutex` 可变状态、拦截器管理、凭证恢复、`send` 分发 |
-| `Network/NetworkClient+Request.swift` | URL/URLRequest 构建、JSON 编解码器、请求/响应拦截器应用、失败日志 |
-| `Network/NetworkClient+Response.swift` | 发送/解码、业务码解析、Alamofire 错误映射、`requestData` |
-| `Network/NetworkClient+Upload.swift` | 多文件上传与下载（进度回调、取消传播） |
-
-`CYNetworkClient` 的可变状态（拦截器、刷新协调器）由 `Mutex`（iOS 18 `Synchronization`）保护，类型满足 `Sendable`，不使用 `@unchecked Sendable`。请求去重便捷 API（`requestWithDeduplication`）定义在 `CYAppCore` 的 `CYNetworkClientProtocol` 扩展上，因此生产客户端与 `MockNetworkClient` 均可使用。
-
-### CYAppImage（Layer 0 — 图片实现）
-
-Kingfisher 桥接层。
-
-| 文件 | 职责 |
-|---|---|
-| `ImageLoader.swift` | `CYAppImageConfig`（注册 Kingfisher 到 DI）、`CYKingfisherImageLoader`（实现 `CYImageLoaderProtocol`） |
-
-### CYFeedbackStyle（Layer 0 — 反馈样式）
-
-无依赖的纯样式定义模块。
-
-| 类型 | 职责 |
-|---|---|
-| `CYToastStyle` | Toast 位置、圆角、颜色、图标策略 |
-| `CYLoadingStyle` | Loading 遮罩透明度、指示器颜色、圆角 |
-| `CYErrorStyle` | 错误视图样式 |
-| `CYFeedbackConfiguration` | `@Observable` 全局样式持有者，`.configure(...)` 入口 |
-
-### CYAppDesignSystem（Layer 1 — 设计系统）
-
-| 子目录 | 关键类型 |
-|---|---|
-| `Theme/` | `CYAppColor`（品牌色可经 `CYAppColor.configure(primary:accent:)` 零源码覆盖）、`CYAppFont`、`CYAppDimens`、Color+Hex 扩展 |
-| `Components/` | `CYBaseView`, `CYLoadingIndicator`, `PrimaryButton`/`SecondaryButton`/`CYScaledButtonStyle`, `CardView`（可定制内边距/圆角/背景/阴影）, `CYEmptyStateView`, `CYTextField`/`CYSearchBar`/`CYVerificationCodeInput`, `CYListRow`/`CYSectionHeader`, `CYPaginatedListView`, `CYBadge`/`CYTag`/`CYFlowLayout`, `ShimmerModifier`/`SkeletonRow`, `CYBottomSheetModifier`/`CYSnackBar` |
-
-### CYAppUI（Layer 2 — UI 功能）
-
-| 子目录 | 关键类型 |
-|---|---|
-| `AppState.swift` | `CYAppState` — 全局状态容器 |
-| `Router/` | `CYAppRouter` — 多 Tab NavigationStack 路由 |
-| `Managers/` | `CYToastView`, `CYLoadingOverlay`, `CYAlertManagerModifier` |
-| `Extensions/` | `.feedbackOverlay()`, `.toastView()`, `.loadingOverlay()`, `.alertManager()`, `.snackBar()`, `.cyBottomSheet()` |
-| `Onboarding/` | `CYOnboardingView`, `CYOnboardingPage` |
-| `Components/` | `CYMediaPicker`, `CYShareSheet` |
-| `Image/` | `CYRemoteImageView` |
-| `Helpers/` | `CYKeyboardObserver` |
-
-`CYRemoteImageView` 以 URL 为资源身份，加载结果提交前校验请求身份。
-系统视频导入复制提供方临时文件，文件所有权随 `CYMediaItem` 生命周期管理。
-
-### CYAppPersistence（独立 — SwiftData）
-
-| 文件 | 关键类型 |
-|---|---|
-| `PersistenceController.swift` | `CYPersistenceController` — 根据宿主模型创建 ModelContainer |
-| `RepositoryProtocol.swift` | `CYRepositoryProtocol` — 泛型 CRUD 协议 |
-
-Bookmark/Tag 模型和 Repository 位于 `ExampleApp`，不属于通用 Persistence。
-
----
-
-## 4. 依赖注入（DI）
-
-### 三层架构
-
-```
-DIContainerProtocol          ← 基础能力抽象（11 个服务 getter，不含网络）
-NetworkProviding             ← 可选网络能力抽象（networkClient）
-       ▲
-       │ implements both
-       │
-CYFactoryContainer           ← Factory 实现（注册 Factory<T>）
-       ▲
-       │ delegates
-       │
-CYAppContainer               ← Legacy Facade（保持向后兼容，逐步由注入替代）
+```text
+App.init -> AppBootstrap          框架配置、可选实现注册
+App root -> ExamplePersistence    可恢复地打开宿主数据库
+         -> AppDependencies      创建 Service / Repository / ViewModel / 反馈实例
+         -> Feature              初始化接收所需依赖
 ```
 
-- `DIContainerProtocol` = 基础能力（11 个服务 getter，不含网络）
-- `NetworkProviding` = 可选网络能力（`networkClient`）
-- `CYFactoryContainer` = Factory 实现（注册 `Factory<T>`）
-- `CYAppContainer` = Legacy / Compatibility Facade
-
-> 原则：新 Feature 优先使用**初始化注入**；全局容器应尽量只出现在 Composition Root 或兼容代码中。
-
-### 能力拆分（Base DI vs Network Capability）
-
-`DIContainerProtocol` 不包含 `networkClient`。只有需要网络的 Feature 才声明组合依赖：
-
-```swift
-// 网络 Feature：编译期要求网络能力
-final class HomeViewModel: CYBaseViewModel {
-    private let dependencies: any DIContainerProtocol & NetworkProviding
-}
-
-// 离线 Feature：只依赖基础能力，不感知网络层
-final class NoteViewModel: CYBaseViewModel {
-    private let dependencies: any DIContainerProtocol
-}
-```
-
-这样离线 App 不会被基础 DI 契约强迫提供网络能力；网络 Feature 又能获得编译期保证。
-
-### Composition Root（组合根）
-
-`ExampleApp` 采用如下组织方式（模板不新增额外框架类型，只是当前设计的说明）：
-
-```
-App
- ↓
-AppBootstrap         配置环境 / 网络 / 反馈（框架级）
- ↓
-AppDependencies      构造 Service / Repository / ViewModel（业务级）
- ↓
-ViewModel / Service / Repository
- ↓
-Feature
-```
-
-`AppBootstrap` 负责框架配置，`AppDependencies` 负责业务依赖构造并显式注入；Feature View 只接收已构造好的 ViewModel。完整示例见 `ExampleApp/Sources/App/AppDependencies.swift`。
-
-### 服务注册
-
-| 服务 | 默认实现 | 生命周期 |
-|---|---|---|
-| `networkClient`（`NetworkProviding`） | **可选能力**：需引入 `CYAppNetwork` 并注册，否则离线 App 不访问 | — |
-| `imageLoader` | `CYDefaultImageLoader.shared`（URLSession） | singleton |
-| `cacheManager` | `CYCacheManager.shared` | — |
-| `logger` | `CYLogger.shared` | — |
-| `analyticsService` | `CYAnalyticsService` | — |
-| `requestDeduplicator` | `CYRequestDeduplicator` | singleton |
-| `toastManager` | `CYToastManager.shared` | singleton |
-| `loadingManager` | `CYLoadingManager.shared` | singleton |
-| `alertManager` | `CYAlertManager.shared` | singleton |
-| `themeManager` | `CYThemeManager.shared` | singleton |
-| `localizationManager` | `CYLocalizationManager.shared` | singleton |
-| `permissionManager` | `CYPermissionManager.shared` | — |
-
-### 启动注册流程
-
-```
-App.init()
-  │
-  ├─► CYNetworkConfiguration.configure(...) ← 按需注册 networkClient（Alamofire）
-  │     └─ Container.shared.networkClient.register { client }
-  │
-  ├─► CYAppImageConfig.configure()          ← 注册 imageLoader（Kingfisher）
-  │     └─ Container.shared.imageLoader.register { CYKingfisherImageLoader() }
-  │
-  ├─► CYBusinessCodePolicy.configure { }    ← 配置业务码策略
-  │
-  └─► CYAppConstants.configure(...)         ← 覆盖默认常量
-```
-
-`CYNetworkConfiguration.configure` 内部用 `NSLock` + `precondition` 保护，只能调用一次。
-
-### 替换服务
-
-```swift
-import FactoryKit
-
-// 启动时替换
-Container.shared.networkClient.register { EncryptedNetworkClient() }
-
-// 账号能力由宿主显式创建或注册，不属于默认 DI 契约
-
-// 也可使用 @Injected 属性包装器
-@Injected(\.networkClient) private var networkClient
-```
-
----
-
-## 5. 状态管理
-
-### 双层状态模型
-
-```
-┌─────────────────────────────────────────────┐
-│  CYAppState（全局，App 生命周期）              │
-│  @MainActor @Observable                      │
-│  ├── theme: CYAppTheme（自动持久化）           │
-│  └── language（可观察值，与注入管理器同步）    │
-│  注入方式：.environment(appState)              │
-│  消费方式：@Environment(CYAppState.self)       │
-└─────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────┐
-│  CYBaseViewModel（页面级，局部）               │
-│  @MainActor @Observable open class           │
-│  ├── isLoading: Bool                         │
-│  ├── error: CYAppError?                      │
-│  ├── executeTask { } → 自动管理 loading/error │
-│  └── retry() → 重放最后一次失败任务            │
-│                                              │
-│  CYPaginatedListViewModel<Item>（分页扩展）    │
-│  ├── items: [Item]                           │
-│  ├── hasMore / isLoadingMore / currentPage    │
-│  └── load() / refresh() / loadMore()         │
-└─────────────────────────────────────────────┘
-```
-
-### 分工原则
-
-| 放 CYAppState | 放 ViewModel |
-|---|---|
-| 主题偏好 / 语言 | 搜索关键词 |
-| App 生命周期通用偏好 | 页面列表数据 / loading / error |
-
-`CYAppState.language` 持有可观察快照，setLanguage/resetAll 与注入管理器同步；
-模板和 ExampleApp 各自拥有 lproj 资源。分页刷新递增请求代次，旧分页结果和旧错误不能
-提交到新列表；失败保留旧数据与页码。BaseViewModel 的 loading/error 收尾只接受最新任务。
-
-### 错误模型
-
-```
-CYNetworkError（网络层，细粒度）
-  .httpError / .businessError / .tokenExpired / .needReLogin / .decodingFailed / .cancelled
-        │
-        ▼  CYAppError.resolve(_:)
-CYAppError（视图层，粗粒度）
-  .network / .decoding / .business / .unknown
-```
-
-`CYBusinessCodePolicy`（线程安全，`OSAllocatedUnfairLock`）将后端 `code` 映射为 `CYBusinessCodeResult`（success / businessError / tokenExpired / needReLogin）和 `CYErrorDisplay`（toast / alert / silent）。
-
----
-
-## 6. 路由系统
-
-### CYAppRouter
-
-`@MainActor @Observable`，持有 `.shared` 单例。
-
-```
-┌───────────────────────────────────────────────┐
-│  CYAppRouter                                   │
-│  paths: [CYTabID: NavigationPath]               │
-│  ├── 每个 Tab 独立的 NavigationPath            │
-│  ├── sheetItem: CYSheetItem?（类型擦除 Sheet）  │
-│  └── selectedTab: CYTabID                      │
-└───────────────────────────────────────────────┘
-```
-
-### 操作 API
-
-| 方法 | 说明 |
-|---|---|
-| `navigate(to:on:)` | 前进，可选切换 Tab |
-| `pop(on:)` | 后退一页 |
-| `popToRoot(on:)` | 指定 Tab 清空该栈；未指定时清空全部 Tab |
-| `replace(with:on:)` | 替换当前栈 |
-| `depth(for:)` | 获取栈深度 |
-| `presentSheet(_:)` / `dismissSheet()` | Sheet 展示 |
-| `binding(for:)` | 获取 `Binding<NavigationPath>` 供 `NavigationStack` 使用 |
-| `selectTab(_:)` | 同步宿主 TabView 的选中项 |
-
-### 设计要点
-
-- **路由类型由业务 App 定义**：Router 泛型为 `some Hashable`，消费方定义自己的 `Route` enum 并注册 `.navigationDestination(for: Route.self)`。
-- **单一实例与双向绑定**：Router 不依赖 AppState；宿主统一使用注入实例或 `.shared`。TabView selection 读取 `router.selectedTab`，写入调用 `selectTab(_:)`，每个 Tab 的 tag 使用对应 `CYTabID`，让编程式跨 Tab 导航同步显示。
-- **深链接**：`CYDeepLinkHandler`（CYAppCore）按 scheme/host 解析 URL，分发到注册的闭包；App 在 `.onOpenURL` 中接入，通常在闭包内调用 `router.navigate(...)`。
-
----
-
-## 7. 网络层架构
-
-### 请求流程
-
-```
-                    ┌─────────────┐
-                    │ CYEndpoint  │  协议：path / method / headers / body / queryItems / authentication
-                    └──────┬──────┘
-                           │
-                           ▼
-              ┌─────────────────────────┐
-              │  构建 URLRequest         │
-              └────────────┬────────────┘
-                           │
-                           ▼
-              ┌─────────────────────────┐
-              │  CYRequestInterceptor[]  │  请求拦截器链
-              │  (加密 / 认证 / 日志)     │
-              └────────────┬────────────┘
-                           │
-                           ▼
-              ┌─────────────────────────┐
-              │  Alamofire Session       │  发送请求（上传/下载支持进度回调）
-              └────────────┬────────────┘
-                           │
-                           ▼
-              ┌─────────────────────────┐
-              │  CYResponseStrategy 解码  │  envelope / envelopeRaw / direct / empty / data
-              └────────────┬────────────┘
-                           │
-                           ▼
-              ┌─────────────────────────┐
-              │  CYResponseInterceptor[] │  响应拦截器链（仅终态响应）
-              └────────────┬────────────┘
-                           │
-                           ▼
-                send(strategy:)  统一入口
-                          │
-            ┌─────────────┼─────────────────┐
-            │             │                 │
-            ▼             ▼                 ▼
-       .envelope      .envelopeRaw      .direct
-      自动解包 data   返回完整 CYAPIResponse  裸模型（第三方 API）
-      业务码错误抛出   手动检查业务状态
-```
-
-### 响应策略 `CYResponseStrategy`
-
-1.1.0 起所有请求统一路由到 `send(_:strategy:)`，按策略解码响应：
-
-| 策略 | 解码目标 | 适用场景 |
-|---|---|---|
-| `.envelope` | `CYAPIResponse<T>` 的 `data` | 标准 `{code, data, message}` 包络，业务码错误自动抛出 |
-| `.envelopeRaw` | 完整 `CYAPIResponse<T>` | 需要手动检查业务码/消息 |
-| `.direct` | 裸 `T` | 无包络的第三方/开放 API |
-| `.empty` | `CYEmptyResponse` | 204 / 空 body 接口 |
-| `.data` | `Data` | 二进制下载内容 |
-
-### 便捷 API
-
-| API | 说明 |
-|---|---|
-| `requestVoid(_:)` | 无需返回值的接口（内部走 `.envelope` + `CYEmptyResponse`） |
-| `requestData(_:)` | 直接返回 `Data`（内部走 `.data`） |
-| `request<T>(body:strategy:)` | 泛型请求，支持 `Encodable` body 编码 |
-| `upload(_:fileData:...)` / `upload(parts:)` | 单/多文件 multipart 上传，支持进度回调 |
-| `download(_:to:)` | 下载到目标文件，支持进度回调 |
-
-既有 `request` / `requestRaw` / `post` 保持协议要求不变，内部路由到 `send`，行为兼容。
-
-### 错误模型（1.1.0 补充）
-
-- 新增 `CYNetworkError.cancelled`：Task/URLSession 取消被识别为取消而非普通错误，`CYBaseViewModel` 自动忽略展示。
-- 空响应 / 204 不再抛 `decodingFailed`（`CYEmptyResponse` 可用）。
-- `buildURL` 自动规范化 baseURL 尾斜杠与 path 前导斜杠，避免双斜杠。
-- 请求/响应日志自动脱敏（Authorization、Cookie、Token 等 Header 与 password/token 等 Body 字段）。
-
-### 可选凭证恢复
-
-```
-请求失败（HTTP 401 或业务码 tokenExpired，且 endpoint.authentication == .required）
-    │
-    ▼
-CYCredentialRecoveryCoordinator（Actor）
-    │  ← 并发请求只恢复一次：第一个 401 触发恢复，
-    │     其余 await 同一个 Task
-    ▼
-恢复成功 → 重放原请求（hasRefreshed 防循环）
-恢复失败 → 保留并抛出原始认证错误
-```
-
-当前凭证恢复边界：
-
-- `CYEndpoint.authentication` 默认 `.none`；仅 `.required` 端点允许触发凭证恢复。
-- `requestRaw` 为完全 raw 语义：收到 HTTP 401 不自动刷新、不重放，直接抛 `httpError(401)`。
-- 瞬态 401 不提前触发响应拦截器；终态认证失败由宿主决定如何处理。
-- 恢复失败不递归、不重放，避免无限循环。
-
-### 请求去重
-
-`CYRequestDeduplicator`（Actor）只合并正在执行的相同请求，不设置固定时间窗口。
-端点 method/path/query/body/headers/authentication 经结构化编码生成稳定摘要；query
-保留顺序和 nil 值。Encodable body 使用端点的编码策略及 sortedKeys 生成指纹。
-内部按结果类型隔离任务，每个登记具有唯一标识，旧任务完成不会清掉取消后创建的新任务。
-去重器应按客户端与凭证生命周期创建；动态凭证切换时取消并替换对应去重器。
-
-### 内置拦截器
-
-| 拦截器 | 职责 |
-|---|---|
-| `CYLoggingInterceptor` | 请求 / 响应日志 |
-| `CYCredentialInterceptor` | 按端点策略注入宿主提供的 Authorization Header |
-| `CYCredentialRecovery` | 可选的凭证恢复与单次重放 |
-| `CYAuthenticationFailureInterceptor` | 向宿主报告终态认证失败 |
-
----
-
-## 8. 反馈与 UI 覆盖层
-
-### 三层分离
-
-```
-状态管理器（CYAppCore/Managers）     ← @MainActor @Observable 单例 + 协议
-    │                                   CYToastManager / CYLoadingManager / CYAlertManager
-    │                                   队列管理、引用计数（Loading 的 showCount）
-    │
-视觉样式（CYFeedbackStyle）           ← 无依赖的纯样式 struct
-    │                                   CYToastStyle / CYLoadingStyle / CYErrorStyle
-    │                                   CYFeedbackConfiguration.configure(...) 全局配置
-    │
-视图接线（CYAppUI）                   ← SwiftUI 视图 + 修饰符
-                                        CYToastView / CYLoadingOverlay / CYAlertManagerModifier
-                                        .feedbackOverlay() / .toastView() / .loadingOverlay()
-                                        .alertManager() / .snackBar()
-```
-
-`CYBaseView`（设计系统）统一了 Loading / Error / Content 三态，内部使用上述样式与反馈机制。
-
----
-
-## 9. 持久化层
-
-`CYAppPersistence` 完全解耦，不依赖模板内任何模块。
-
-```
-CYRepositoryProtocol（泛型 CRUD 协议）
-  associatedtype Entity: PersistentModel
-  func fetchAll() throws -> [Entity]
-  func save(_ entity: Entity) throws
-  func delete(_ entity: Entity) throws
-  ...
-
-CYPersistenceController
-  ├── 使用宿主传入的模型类型创建 ModelContainer
-  ├── 内存模式（测试用）/ 磁盘模式
-  └── 可注入自定义 ModelConfiguration
-```
-
-具体 SwiftData 模型和 Repository 由宿主 App 持有；ExampleApp 提供 Bookmark/Tag 示例。
-
----
-
-## 10. 并发模型
-
-| 机制 | 使用位置 |
-|---|---|
-| `@MainActor` | AppState、Router、所有 Manager、BaseViewModel |
-| `actor` | `CYRequestDeduplicator`、`CYCredentialRecoveryCoordinator`、`CYDefaultImageLoader`、`CacheStorage` |
-| `Sendable` | 跨隔离域传递的配置、拦截器、Endpoint 与响应模型 |
-| `OSAllocatedUnfairLock` | `CYBusinessCodePolicy`、LocalizationManager、Debouncer/Throttler 等共享状态 |
-| `NSLock` | `CYNetworkConfiguration.configure` 的一次性保护 |
-| `@unchecked Sendable` | 类型擦除或系统框架桥接，须按实现的锁/Actor 约束审查 |
-
----
-
-## 11. 扩展方式
-
-### 特异化层级
-
-| 层级 | 入口 | 适用场景 |
-|------|------|---------|
-| 零代码配置 | `.configure(...)` | 切换环境、样式、业务码、默认常量 |
-| 协议实现 | 实现 `*Protocol` + DI 注册 | 替换网络、认证、分析、管理器 |
-| 注入实例 | AppState init 参数 | 替换主题/语言管理策略 |
-| 品牌色配置 | `CYAppColor.configure(primary:accent:)` | 零源码修改换主色 |
-| 静态覆盖 | `CYAppFont.*` / 扩展 `CYAppColor` | 字体/衍生色定制 |
-
-### 新增模块
-
-1. 在 `Sources/` 下创建新目录
-2. 在 `Package.swift` 中添加 `.target` 和 `.library` product
-3. 声明对 `CYAppCore`（及所需模块）的依赖
-4. 如需 DI 注册，创建 `*Config.configure()` 入口
-
-### 新增组件
-
-1. 在 `CYAppDesignSystem/Components/` 或 `CYAppUI/` 下创建文件
-2. 遵循现有命名前缀 `CY`
-3. 提供 SwiftUI Preview
-4. 在 DocC 中补充 API 文档
-
----
-
-## 12. 项目目录结构
-
-```
-CYSwiftTemplate/
-├── Package.swift                  # SPM 配置（7 个 library + 1 个 executable）
-├── .swiftlint.yml                 # 代码风格配置
-├── .github/workflows/
-│   └── ci.yml                     # CI（build + test + lint + iOS Simulator）
-├── docs/                          # 文档
-│   ├── TEMPLATE_RULES.md          # 模板开发规范
-│   ├── GETTING_STARTED.md         # 完整接入指南
-│   ├── NETWORK_GUIDE.md           # 网络框架使用指南
-│   ├── ARCHITECTURE.md            # 架构设计（本文档）
-│   ├── ROADMAP.md                 # 路线图
-│   ├── REVIEW.md                  # 工程化评测（随版本更新）
-│   └── archive/                   # 历史归档（网络重构记录、评测快照，不代表当前代码）
-├── Sources/
-│   ├── CYAppCore/                   # Layer 0: 纯逻辑（协议 + 工具）
-│   │   ├── Network/               #   CYEndpoint, CYNetworkClientProtocol, APIResponse, BusinessCode
-│   │   ├── Configuration/         #   AppEnvironment
-│   │   ├── DI/                    #   DIContainerProtocol, NetworkProviding, FactoryContainer, AppContainer
-│   │   ├── Services/              #   AuthService, AnalyticsService, UserSession
-│   │   ├── Image/                 #   CYImageLoaderProtocol, ImageLoaderError
-│   │   ├── Cache/                 #   CacheManager
-│   │   ├── Permissions/           #   相机/相册/定位/通知权限
-│   │   ├── Managers/              #   Toast/Loading/Alert 管理器 (协议 + DI)
-│   │   ├── Mock/                  #   网络 / 分析 / Toast / Loading Mock
-│   │   └── ...
-│   ├── CYAppNetwork/                # Layer 0: 网络实现（+Alamofire），可选
-│   │   ├── AppConfiguration.swift #   启动配置（注册 networkClient）
-│   │   └── Network/               #   按职责拆分的实现文件
-│   │       ├── NetworkClient.swift          # 类核心 / 拦截器 / 凭证恢复 / send
-│   │       ├── NetworkClient+Request.swift  # URL 构建 / 编解码 / 拦截器应用
-│   │       ├── NetworkClient+Response.swift # 发送解码 / 业务码 / 错误映射
-│   │       └── NetworkClient+Upload.swift   # 上传 / 下载
-│   ├── CYAppImage/                  # Layer 0: 图片实现（+Kingfisher），可选
-│   │   └── ImageLoader.swift      #   Kingfisher 桥接实现
-│   ├── CYFeedbackStyle/            # Layer 0 UI: 样式定义
-│   │   └── FeedbackConfiguration  #   CYToastStyle, CYLoadingStyle, CYFeedbackConfiguration
-│   ├── CYAppDesignSystem/          # Layer 1: SwiftUI 设计系统
-│   │   ├── Theme/                 #   CYAppColor(可配置), CYAppFont, CYAppDimens, Color扩展
-│   │   └── Components/            #   BaseView, Buttons, Cards, Shimmer, PaginatedList
-│   ├── CYAppUI/                    # Layer 2: SwiftUI 功能组件
-│   │   ├── AppState.swift         #   全局状态（可注入 ThemeManager/LocalizationManager）
-│   │   ├── Router/                #   AppRouter (多Tab NavigationStack + Sheet)
-│   │   ├── Managers/              #   ToastView, LoadingOverlay, AlertManagerView
-│   │   ├── Onboarding/            #   引导页
-│   │   └── Extensions/            #   View/Animation/EdgeInsets 扩展
-│   ├── CYAppPersistence/           # Layer 3: SwiftData 持久化（独立、可选）
-│   │   ├── PersistenceController.swift # ModelContainer 管理
-│   │   └── RepositoryProtocol.swift  # CRUD 协议
-│   ├── CYAppCoreTests/             # Core 层单元测试
-│   ├── CYAppNetworkTests/          # 网络层测试（401、拦截器、上传、下载）
-│   ├── CYAppPersistenceTests/      # SwiftData Repository 内存 CRUD 测试
-│   ├── CYAppUITests/               # UI 层测试 (Router + AppState + Feedback)
-│   ├── CYAppDesignSystemTests/     # 设计系统测试
-│   ├── CYFeedbackStyleTests/       # 反馈样式测试
-│   └── ExampleAppTests/            # 宿主示例：批量删除与持久化回归
-└── ExampleApp/                     # 可运行范例（App / Features / Models / Services）
-    └── Sources/
-        ├── App/                    #   @main、AppConfig、AppBootstrap、Tab、Route、Persistence
-        ├── Models/                 #   Article（网络域）、BookmarkItem（持久化域）
-        ├── Services/               #   ArticleService
-        ├── Features/               #   Home / Bookmark / Settings，含 BookmarkRepository
-        └── Resources/              #   en.lproj / zh-Hans.lproj 宿主文案
-```
+`DIContainerProtocol` 只提供基础能力；`NetworkProviding` 独立提供网络。`CYFactoryContainer` 实现两者；`CYAppContainer` 保留为 Legacy / Compatibility Facade。新 Feature 优先接收所需协议，避免任意位置从全局容器查找依赖。
+
+Factory 注册不会自动替换无参数反馈修饰符。组合根解析一次，把同一个管理器交给业务和视图。ExampleApp 的 Home / Bookmark / Settings 共用注入 Toast，根视图挂同一 Toast / Loading / Alert。
+
+## 状态与并发
+
+- `CYAppState`：MainActor + Observable，只保存主题、语言等通用偏好。
+- `CYBaseViewModel`：MainActor + Observable，执行任务、错误与重试；按任务身份隔离收尾。
+- `CYPaginatedListViewModel`：追加分页状态和请求代次。failure 区分 refresh 与 append(page)，成功后才提交页码。追加失败暂停自动重试，显式 retry 重试同一页。refresh 失败保留数据及元信息，reset 立即失效旧请求。
+- 只需要 UIKit 的方法使用 MainActor：主题 apply/saveAndApply、设备 idiom、触觉反馈、键盘隐藏；偏好读写仍非隔离，不把整个 Core 隔离到主 actor。
+- 缓存、去重与默认图片加载使用 actor；共享配置和回调桥接使用锁。锁内只转移状态，取消底层请求和恢复 continuation 在锁外完成。
+
+分页当前采用从 1 开始的页码模型，按返回数量推导 hasMore。游标、服务端快照、跨页去重与总数属于宿主数据契约，未在本轮新增框架。
+
+## 网络契约
+
+请求链路：Endpoint → 构建请求 → 请求拦截器 → 发送/解码 → 必要时恢复凭证并重放一次 → 终态响应拦截器 → 结果。
+
+`send` 提供 envelope、envelopeRaw、direct、empty、data 策略。requestVoid 走 envelope + CYEmptyResponse；requestData 是 raw Data，不参与凭证恢复/去重。仅 required 鉴权允许自动恢复；raw/direct/empty 收到 401 不自动恢复。
+
+HTTP 204/205 空响应只为 CYEmptyResponse 直接成功；有 envelope 的响应仍按宿主业务成功码判定。拦截器终态执行一次，不因成功后的拦截器错误重放请求。
+
+去重键对 method/path/query/body/headers/authentication 结构化编码后摘要，按结果类型和登记身份隔离；凭证切换时取消并替换去重器。
+
+所有内置日志共享 `CYNetworkLogRedactor`：URL query、Header、嵌套 JSON 脱敏，无法解析的 Body 隐藏，错误描述不回退输出原文。具体规则及限制见网络指南。
+
+## 反馈与观察
+
+Core 管理状态，FeedbackStyle 保存视觉，UI 修饰符连接 SwiftUI。`feedbackOverlay` 包含 Toast / Loading，Alert 单独挂 `.alertManager(manager:)`。
+
+协议使用 class + MainActor。自定义实现需要可观察的存储或转发可观察对象；协议本身不自动产生通知。Toast / Loading 读取存在类型属性，Alert 的存在类型入口与兼容泛型修饰符共用同一呈现实现。修饰符直接持有传入实例，重新注入时不会因 State 留住旧管理器。
+
+## Router 与资源
+
+每个宿主 CYTabID 独立 NavigationPath，TabView selection 双向连接同一个 Router。业务 Route 用 navigationDestination 注册。presentSheet 接收 View，宿主必须用 sheet(item:) 挂载 sheetItem。Deep Link 的 scheme / Associated Domains、参数校验和业务目标均由宿主拥有。
+
+Core 与 ExampleApp 各有本地化资源。Package 内部读取 Bundle.module，Xcode 宿主读取 Bundle.main；ExampleLocalization 按 SWIFT_PACKAGE 条件选择。App 内语言和系统 Locale 是不同的输入；日期格式化需要显式传入 App Locale。
+
+## 持久化与图片
+
+Persistence 提供可抛错的 create(for:) 和 create(schema:migrationPlan:configurations:)。错误原样交给宿主，既不删除存储，也不伪装成内存持久化。兼容 init 保留 fail-fast 并标记废弃。currentSchemaVersion 不是迁移机制；真实版本、模型和 SchemaMigrationPlan 在宿主或测试中定义。
+
+Kingfisher 桥接的 Mutex 状态机协调 continuation、取消句柄和终态；取消早于句柄登记或与完成竞争时只恢复一次。网络成功使用 result.data() 返回原始字节，缓存命中仍可能序列化，Data 协议也仍需视图解码。RemoteImage 以 URL 和请求身份隔离旧结果，取消不参与失败重试。
+
+系统视频导入复制临时文件，由媒体项持有副本生命周期；外部 videoURL 构造不删除宿主原文件。
+
+## 品牌与工具扩展
+
+单一 CYDesignConfiguration 存储启动 Token；旧 CYAppColor.configure 委托到同一存储。CYAppFont / CYAppDimens 为读取配置的只读计算属性，保留现有调用方式。字体按 TextStyle / relativeTo 支持 Dynamic Type。运行时深浅色、语言可切换；品牌配置不保证运行时刷新，不增加第二套配置单例。
+
+日期缓存覆盖 format / Locale / TimeZone / Calendar，锁内使用格式化器。MultiDateDecoder 串行保护格式猜测器。Task.retry 和 withTimeout 校验参数并尊重取消；超时是协作式的，不能终止不配合的子任务。
+
+## 工程与测试
+
+ExampleApp.xcodeproj 通过相对本地 Package 引用复用 Sources，无机器路径或签名身份。Scheme 包含原生回归和 UI 测试，CI 实际构建和运行宿主。
+
+CYTestSupport 保存并恢复进入测试前的配置、日志级别与样式；Factory 修改使用 withScope，结合 manager.push/pop 和 TaskLocal singleton.clone 隔离两层缓存。全局配置测试在同一进程串行；Feature 用独立注入实例测试。模拟器测试、交叉编译与真机验证分别报告。
+
+当前结果、测量范围和未验证项见 [ENGINEERING_VALIDATION](ENGINEERING_VALIDATION.md)。
+
+## 外部消费者与展示层边界（第二轮）
+
+ConsumerFixtures 是单独 Package，根依赖为 `..`；每个场景单独声明 Products。Proof 可执行入口用于检查真实编译/链接模块，聚合行为测试和 iOS 宿主复用同一消费者模块。按需选择可避免对应目标构建/链接，根包的第三方依赖仍会解析。证据与全部公开组件边界见 [MODULE_COMPONENT_REVIEW](MODULE_COMPONENT_REVIEW.md)。
+
+分页分成宿主状态与展示：CYPaginationState 是值快照，CYPaginatedListContent 接收 refresh/append/retry 操作，只拥有 List 渲染及视图生命周期任务。旧 CYPaginatedListView 保留 ViewModel 接口，转换快照后使用相同 renderer；页码、请求并发、取消与结果代次仍归 VM/宿主。没有新状态管理框架或第二套渲染逻辑。
+
+DIContainerProtocol 的 11 项 getter 是兼容组合根接口，具体缓存/Logger/权限/去重器并非任意实现可替换；新 Feature 只接所需服务。独立 Router 和反馈状态已验证，启动品牌/反馈样式和默认本地化仍是进程级策略，不能据独立实例宣称全局视觉/语言按窗口隔离。
+
+CYNetworkClient 新增 Foundation URLSessionConfiguration 初始化重载，消费者无需 import Alamofire 即可注入本地 URLProtocol；高级 Session 入口与实现依赖保持。Image 的高级 KingfisherManager 入口也保留；常规界面通过 Core 图片协议即可替换加载器。
+
+## 组件与扩展的复用取舍（第三轮）
+
+公共组件以受控值/Binding/内容插槽为主，复杂页面使用原生容器组合。CYPageContainer已有usesScrollView开关；分页拥有List；StickyBottomBar不拥有固定定位。Tag支持局部selectedTextColor与全局onPrimary分工。Snackbar/Toast的动作与短提示语义保留，Snackbar旧计时取消不得关闭后继消息，MainActor动作先移除旧状态再调用。
+
+没有新增业务框架或公共控件。原生SwiftData草稿编辑放在现有外部消费者；编辑模型、冲突和事务属于宿主。薄导航外观/键盘padding/存储别名保留兼容，但新代码优先原生语义；已识别的参数未兑现、环境和错误边界见专项清单，不用继续叠参数掩盖。
+
+Keychain以service/account定位并更新，缺失后才add，重复插入时重试一次update；不删除旧条目再写。cURL默认复用日志脱敏，原文导出显式选择；共享字段规则不等于对未知字段/路径的保证。缓存序列化器按格式和实际模型选择，没有通用性能比例承诺。

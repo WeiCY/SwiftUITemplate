@@ -93,7 +93,7 @@ open class CYBaseViewModel {
     }
     
     /// 重试上一次失败的操作
-    public func retry() async {
+    open func retry() async {
         guard let retryAction else { return }
         await retryAction()
     }

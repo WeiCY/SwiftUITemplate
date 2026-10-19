@@ -10,6 +10,64 @@
 
 ### [Unreleased]
 
+#### 组件与扩展复用专项（第三轮，2026-10-19）
+
+- 保留全部前两轮未提交成果及七库结构，不新增第三方依赖。完整组件/扩展分类、真实缺口、原生/Recipe替代和宿主边界写回 MODULE_COMPONENT_REVIEW；不按数量或无标准精确评分判断成熟度。
+- 修复 Snackbar 取消的旧计时任务关闭后继消息；动作先关闭再回调，回调显式 MainActor，可重入显示新消息。非法/非正/超范围duration保留到显式关闭；启用原先未消费的dismiss入口，长内容不再固定两行。已有常规初始化调用保持；新增确定性竞争回归、iOS大字体长内容交互和截图。
+- Keychain 保存改为按service/account更新、缺失才添加、并发插入再更新一次，返回原status且不主动删除旧值。移除读取失败日志中的account。测试通过内部系统操作桩覆盖更新/添加/竞争/失败；不冒充真机Keychain权限验收。
+- 修复 Array.sample负数崩溃和chunk边界加法；Double.formattedAsBytes对非有限/越界数值返回原文本；Color(hex:)拒绝部分成功解析及多#，保留合法RGB/RRGGBB/RRGGBBAA。
+- URLRequest.cURL默认使用同一网络日志脱敏，正确shell单引号引用。**行为变化**：默认输出不再含原始凭证/非结构化Body；本地原文需显式cURL(redactingSensitiveData:false)，保留属性入口。
+- CYTag新增默认兼容selectedTextColor并表达选中trait；清除/筛选图标补本地化标签和清除触点；目录展示局部前景配色、Snackbar替换并使字体环境覆盖overlay。修正不存在的CYAppState.shared和TagGroup绑定误述。
+- ConsumerFixtures的既有OfflinePage新增原生草稿编辑，取消不写入，保存处理错误；CoreOnly验证新边界。接入指南补选择Recipe及三个类型检查示例。
+- 移除缓存注释里不可复现的“快2–3倍/缩小50%/按10KB切换”结论，纠正PropertyList嵌套支持。补区域校验、Unicode数字、HTML正则、字段快照语义；标出媒体、OTP、旧导航/键盘/存储包装的具体未解决限制，不批量删除API。
+- 本轮实际验证与未验证范围见 docs/ENGINEERING_VALIDATION.md 第三轮记录；前两轮证据文件未覆盖。
+
+#### 模块与组件独立接入（第二轮，2026-10-19）
+
+- 新增 ConsumerFixtures 独立 Package：CoreOnly、OfflinePersistence、NetworkOnly、DesignSystemConsumer、CustomComposition；public API 行为测试、Proof 链接检查和可复用 iOS 宿主进入 CI，不复制框架或依赖 ExampleApp。
+- 新增 CYPaginationState 与 CYPaginatedListContent，以值快照 + refresh/loadMore/retry 回调支持宿主 Observable。原 CYPaginatedListView 所有初始化器保留，内部适配同一 renderer；不需要旧消费者迁移。新入口的页码、并发/取消与旧结果隔离由宿主负责。
+- CYNetworkClient 新增必传 sessionConfiguration: URLSessionConfiguration 的兼容重载，支持不 import Alamofire 的会话配置；原 session: Session 和默认初始化保持，无破坏性 API 删除或隔离要求变化。
+- 组件目录新增全部公开类型搜索与更多组合，UI 自动化图片改用确定性 Loader。新增七模块/76 个公开 UI 与支撑类型矩阵、冷/增量构建与真实链接清单、列表与页面往返内存测量范围。
+- 严格 lint 纳入消费者和 Tests；CI 增加文档示例类型检查及公开类型覆盖检查。保留包级第三方解析、启动全局配置等设计限制，最低运行系统/真机/VoiceOver/iOS 大图性能不写成通过。验证详情见 docs/ENGINEERING_VALIDATION.md，迁移示例见 docs/GETTING_STARTED.md。
+
+#### 工程完善（2026-10-18）
+
+- 保留 7 个 Library 与可选 Network/Image/Persistence 分层，未新增应用第三方依赖。
+- 主题 apply/saveAndApply、设备 idiom、触觉与键盘 UI 操作明确 MainActor；后台调用需要 await。
+- 分页新增 failure(refresh/append(page))、显式 retry 和 reset；失败不跳页，追加失败暂停自动重试，空态可刷新，刷新失败保留数据与元信息。
+- Persistence 新增可抛错 create(for:) / create(schema:migrationPlan:configurations:)；旧 fail-fast init 和无迁移作用的版本常量废弃。ExampleApp 增加错误页及重试；磁盘 V1→V2 测试验证旧数据保留。
+- Kingfisher 8.11.0 桥接传递 Task 取消，用 Mutex 保证 continuation 一次恢复；网络成功使用 result.data()，缓存路径仍可能序列化。新增实际下载、缓存与取消竞争测试和可复现大图微基准。
+- 所有网络日志统一脱敏 URL query、Header 和结构化 JSON；未知 Body 隐藏。终态错误日志只保留错误类型，不再打印可能含秘密的 Error 原文。
+- ExampleApp 的 Toast/Loading/Alert 在组合根装配并挂载同实例；Alert 支持存在类型，自定义反馈经模拟器 UI 测试验证。测试支持统一恢复配置、Factory 注册和两层缓存。补查原始 HEAD 的 19 项 lint 违规并局部修复，不关闭规则。
+- 新增本地 Package 的 ExampleApp.xcodeproj，复用原有 Sources/@main，区分 Bundle.module 与 Bundle.main；加入原生回归/UI 测试及实际 CI 宿主构建/运行步骤。
+- 新增组件目录、表单、搜索分页与媒体组合示例；支持深浅色、大字体、长文案与启动第二品牌。主要操作补按钮语义和标签，动效尊重减弱效果及生命周期取消。
+- CYDesignConfiguration/CYDesignTokens 统一启动品牌、配套前景色、动态字体、间距、圆角与控件尺寸；旧颜色/字体/尺寸读取方式保留，不保证运行时换品牌刷新。
+- 修复 truncated 非正长度、日期缓存维度、MultiDateDecoder 并发、typewriter 重播、shake/pulse 生命周期；新增抛错 Decodable.decode 入口及 retry/withTimeout 参数和取消边界。
+- 文档修正 Codable 运行时解码错误、class 管理器、字体配置、持久化/迁移、反馈挂载、路由/Sheet/Deep Link 和真实网络切换。详细验证见 docs/ENGINEERING_VALIDATION.md。
+- 验证：基线 macOS 185 测试；本轮 macOS 214 测试、iOS 28 原生回归和 5 UI 测试通过；Package 全测试交叉编译、宿主构建、5 个关键文档示例类型检查通过。SwiftLint 0.59.1 严格检查通过；工具链输出与未验证范围见工程验证记录。
+
+##### 最小迁移
+
+```swift
+// 原 CYPersistenceController(for:) 失败终止进程；现在由宿主捕获并展示重试
+let store = try CYPersistenceController.create(for: [HostModel.self])
+// 版本化宿主传 Schema(versionedSchema:)、migrationPlan 和 configurations
+
+// 后台调用 UI 方法显式跨到 MainActor
+await themeManager.apply(.dark)
+
+// 同一组依赖同时传给业务和根视图
+RootView()
+    .feedbackOverlay(toastManager: toast, loadingManager: loading)
+    .alertManager(manager: alert) // feedbackOverlay 不含 Alert
+```
+
+`CYAppFont.*` 仍只读，改用启动时 `CYDesignConfiguration.configure(tokens)`。
+`Decodable.from` 的 nil 行为保持，想保留错误使用 `try Model.decode(jsonString:)`。
+`CYPaginatedListViewModel.retry()` 现在按失败类型重试；追加失败后需显式调用，不再靠行 onAppear 重试。
+`withTimeout` 对非正/非有限秒数抛 invalidInterval，仍是协作式取消；Task.retry 的 times 为总尝试次数。
+
+
 #### 稳定性修复（2026-10-13）
 
 - 修复 `CYAppState.language` 不通知 Observation；切换与重置语言同步到可观察状态

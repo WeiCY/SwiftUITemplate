@@ -56,16 +56,24 @@ struct HomeView: View {
     private func articleRow(_ article: Article) -> some View {
         CardView {
             HStack(alignment: .top, spacing: CYAppDimens.marginM) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(article.title)
-                        .font(CYAppFont.h4)
-                        .foregroundStyle(CYAppColor.textPrimary)
+                Button {
+                    router.navigate(to: AppRoute.articleDetail(article))
+                } label: {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(article.title)
+                            .font(CYAppFont.h4)
+                            .foregroundStyle(CYAppColor.textPrimary)
 
-                    Text(article.summary)
-                        .font(CYAppFont.bodySmall)
-                        .foregroundStyle(CYAppColor.textSecondary)
-                        .lineLimit(2)
+                        Text(article.summary)
+                            .font(CYAppFont.bodySmall)
+                            .foregroundStyle(CYAppColor.textSecondary)
+                            .lineLimit(2)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("article.\(article.id)")
 
                 Spacer(minLength: 0)
 
@@ -77,10 +85,8 @@ struct HomeView: View {
                         .foregroundStyle(CYAppColor.primary)
                 }
                 .buttonStyle(.plain)
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                router.navigate(to: AppRoute.articleDetail(article))
+                .accessibilityLabel(viewModel.isBookmarked(article) ? "取消收藏 / Remove bookmark" : "收藏 / Bookmark")
+                .accessibilityIdentifier("bookmark.\(article.id)")
             }
         }
     }

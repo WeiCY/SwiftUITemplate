@@ -28,7 +28,7 @@ extension CYNetworkClient {
         let totalBytes = parts.reduce(0) { $0 + $1.data.count }
         guard totalBytes <= limitBytes else {
             CYLogger.network.error(
-                "Upload rejected: \(totalBytes) bytes exceeds \(limitMB) MB limit for \(endpoint.path)"
+                "Upload rejected: \(totalBytes) bytes exceeds \(limitMB) MB limit for \(CYNetworkLogRedactor.url(endpoint.path))"
             )
             throw CYNetworkError.payloadTooLarge(limitMB: limitMB)
         }

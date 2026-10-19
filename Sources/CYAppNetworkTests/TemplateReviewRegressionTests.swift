@@ -1,3 +1,4 @@
+import CYTestSupport
 import Alamofire
 import Foundation
 import XCTest
@@ -5,8 +6,8 @@ import CYAppCore
 @testable import CYAppNetwork
 
 private final class ReviewURLProtocol: URLProtocol, @unchecked Sendable {
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override static func canInit(with request: URLRequest) -> Bool { true }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         let empty = request.url?.path.hasPrefix("/empty") == true
         let status = request.url?.path == "/empty205" ? 205 : (empty ? 204 : 200)
@@ -45,7 +46,10 @@ final class TemplateReviewNetworkRegressionTests: XCTestCase {
         return CYNetworkClient(baseURL: "https://review.test", responseInterceptors: interceptors, session: Session(configuration: config))
     }
 
+    @MainActor
     func testNoContentWorksWithCustomSuccessCode() async throws {
+        let globalState = CYGlobalTestState()
+        defer { globalState.restore() }
         let original = CYBusinessCodePolicy.shared.withLock { $0 }
         defer { CYBusinessCodePolicy.shared.withLock { $0 = original } }
         CYBusinessCodePolicy.configure { $0.successCodes = [200] }

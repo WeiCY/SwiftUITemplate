@@ -5,7 +5,7 @@ import Foundation
 /// 缓存序列化器协议
 ///
 /// 允许自定义缓存的序列化方式，支持 JSON、PropertyList、二进制等多种格式。
-/// 默认使用 JSON，性能敏感场景可切换为 PropertyListSerializer。
+/// 默认使用 JSON；需要二进制属性列表时可选择 CYPropertyListSerializer，性能取决于实际数据。
 public protocol CYCacheSerializer: Sendable {
     /// 序列化对象为 Data
     func serialize<T: Codable>(_ value: T) throws -> Data
@@ -18,8 +18,7 @@ public protocol CYCacheSerializer: Sendable {
 
 /// JSON 序列化器（默认实现）
 ///
-/// 优点：兼容性好，可读性强
-/// 缺点：大对象性能一般
+/// 适合 JSON 可表示的 Codable 数据；NaN/Infinity 等值默认抛编码错误。
 public struct CYJSONSerializer: CYCacheSerializer {
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
@@ -43,21 +42,15 @@ public struct CYJSONSerializer: CYCacheSerializer {
 
 // MARK: - PropertyList 序列化器（高性能）
 
-/// PropertyList 序列化器
-///
-/// 优点：性能比 JSON 快 2-3 倍，Apple 原生格式
-/// 缺点：只支持基础类型（String/Number/Date/Data/Array/Dictionary）
-///
-/// **适用场景**：
-/// - 大量缓存读写（如列表数据）
-/// - 简单数据结构（无自定义类型嵌套）
-/// - 需要更快的序列化速度
+/// 二进制 PropertyList 序列化器，支持自定义 Codable 结构及嵌套。
+/// 与 JSON 的数值/日期/顶层类型支持不同；切换前应对真实模型执行往返测试。
+/// 尚无仓库可复现的跨格式性能测量，不承诺速度或体积比例。
 public struct CYPropertyListSerializer: CYCacheSerializer {
     public init() {}
     
     public func serialize<T: Codable>(_ value: T) throws -> Data {
         let encoder = PropertyListEncoder()
-        encoder.outputFormat = .binary  // 二进制格式，比 XML 小 50%+
+        encoder.outputFormat = .binary  // 明确选择二进制格式
         return try encoder.encode(value)
     }
     
@@ -66,19 +59,3 @@ public struct CYPropertyListSerializer: CYCacheSerializer {
         return try decoder.decode(T.self, from: data)
     }
 }
-
-// MARK: - 性能对比注释
-
-/*
- 性能测试（iPhone 14 Pro，1000 次序列化/反序列化，10KB 数据）：
- 
- | 序列化器 | 编码时间 | 解码时间 | 文件大小 |
- |---------|---------|---------|---------|
- | JSON    | 12ms    | 8ms     | 10.2KB  |
- | PropertyList (Binary) | 5ms | 3ms | 9.8KB   |
- | PropertyList (XML) | 18ms | 12ms | 15.6KB  |
- 
- 结论：
- - 小对象（< 1KB）：差异不明显，推荐 JSON（可读性好）
- - 大对象（> 10KB）或高频读写：推荐 PropertyList Binary（性能提升 2-3 倍）
- */

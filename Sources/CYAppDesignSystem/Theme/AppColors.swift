@@ -51,7 +51,6 @@ public struct CYAppColor {
     }
 
     /// 线程安全的全局品牌色覆盖（默认 `.indigo` / 系统 AccentColor）。
-    private static let theme = OSAllocatedUnfairLock(initialState: Theme())
 
     /// 覆盖品牌色，无需修改模板源码。
     ///
@@ -61,26 +60,24 @@ public struct CYAppColor {
     /// ```
     /// 未传入的参数保持当前值。
     public static func configure(primary: Color? = nil, accent: Color? = nil) {
-        theme.withLock {
-            if let primary { $0.primary = primary }
-            if let accent { $0.accent = accent }
-        }
+        CYDesignConfiguration.updateColors(primary: primary, accent: accent)
     }
 
-    /// 恢复默认品牌色（测试隔离或重置配置时使用）。
+    /// 仅重置品牌色，保留字体与尺寸配置。
     public static func reset() {
-        theme.withLock { $0 = Theme() }
+        CYDesignConfiguration.updateColors(primary: .indigo, accent: .accentColor)
     }
 
     // MARK: - 品牌色
 
     /// 主色调（品牌色）。默认 `.indigo`，可通过 `configure(primary:)` 覆盖。
     /// 使用固定色而非 `Color.primary`，避免在深色模式下与白色文字混用导致不可见。
-    public static var primary: Color { theme.withLock { $0.primary } }
+    public static var primary: Color { CYDesignConfiguration.current.primary }
+    public static var onPrimary: Color { CYDesignConfiguration.current.onPrimary }
     /// 副色调（系统自适应辅助色，用于次要文字/边框）
     public static let secondary = Color.secondary
     /// 强调色（默认跟随 App 全局 AccentColor，可覆盖）
-    public static var accent: Color { theme.withLock { $0.accent } }
+    public static var accent: Color { CYDesignConfiguration.current.accent }
     
     // MARK: - 背景色
     

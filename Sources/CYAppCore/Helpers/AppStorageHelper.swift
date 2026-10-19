@@ -6,8 +6,9 @@ import os
 /// 用法：
 /// ```swift
 /// // 简单值
-/// @AppStorageValue("username") var username: String = ""
-/// @AppStorageValue("isLoggedIn") var isLoggedIn: Bool = false
+/// @CYAppStorage("displayName") var displayName: String = ""
+/// @CYAppStorage("compactLayout") var compactLayout: Bool = false
+/// // CYAppStorage 不自动观察 SwiftUI；简单界面偏好优先原生 @AppStorage。
 ///
 /// // Codable 对象
 /// let user: User? = CYAppStorageHelper.load(forKey: "currentUser")

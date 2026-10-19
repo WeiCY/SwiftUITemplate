@@ -111,6 +111,8 @@ public final class CYLogger: Sendable {
     
     // MARK: - 日志级别控制
     
+    public var minimumLevel: CYLogLevel { minimumLevelLock.withLock { $0 } }
+
     /// 设置最低日志级别
     ///
     /// - Parameter level: 低于此级别的日志将被过滤

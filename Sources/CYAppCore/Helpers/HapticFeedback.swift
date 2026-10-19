@@ -12,6 +12,7 @@ import UIKit
 // CYHapticFeedback.selection()     // 选择变化（如滚轮）
 // ```
 
+@MainActor
 public final class CYHapticFeedback {
     
     private init() {}

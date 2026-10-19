@@ -88,3 +88,6 @@
 "connection_cellular" = "Cellular";
 "connection_wired" = "Wired Ethernet";
 "connection_unknown" = "Unknown";
+
+"dismiss" = "Dismiss";
+"filter" = "Filter";

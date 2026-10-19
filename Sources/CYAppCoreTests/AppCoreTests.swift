@@ -1,3 +1,4 @@
+import CYTestSupport
 import XCTest
 @testable import CYAppCore
 
@@ -8,7 +9,10 @@ private struct TestPayload: Codable, Sendable {
 
 final class AppCoreTests: XCTestCase {
 
+    @MainActor
     func testCoreBootstrapAppliesConfiguration() {
+        let globalState = CYGlobalTestState()
+        defer { globalState.restore() }
         let original = CYAppConstants.configuration
         defer { CYAppConstants.configure(original) }
 
@@ -273,7 +277,10 @@ final class AppCoreTests: XCTestCase {
         XCTAssertNotNil(CYLogger.cache)
     }
     
+    @MainActor
     func testLoggerLevels() {
+        let globalState = CYGlobalTestState()
+        defer { globalState.restore() }
         let logger = CYLogger.shared
         logger.setMinimumLevel(.warning)
         logger.debug("should be filtered")
@@ -423,7 +430,10 @@ final class AppCoreTests: XCTestCase {
         XCTAssertTrue(CYAppConstants.maxUploadSizeMB > 0)
     }
 
+    @MainActor
     func testAppConstantsConfiguration() {
+        let globalState = CYGlobalTestState()
+        defer { globalState.restore() }
         let original = CYAppConstants.configuration
         defer { CYAppConstants.configure(original) }
 

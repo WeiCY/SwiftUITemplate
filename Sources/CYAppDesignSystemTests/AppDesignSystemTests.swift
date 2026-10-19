@@ -1,3 +1,4 @@
+import CYTestSupport
 import XCTest
 import SwiftUI
 import CYAppDesignSystem
@@ -31,13 +32,20 @@ final class AppDesignSystemTests: XCTestCase {
         XCTAssertEqual(Color(hex: "xyz"), sRGBClear)
         XCTAssertEqual(Color(hex: ""), sRGBClear)
         XCTAssertEqual(Color(hex: "ZZ"), sRGBClear)
+        XCTAssertEqual(Color(hex: "12GG56"), sRGBClear)
+        XCTAssertEqual(Color(hex: "0x1234"), sRGBClear)
+        XCTAssertEqual(Color(hex: "##123456"), sRGBClear)
+        XCTAssertEqual(Color(hex: "  #FF0000\n"), sRGBRed)
     }
 
     // MARK: - CYAppColor 品牌色配置
 
     private let sRGBBlue = Color(.sRGB, red: 0, green: 0, blue: 1, opacity: 1)
 
+    @MainActor
     func testAppColorConfigureOverridesPrimaryAndAccent() {
+        let globalState = CYGlobalTestState()
+        defer { globalState.restore() }
         defer { CYAppColor.reset() }
 
         CYAppColor.configure(primary: sRGBRed, accent: sRGBBlue)
@@ -46,7 +54,10 @@ final class AppDesignSystemTests: XCTestCase {
         XCTAssertEqual(CYAppColor.accent, sRGBBlue)
     }
 
+    @MainActor
     func testAppColorConfigurePartialKeepsOtherValue() {
+        let globalState = CYGlobalTestState()
+        defer { globalState.restore() }
         defer { CYAppColor.reset() }
 
         CYAppColor.configure(accent: sRGBBlue)
@@ -55,7 +66,10 @@ final class AppDesignSystemTests: XCTestCase {
         XCTAssertEqual(CYAppColor.primary, Color.indigo, "未传入的 primary 应保持默认")
     }
 
+    @MainActor
     func testAppColorResetRestoresDefaults() {
+        let globalState = CYGlobalTestState()
+        defer { globalState.restore() }
         CYAppColor.configure(primary: sRGBRed, accent: sRGBGreen)
         CYAppColor.reset()
 

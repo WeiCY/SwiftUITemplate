@@ -1,12 +1,17 @@
 import Foundation
+import Synchronization
 
-public final class CYMultiDateDecoder: @unchecked Sendable {
+public final class CYMultiDateDecoder: Sendable {
     public static let shared = CYMultiDateDecoder()
 
-    private let formatters: [DateFormatter]
-    private let iso8601: ISO8601DateFormatter
+    private struct Formatters {
+        let dates: [DateFormatter]
+        let iso8601: ISO8601DateFormatter
+    }
+    private let storage: Mutex<Formatters>
 
-    private init() {
+    /// 格式猜测：MM/dd/yyyy 优先于 dd/MM/yyyy；无时区文本使用指定时区。
+    public init(timeZone: TimeZone = .current, locale: Locale = Locale(identifier: "en_US_POSIX")) {
         let formats = [
             "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
             "yyyy-MM-dd'T'HH:mm:ssZ",
@@ -18,22 +23,26 @@ public final class CYMultiDateDecoder: @unchecked Sendable {
             "MM/dd/yyyy",
             "dd/MM/yyyy"
         ]
-        self.formatters = formats.map { format in
+        let formatters = formats.map { format in
             let f = DateFormatter()
+            f.locale = locale
+            f.timeZone = timeZone
             f.dateFormat = format
-            f.locale = Locale(identifier: "en_US_POSIX")
             return f
         }
-        self.iso8601 = ISO8601DateFormatter()
-        self.iso8601.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let iso8601 = ISO8601DateFormatter()
+        iso8601.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        self.storage = Mutex( Formatters(dates: formatters, iso8601: iso8601))
     }
 
     public func decode(_ string: String) -> Date? {
-        if let date = iso8601.date(from: string) { return date }
-        for formatter in formatters {
-            if let date = formatter.date(from: string) { return date }
+        storage.withLock { formatters in
+            if let date = formatters.iso8601.date(from: string) { return date }
+            for formatter in formatters.dates {
+                if let date = formatter.date(from: string) { return date }
+            }
+            return nil
         }
-        return nil
     }
 }
 
@@ -66,13 +75,20 @@ extension Encodable {
 
 extension Decodable {
 
+    public static func decode(jsonString: String, decoder: JSONDecoder = JSONDecoder()) throws -> Self {
+        try decoder.decode(Self.self, from: Data(jsonString.utf8))
+    }
+
+    public static func decode(dictionary: [String: Any], decoder: JSONDecoder = JSONDecoder()) throws -> Self {
+        try decoder.decode(Self.self, from: JSONSerialization.data(withJSONObject: dictionary))
+    }
+
+    /// 兼容的可选入口；需要错误上下文时使用 decode(jsonString:)。
     public static func from(jsonString: String, decoder: JSONDecoder = JSONDecoder()) -> Self? {
-        guard let data = jsonString.data(using: .utf8) else { return nil }
-        return try? decoder.decode(Self.self, from: data)
+        try? decode(jsonString: jsonString, decoder: decoder)
     }
 
     public static func from(dictionary: [String: Any], decoder: JSONDecoder = JSONDecoder()) -> Self? {
-        guard let data = try? JSONSerialization.data(withJSONObject: dictionary) else { return nil }
-        return try? decoder.decode(Self.self, from: data)
+        try? decode(dictionary: dictionary, decoder: decoder)
     }
 }

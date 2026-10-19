@@ -25,8 +25,8 @@ public struct CYTextField: View {
 
     #if canImport(UIKit)
     var keyboardType: UIKeyboardType = .default
-    var textContentType: UITextContentType? = nil
-    var textInputAutocapitalization: TextInputAutocapitalization? = nil
+    var textContentType: UITextContentType?
+    var textInputAutocapitalization: TextInputAutocapitalization?
     #endif
 
     @Binding var text: String
@@ -72,6 +72,7 @@ public struct CYTextField: View {
                 }
 
                 field
+                    .padding(.vertical, CYAppDimens.marginM)
 
                 if showsClearButton, !text.isEmpty, !isDisabled {
                     Button {
@@ -79,12 +80,14 @@ public struct CYTextField: View {
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(CYAppColor.textTertiary)
+                            .frame(minWidth: 44, minHeight: 44)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("clear".cyLocalized)
                 }
             }
-            .padding(CYAppDimens.marginM)
+            .padding(.horizontal, CYAppDimens.marginM)
+            .frame(minHeight: CYAppDimens.inputHeight)
             .background(
                 RoundedRectangle(cornerRadius: CYAppDimens.radiusM)
                     .stroke(
@@ -218,6 +221,7 @@ public struct CYSearchBar: View {
                     .foregroundStyle(CYAppColor.textPrimary)
                     .submitLabel(.search)
                     .onSubmit { onSearch?() }
+                    .padding(.vertical, CYAppDimens.marginS)
 
                 if !text.isEmpty {
                     Button {
@@ -225,10 +229,14 @@ public struct CYSearchBar: View {
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(CYAppColor.textTertiary)
+                            .frame(minWidth: 44, minHeight: 44)
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("clear".cyLocalized)
                 }
             }
-            .padding(CYAppDimens.marginS)
+            .padding(.horizontal, CYAppDimens.marginS)
+            .frame(minHeight: 44)
             .background(CYAppColor.secondaryBackground)
             .clipShape(.rect(cornerRadius: CYAppDimens.radiusM))
 
@@ -272,6 +280,7 @@ public struct CYVerificationCodeInput: View {
     public var body: some View {
         ZStack {
             TextField("", text: $code)
+                .accessibilityLabel("Verification code")
                 #if canImport(UIKit)
                 .keyboardType(.numberPad)
                 .textContentType(.oneTimeCode)

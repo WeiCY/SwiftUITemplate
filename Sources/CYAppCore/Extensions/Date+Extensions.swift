@@ -21,33 +21,39 @@ extension Date {
 
     /// 线程安全的 DateFormatter 缓存。
     /// 格式化在锁内完成，避免共享 DateFormatter 被并发调用（不依赖其线程安全性）。
-    private static let formatterCache = OSAllocatedUnfairLock(initialState: [String: DateFormatter]())
+    private struct FormatKey: Hashable {
+        let format: String
+        let locale: Locale
+        let timeZone: TimeZone
+        let calendar: Calendar
+    }
+    private static let formatterCache = OSAllocatedUnfairLock(initialState: [FormatKey: DateFormatter]())
 
-    private static func formatted(_ date: Date, format: String, locale: Locale) -> String {
-        formatterCache.withLock { cache in
-            let key = "\(format)_\(locale.identifier)"
+    /// 默认跟随系统 Locale / TimeZone；App 内语言需要调用方显式传入 Locale。
+    public func toString(
+        format: String = "yyyy-MM-dd",
+        locale: Locale = .current,
+        timeZone: TimeZone = .current,
+        calendar: Calendar = .current
+    ) -> String {
+        let key = FormatKey(format: format, locale: locale, timeZone: timeZone, calendar: calendar)
+        return Self.formatterCache.withLock { cache in
             let formatter: DateFormatter
-            if let cached = cache[key] {
-                formatter = cached
-            } else {
+            if let cached = cache[key] { formatter = cached } else {
                 let created = DateFormatter()
-                created.dateFormat = format
                 created.locale = locale
+                created.calendar = calendar
+                created.timeZone = timeZone
+                created.dateFormat = format
+                // 有界缓存，避免任意用户格式不断增长。
+                if cache.count >= 64 { cache.removeAll() }
                 cache[key] = created
                 formatter = created
             }
-            return formatter.string(from: date)
+            return formatter.string(from: self)
         }
     }
 
-    // MARK: - 格式化
-
-    /// 格式化日期为字符串
-    /// - Parameter format: 日期格式（默认 "yyyy-MM-dd"）
-    public func toString(format: String = "yyyy-MM-dd") -> String {
-        return Self.formatted(self, format: format, locale: .current)
-    }
-    
     /// 返回相对时间描述（如 "2小时前"）
     public func timeAgo() -> String {
         let formatter = RelativeDateTimeFormatter()

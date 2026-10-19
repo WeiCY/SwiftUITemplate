@@ -76,7 +76,7 @@ extension CYNetworkClient {
             } else if let body = endpoint.body {
                 let jsonObject = body.mapValues { $0.jsonObject }
                 guard JSONSerialization.isValidJSONObject(jsonObject) else {
-                    CYLogger.network.error("endpoint.body 不可序列化: \(endpoint.path)")
+                    CYLogger.network.error("endpoint.body 不可序列化: \(CYNetworkLogRedactor.url(endpoint.path))")
                     throw CYNetworkError.encodingFailed(
                         NSError(domain: "CYNetworkClient", code: -2,
                                 userInfo: [NSLocalizedDescriptionKey: "endpoint.body 包含不可序列化的值"])
@@ -85,7 +85,7 @@ extension CYNetworkClient {
                 do {
                     request.httpBody = try JSONSerialization.data(withJSONObject: jsonObject)
                 } catch {
-                    CYLogger.network.error("endpoint.body 编码失败: \(endpoint.path)", error: error)
+                    CYLogger.network.error("endpoint.body 编码失败: \(CYNetworkLogRedactor.url(endpoint.path))")
                     throw CYNetworkError.encodingFailed(error)
                 }
                 if request.value(forHTTPHeaderField: "Content-Type") == nil {

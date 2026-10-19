@@ -8,7 +8,7 @@ import UIKit
 public protocol CYThemeManaging: AnyObject, Sendable {
     func savedTheme() -> CYAppTheme
     func save(_ theme: CYAppTheme)
-    func apply(_ theme: CYAppTheme)
+    @MainActor func apply(_ theme: CYAppTheme)
 }
 
 // MARK: - 主题管理实现
@@ -24,7 +24,7 @@ public protocol CYThemeManaging: AnyObject, Sendable {
 /// final class CloudThemeManager: CYThemeManaging {
 ///     func savedTheme() -> CYAppTheme { ... }
 ///     func save(_ theme: CYAppTheme) { ... }
-///     func apply(_ theme: CYAppTheme) { ... }
+///     @MainActor func apply(_ theme: CYAppTheme) { ... }
 /// }
 ///
 /// // 注册到 DI（App 启动时）
@@ -48,7 +48,7 @@ public final class CYThemeManager: CYThemeManaging, Sendable {
 
     #if canImport(UIKit)
     /// 将主题应用到所有已连接的 UIWindowScene
-    public func apply(_ theme: CYAppTheme) {
+    @MainActor public func apply(_ theme: CYAppTheme) {
         let style: UIUserInterfaceStyle
         switch theme {
         case .system: style = .unspecified
@@ -63,11 +63,11 @@ public final class CYThemeManager: CYThemeManaging, Sendable {
         }
     }
     #else
-    public func apply(_ theme: CYAppTheme) {}
+    @MainActor public func apply(_ theme: CYAppTheme) {}
     #endif
 
     /// 保存并立即应用主题
-    public func saveAndApply(_ theme: CYAppTheme) {
+    @MainActor public func saveAndApply(_ theme: CYAppTheme) {
         save(theme)
         apply(theme)
     }

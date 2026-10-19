@@ -2,17 +2,25 @@ import SwiftUI
 import Observation
 import CYAppCore
 
-public struct CYAlertManagerModifier<Manager: CYAlertManagerProtocol & Observable>: ViewModifier {
+public struct CYAlertManagerModifier<Manager: CYAlertManagerProtocol>: ViewModifier {
     
-    @Bindable var alertManager: Manager
+    let alertManager: Manager
     
     public init(manager: Manager) {
         self.alertManager = manager
     }
     
     public func body(content: Content) -> some View {
+        content.modifier(CYAlertPresentationModifier(alertManager: alertManager))
+    }
+}
+
+private struct CYAlertPresentationModifier: ViewModifier {
+    let alertManager: any CYAlertManagerProtocol
+
+    func body(content: Content) -> some View {
         content
-            .alert(alertManager.title, isPresented: $alertManager.isPresented) {
+            .alert(alertManager.title, isPresented: Binding(get: { alertManager.isPresented }, set: { alertManager.isPresented = $0 })) {
                 switch alertManager.alertType {
                 case .info, .success, .warning, .error:
                     Button("ok".cyLocalized, role: .cancel) { }
@@ -43,7 +51,7 @@ extension View {
         modifier(CYAlertManagerModifier(manager: CYAlertManager.shared))
     }
     
-    public func alertManager<M: CYAlertManagerProtocol & Observable>(manager: M) -> some View {
-        modifier(CYAlertManagerModifier(manager: manager))
+    public func alertManager(manager: any CYAlertManagerProtocol) -> some View {
+        modifier(CYAlertPresentationModifier(alertManager: manager))
     }
 }

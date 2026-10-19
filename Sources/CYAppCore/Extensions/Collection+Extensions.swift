@@ -63,12 +63,13 @@ extension Array {
     public func chunked(into size: Int) -> [[Element]] {
         guard size > 0 else { return [self] }
         return stride(from: 0, to: count, by: size).map {
-            Array(self[$0..<Swift.min($0 + size, count)])
+            Array(self[$0..<($0 + Swift.min(size, count - $0))])
         }
     }
     
-    /// 随机取样 n 个元素
+    /// 随机取样至多 n 个元素；n <= 0 返回空数组，不重复抽样。
     public func sample(_ n: Int) -> [Element] {
+        guard n > 0 else { return [] }
         return Array(shuffled().prefix(n))
     }
     

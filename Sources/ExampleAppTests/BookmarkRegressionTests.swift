@@ -7,14 +7,14 @@ import CYAppCore
 @MainActor
 final class BookmarkRegressionTests: XCTestCase {
     private func makeViewModel(count: Int) throws -> (BookmarkViewModel, CYPersistenceController) {
-        let controller = CYPersistenceController(for: [BookmarkItem.self, BookmarkTag.self], inMemory: true)
+        let controller = try CYPersistenceController.create(for: [BookmarkItem.self, BookmarkTag.self], inMemory: true)
         let repository = BookmarkRepository(context: controller.container.mainContext)
         for index in 0..<count {
             let item = BookmarkItem(sourceID: index, title: "Bookmark \(index)", url: "https://example.test/\(index)")
             item.createdAt = Date(timeIntervalSince1970: Double(index))
             try repository.insert(item)
         }
-        return (BookmarkViewModel(repository: repository), controller)
+        return (BookmarkViewModel(repository: repository, toast: MockToastManager()), controller)
     }
 
     func testMultipleOffsetsDeleteOriginalItems() async throws {

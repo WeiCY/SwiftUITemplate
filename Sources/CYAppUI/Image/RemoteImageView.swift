@@ -155,7 +155,7 @@ final class CYRemoteImageLoadState {
                     userInfo: [NSLocalizedDescriptionKey: "image_decode_failed".cyLocalized]
                 )
             } catch {
-                if Task.isCancelled || requestID != id { return }
+                if Task.isCancelled || requestID != id || CYAppError.resolve(error).isCancellation { return }
                 self.error = error
                 attempt += 1
                 if attempt <= max(0, maxRetries) {

@@ -14,13 +14,15 @@ import CYAppCore
 final class HomeViewModel: CYBaseViewModel {
     private let service: any ArticleServiceProtocol
     private let repository: BookmarkRepository
+    private let toast: any CYToastManagerProtocol
 
     var articles: [Article] = []
     private var bookmarkedSourceIDs: Set<Int> = []
 
-    init(service: any ArticleServiceProtocol, repository: BookmarkRepository) {
+    init(service: any ArticleServiceProtocol, repository: BookmarkRepository, toast: any CYToastManagerProtocol) {
         self.service = service
         self.repository = repository
+        self.toast = toast
         super.init()
     }
 
@@ -51,14 +53,14 @@ final class HomeViewModel: CYBaseViewModel {
         do {
             if let existing = try repository.find(sourceID: article.id) {
                 try repository.delete(existing)
-                CYToastManager.shared.show("bookmark_removed".exampleLocalized, type: .info)
+                toast.show("bookmark_removed".exampleLocalized, type: .info)
             } else {
                 try repository.insert(.from(article))
-                CYToastManager.shared.show("bookmark_added".exampleLocalized, type: .success)
+                toast.show("bookmark_added".exampleLocalized, type: .success)
             }
             bookmarkedSourceIDs = try repository.allSourceIDs()
         } catch {
-            CYToastManager.shared.show("bookmark_failed".exampleLocalized, type: .error)
+            toast.show("bookmark_failed".exampleLocalized, type: .error)
         }
     }
 }

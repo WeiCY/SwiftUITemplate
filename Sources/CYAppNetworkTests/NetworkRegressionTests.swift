@@ -21,8 +21,8 @@ private final class RegressionURLProtocolStub: URLProtocol, @unchecked Sendable 
     /// 响应延迟（秒），用于取消/进度测试
     nonisolated(unsafe) static var delay: TimeInterval = 0
 
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override static func canInit(with request: URLRequest) -> Bool { true }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
         let delay = Self.lock.withLock { Self.delay }
@@ -601,6 +601,10 @@ final class NetworkRegressionTests: XCTestCase {
         XCTAssertEqual(payload.ok, true)
     }
 
+}
+
+extension NetworkRegressionTests {
+
     // MARK: - Batch 12：去重 key（Encodable body）
 
     func testDeduplicationSameEncodableBodyExecutesOnce() async throws {        struct Body: Encodable, Sendable {
@@ -649,7 +653,7 @@ final class NetworkRegressionTests: XCTestCase {
             RegressionEndpoint.upload,
             parts: [
                 CYMultipartPart(data: Data("avatar-content".utf8), mimeType: "image/jpeg", fileName: "a.jpg", paramName: "avatar"),
-                CYMultipartPart(data: Data("cover-content".utf8), mimeType: "image/png", fileName: "c.png", paramName: "cover"),
+                CYMultipartPart(data: Data("cover-content".utf8), mimeType: "image/png", fileName: "c.png", paramName: "cover")
             ],
             additionalParams: ["scene": "profile"]
         )

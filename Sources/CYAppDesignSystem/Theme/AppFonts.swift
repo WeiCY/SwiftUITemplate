@@ -14,51 +14,68 @@ import SwiftUI
 // ```
 
 public struct CYAppFont {
+    private static func font(_ style: Font.TextStyle, weight: Font.Weight, monospaced: Bool) -> Font {
+        let tokens = CYDesignConfiguration.current
+        if let name = tokens.fontName, !monospaced {
+            let size: CGFloat
+            switch style {
+            case .largeTitle: size = 34
+            case .title: size = 28
+            case .title2: size = 22
+            case .title3: size = 20
+            case .headline, .body: size = 17
+            case .callout: size = 16
+            default: size = 12
+            }
+            return .custom(name, size: size, relativeTo: style).weight(weight)
+        }
+        return .system(style, design: monospaced ? .monospaced : tokens.fontDesign).weight(weight)
+    }
     
     // MARK: - 标题
     
     /// H1 标题（largeTitle + bold）
-    public static let h1 = Font.system(.largeTitle, design: .default).weight(.bold)
+    public static var h1: Font { font(.largeTitle, weight: .bold, monospaced: false) }
     /// H2 标题（title + bold）
-    public static let h2 = Font.system(.title, design: .default).weight(.bold)
+    public static var h2: Font { font(.title, weight: .bold, monospaced: false) }
     /// H3 标题（title2 + bold）
-    public static let h3 = Font.system(.title2, design: .default).weight(.bold)
+    public static var h3: Font { font(.title2, weight: .bold, monospaced: false) }
     /// H4 标题（title3 + semibold）
-    public static let h4 = Font.system(.title3, design: .default).weight(.semibold)
+    public static var h4: Font { font(.title3, weight: .semibold, monospaced: false) }
     
     // MARK: - 正文
     
     /// 大正文（headline）
-    public static let bodyLarge = Font.system(.headline, design: .default).weight(.regular)
+    public static var bodyLarge: Font { font(.headline, weight: .regular, monospaced: false) }
     /// 中正文（body，默认）
-    public static let bodyMedium = Font.system(.body, design: .default).weight(.regular)
+    public static var bodyMedium: Font { font(.body, weight: .regular, monospaced: false) }
     /// 小正文（callout）
-    public static let bodySmall = Font.system(.callout, design: .default).weight(.regular)
+    public static var bodySmall: Font { font(.callout, weight: .regular, monospaced: false) }
     
     // MARK: - 说明 & 标签
     
     /// 说明文字（caption）
-    public static let caption = Font.system(.caption, design: .default).weight(.regular)
+    public static var caption: Font { font(.caption, weight: .regular, monospaced: false) }
     /// 按钮文字（body + bold）
-    public static let button = Font.system(.body, design: .default).weight(.bold)
+    public static var button: Font { font(.body, weight: .bold, monospaced: false) }
     /// 标签文字（callout + medium）
-    public static let label = Font.system(.callout, design: .default).weight(.medium)
+    public static var label: Font { font(.callout, weight: .medium, monospaced: false) }
     
     // MARK: - 等宽字体（代码或数字）
     
     /// 等宽正文（body）
-    public static let mono = Font.system(.body, design: .monospaced).weight(.regular)
+    public static var mono: Font { font(.body, weight: .regular, monospaced: true) }
     /// 等宽粗体（body bold）
-    public static let monoBold = Font.system(.body, design: .monospaced).weight(.bold)
+    public static var monoBold: Font { font(.body, weight: .bold, monospaced: true) }
     /// 等宽大号（title bold）
-    public static let monoLarge = Font.system(.title, design: .monospaced).weight(.bold)
+    public static var monoLarge: Font { font(.title, weight: .bold, monospaced: true) }
     
     // MARK: - 数字显示
     
     /// 大号数字（title black）
-    public static let numberLarge = Font.system(.title, design: .monospaced).weight(.black)
+    public static var numberLarge: Font { font(.title, weight: .black, monospaced: true) }
     /// 中号数字（headline bold）
-    public static let numberMedium = Font.system(.headline, design: .monospaced).weight(.bold)
+    public static var numberMedium: Font { font(.headline, weight: .bold, monospaced: true) }
     /// 小号数字（caption bold）
-    public static let numberSmall = Font.system(.caption, design: .monospaced).weight(.bold)
+    public static var numberSmall: Font { font(.caption, weight: .bold, monospaced: true) }
 }

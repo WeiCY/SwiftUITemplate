@@ -47,6 +47,8 @@ public struct CYPaginatedListView<Item: Identifiable & Sendable, Row: View, Empt
 
     @Bindable var viewModel: CYPaginatedListViewModel<Item>
     let emptyView: () -> Empty
+    let loadingView: () -> AnyView
+    let errorView: (CYAppError, @escaping () -> Void) -> AnyView
     let onRefresh: () async -> Void
     let onLoadMore: () async -> Void
     let rowContent: (Item) -> Row
@@ -58,10 +60,20 @@ public struct CYPaginatedListView<Item: Identifiable & Sendable, Row: View, Empt
         onRefresh: @escaping () async -> Void,
         onLoadMore: @escaping () async -> Void,
         preloadThreshold: Int = 3,
+        loadingView: @escaping () -> AnyView = { AnyView(ProgressView()) },
+        errorView: @escaping (CYAppError, @escaping () -> Void) -> AnyView = { error, retry in
+            AnyView(VStack {
+                Text(error.message)
+                Button("action_retry".cyLocalized, action: retry)
+                    .accessibilityIdentifier("pagination.retry")
+            })
+        },
         @ViewBuilder rowContent: @escaping (Item) -> Row
     ) {
         self._viewModel = Bindable(viewModel)
         self.emptyView = emptyView
+        self.loadingView = loadingView
+        self.errorView = errorView
         self.onRefresh = onRefresh
         self.onLoadMore = onLoadMore
         self.rowContent = rowContent
@@ -69,58 +81,149 @@ public struct CYPaginatedListView<Item: Identifiable & Sendable, Row: View, Empt
     }
     
     public var body: some View {
-        Group {
-            if viewModel.isEmpty && !viewModel.isLoading {
-                emptyView()
-            } else {
-                listContent
-            }
-        }
+        CYPaginatedListContent(
+            state: CYPaginationState(
+                items: viewModel.items, isLoading: viewModel.isLoading, isLoadingMore: viewModel.isLoadingMore,
+                hasMore: viewModel.hasMore, errorMessage: viewModel.errorMessage,
+                failure: viewModel.failure.map { failure in
+                    switch failure {
+                    case .refresh: return .refresh
+                    case .append: return .append
+                    }
+                }
+            ),
+            emptyView: emptyView, onRefresh: onRefresh, onLoadMore: onLoadMore,
+            onRetry: { await viewModel.retry() }, preloadThreshold: preloadThreshold,
+            loadingView: loadingView,
+            errorView: { message, retry in errorView(viewModel.error ?? .unknown(message), retry) },
+            rowContent: rowContent
+        )
     }
-    
-    private var listContent: some View {
+}
+
+/// Presentation snapshot for host-owned state. Request ownership, page numbers and race isolation remain in the host.
+public struct CYPaginationState<Item: Identifiable & Sendable>: Sendable {
+    public enum Failure: Sendable { case refresh, append }
+    public var items: [Item]
+    public var isLoading: Bool
+    public var isLoadingMore: Bool
+    public var hasMore: Bool
+    public var errorMessage: String?
+    public var failure: Failure?
+
+    public init(items: [Item], isLoading: Bool = false, isLoadingMore: Bool = false, hasMore: Bool = true,
+                errorMessage: String? = nil, failure: Failure? = nil) {
+        self.items = items
+        self.isLoading = isLoading
+        self.isLoadingMore = isLoadingMore
+        self.hasMore = hasMore
+        self.errorMessage = errorMessage
+        self.failure = failure
+    }
+}
+
+/// One List renderer for both host-owned Observable state and the compatible ViewModel adapter.
+/// Owns its List: use directly in a page/NavigationStack/Sheet, not inside another List or ScrollView.
+/// All actions belong to the host. Explicit actions and row tasks are cancelled when their views leave.
+public struct CYPaginatedListContent<Item: Identifiable & Sendable, Row: View, Empty: View>: View {
+    let state: CYPaginationState<Item>
+    let emptyView: () -> Empty
+    let onRefresh: () async -> Void
+    let onLoadMore: () async -> Void
+    let onRetry: () async -> Void
+    let preloadThreshold: Int
+    let loadingView: () -> AnyView
+    let errorView: (String, @escaping () -> Void) -> AnyView
+    let rowContent: (Item) -> Row
+    @State private var actionID = UUID()
+    @State private var retries = false
+    @State private var requested = false
+
+    public init(
+        state: CYPaginationState<Item>,
+        @ViewBuilder emptyView: @escaping () -> Empty,
+        onRefresh: @escaping () async -> Void,
+        onLoadMore: @escaping () async -> Void,
+        onRetry: @escaping () async -> Void,
+        preloadThreshold: Int = 3,
+        loadingView: @escaping () -> AnyView = { AnyView(ProgressView()) },
+        errorView: @escaping (String, @escaping () -> Void) -> AnyView = { message, retry in
+            AnyView(VStack {
+                Text(message)
+                Button("action_retry".cyLocalized, action: retry).accessibilityIdentifier("pagination.retry")
+            })
+        },
+        @ViewBuilder rowContent: @escaping (Item) -> Row
+    ) {
+        self.state = state
+        self.emptyView = emptyView
+        self.onRefresh = onRefresh
+        self.onLoadMore = onLoadMore
+        self.onRetry = onRetry
+        self.preloadThreshold = max(1, preloadThreshold)
+        self.loadingView = loadingView
+        self.errorView = errorView
+        self.rowContent = rowContent
+    }
+
+    public var body: some View {
         List {
-            ForEach(Array(viewModel.items.enumerated()), id: \.element.id) { index, item in
+            if state.items.isEmpty {
+                if state.isLoading { loadingView().frame(maxWidth: .infinity) } else if let error = state.errorMessage { errorView(error) { request(retry: true) } } else {
+                    emptyView()
+                    Button("action_retry".cyLocalized) { request(retry: false) }
+                }
+            } else if state.failure == .refresh, let error = state.errorMessage {
+                errorView(error) { request(retry: true) }
+            }
+            ForEach(Array(state.items.enumerated()), id: \.element.id) { index, item in
                 rowContent(item)
-                    .onAppear {
-                        // 距离末尾 preloadThreshold 行时提前触发加载更多
-                        let thresholdIndex = max(0, viewModel.items.count - preloadThreshold)
-                        if index >= thresholdIndex, viewModel.hasMore, !viewModel.isLoadingMore, !viewModel.isLoading {
-                            Task { await onLoadMore() }
+                    .task {
+                        let threshold = max(0, state.items.count - preloadThreshold)
+                        if index >= threshold, state.failure == nil, state.errorMessage == nil,
+                           state.hasMore, !state.isLoadingMore, !state.isLoading {
+                            await onLoadMore()
                         }
                     }
             }
-            
-            // 底部加载更多指示器
-            footerView
+            footer
         }
         .listStyle(.plain)
         .refreshable { await onRefresh() }
-    }
-    
-    @ViewBuilder
-    private var footerView: some View {
-        if viewModel.isLoadingMore {
-            HStack {
-                Spacer()
-                ProgressView()
-                    .scaleEffect(0.8)
-                Text("loading".cyLocalized)
-                    .font(CYAppFont.caption)
-                    .foregroundStyle(CYAppColor.textSecondary)
-                Spacer()
-            }
-            .padding(.vertical, CYAppDimens.marginS)
-        } else if !viewModel.hasMore && !viewModel.items.isEmpty {
-            HStack {
-                Spacer()
-                Text("pagination_end".cyLocalized)
-                    .font(CYAppFont.caption)
-                    .foregroundStyle(CYAppColor.textTertiary)
-                Spacer()
-            }
-            .padding(.vertical, CYAppDimens.marginM)
+        .task(id: actionID) {
+            guard requested else { return }
+            let id = actionID
+            defer { if actionID == id { requested = false } }
+            if retries { await onRetry() } else { await onRefresh() }
         }
+    }
+
+    private func request(retry: Bool) {
+        retries = retry
+        requested = true
+        actionID = UUID()
+    }
+
+    @ViewBuilder private var footer: some View {
+        if state.failure == .append, let error = state.errorMessage {
+            errorView(error) { request(retry: true) }
+        } else if state.isLoadingMore {
+            HStack { Spacer(); ProgressView(); Text("loading".cyLocalized); Spacer() }
+                .font(CYAppFont.caption).padding(.vertical, CYAppDimens.marginS)
+        } else if !state.hasMore, !state.items.isEmpty {
+            Text("pagination_end".cyLocalized).font(CYAppFont.caption)
+                .foregroundStyle(CYAppColor.textTertiary).frame(maxWidth: .infinity)
+        }
+    }
+}
+
+public extension CYPaginatedListContent where Empty == CYEmptyStateView {
+    init(state: CYPaginationState<Item>, onRefresh: @escaping () async -> Void,
+         onLoadMore: @escaping () async -> Void, onRetry: @escaping () async -> Void,
+         @ViewBuilder rowContent: @escaping (Item) -> Row) {
+        self.init(state: state, emptyView: {
+            CYEmptyStateView(title: "empty_title".cyLocalized, message: "empty_message".cyLocalized)
+        }, onRefresh: onRefresh, onLoadMore: onLoadMore, onRetry: onRetry, rowContent: rowContent)
     }
 }
 

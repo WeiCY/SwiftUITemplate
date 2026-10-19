@@ -1,3 +1,4 @@
+import CYTestSupport
 import XCTest
 import os
 @testable import CYAppCore
@@ -8,11 +9,6 @@ import os
 // Token 刷新并发单飞、CYEndpoint 默认 snake_case 策略、CacheManager 清命名空间同步清内存、分页刷新保留旧数据。
 
 final class HighPriorityTests: XCTestCase {
-
-    override func tearDown() {
-        CYBusinessCodePolicy.reset()
-        super.tearDown()
-    }
 
     // MARK: - 凭证恢复并发单飞
 
@@ -204,7 +200,10 @@ final class HighPriorityTests: XCTestCase {
         XCTAssertFalse(CYNetworkError.businessError(code: 500, message: "x").requiresCredentialRecovery)
     }
 
+    @MainActor
     func testNetworkErrorDisplayKind() {
+        let globalState = CYGlobalTestState()
+        defer { globalState.restore() }
         let p = CYBusinessCodePolicy(
             successCodes: [0, 200],
             tokenExpiredCodes: [401, 10001, 10002],

@@ -2,6 +2,8 @@ import CYAppCore
 import CYAppNetwork
 import CYAppImage
 import CYFeedbackStyle
+import CYAppDesignSystem
+import Foundation
 import FactoryKit
 
 // MARK: - 组合根
@@ -17,6 +19,7 @@ enum AppBootstrap {
         precondition(!didStart, "AppBootstrap.start(with:) must only be called once")
 
         CYCoreBootstrap.configure(config.core)
+        CYDesignConfiguration.configure(ProcessInfo.processInfo.arguments.contains("--alternate-brand") ? .alternate : CYDesignTokens())
 
         if let network = config.network {
             CYNetworkConfiguration.configure(
@@ -30,12 +33,13 @@ enum AppBootstrap {
             CYBusinessCodePolicy.configure { $0 = network.businessCodePolicy }
         }
 
-        // 演示项目：用 Mock 客户端替换真实实现，保证没有后端也能运行。
-        // 真实项目删除这段，直接使用上面的 CYNetworkConfiguration 即可。
-        let mockClient = MockNetworkClient()
-        mockClient.defaultDelay = 0.6
-        mockClient.registerResponse(Article.samples)
-        Container.shared.networkClient.register { mockClient }
+        // 设 config.usesMockNetwork = false 并配置真实 baseURL 即可切换。
+        if config.usesMockNetwork {
+            let mockClient = MockNetworkClient()
+            mockClient.defaultDelay = 0.6
+            mockClient.registerResponse(Article.samples)
+            Container.shared.networkClient.register { mockClient }
+        }
 
         if config.usesKingfisher {
             CYAppImageConfig.configure()

@@ -2,6 +2,12 @@ import Foundation
 import Alamofire
 import CYAppCore
 
+struct NetworkSuccess<Value: Sendable>: Sendable {
+    let value: Value
+    let response: URLResponse?
+    let data: Data?
+}
+
 // MARK: - 发送 / 解码 / 业务码解析 / 错误映射
 
 extension CYNetworkClient {
@@ -36,7 +42,7 @@ extension CYNetworkClient {
     func fetchEnvelope<T: Decodable & Sendable>(
         _ endpoint: CYEndpoint,
         urlRequest: URLRequest
-    ) async throws -> (value: T, response: URLResponse?, data: Data?) {
+    ) async throws -> NetworkSuccess<T> {
         var urlRequest = urlRequest
         try await applyRequestInterceptors(to: &urlRequest, authentication: endpoint.authentication)
         let dataTask = session.request(urlRequest)
@@ -53,10 +59,10 @@ extension CYNetworkClient {
                     // 仅绕过空 envelope 的序列化失败，保留取消等传输错误。
                     guard case .responseSerializationFailed = error else { throw error }
                 }
-                return (empty, response.response, response.data)
+                return NetworkSuccess(value: empty, response: response.response, data: response.data)
             }
             let envelope = try await dataTask.value
-            return (try resolveData(envelope), response.response, response.data)
+            return NetworkSuccess(value: try resolveData(envelope), response: response.response, data: response.data)
         } catch {
             throw NetworkFailure(
                 cyError: mapNetworkError(error, data: response.data),
@@ -70,7 +76,7 @@ extension CYNetworkClient {
     func fetchDirect<T: Decodable & Sendable>(
         _ endpoint: CYEndpoint,
         urlRequest: URLRequest
-    ) async throws -> (value: T, response: URLResponse?, data: Data?) {
+    ) async throws -> NetworkSuccess<T> {
         var urlRequest = urlRequest
         try await self.applyRequestInterceptors(to: &urlRequest, authentication: endpoint.authentication)
 
@@ -84,18 +90,18 @@ extension CYNetworkClient {
     /// （合成空实例，避免 Alamofire 抛 `.invalidEmptyResponse`）。
     private func awaitDirectValue<T: Decodable & Sendable>(
         _ dataTask: DataTask<T>
-    ) async throws -> (value: T, response: URLResponse?, data: Data?) {
+    ) async throws -> NetworkSuccess<T> {
         let response = await dataTask.response
         if T.self == CYEmptyResponse.self,
            let statusCode = response.response?.statusCode,
            (204...205).contains(statusCode),
            response.data?.isEmpty ?? true,
            let empty = CYEmptyResponse() as? T {
-            return (empty, response.response, response.data)
+            return NetworkSuccess(value: empty, response: response.response, data: response.data)
         }
         do {
             let value = try await dataTask.value
-            return (value, response.response, response.data)
+            return NetworkSuccess(value: value, response: response.response, data: response.data)
         } catch {
             throw NetworkFailure(
                 cyError: self.mapNetworkError(error, data: response.data),
@@ -204,15 +210,12 @@ extension CYNetworkClient {
     ///
     /// 格式：`[GET /api/user/profile] HTTP 500 | <错误描述>`
     static func failureLogMessage(error: Error, endpoint: CYEndpoint, response: URLResponse?) -> String {
-        var message = "[\(endpoint.method.rawValue) \(endpoint.path)]"
+        var message = "[\(endpoint.method.rawValue) \(CYNetworkLogRedactor.url(endpoint.path))]"
         if let statusCode = (response as? HTTPURLResponse)?.statusCode {
             message += " HTTP \(statusCode)"
         }
-        if let cyError = error as? CYNetworkError, let description = cyError.errorDescription {
-            message += " | \(description)"
-        } else {
-            message += " | \(error)"
-        }
+        // Error descriptions can contain server bodies, credentials or raw URLs.
+        message += " | \(String(describing: type(of: error))) (details omitted)"
         return message
     }
 }

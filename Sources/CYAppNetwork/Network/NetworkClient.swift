@@ -84,6 +84,21 @@ public final class CYNetworkClient: CYNetworkClientProtocol, Sendable {
         ))
     }
 
+    /// Foundation-only injection for consumers that do not import Alamofire.
+    /// Advanced consumers may continue using the existing Session initializer.
+    public convenience init(
+        baseURL: String,
+        defaultHeaders: [String: String] = [:],
+        timeoutInterval: TimeInterval = 30,
+        requestInterceptors: [any CYRequestInterceptor] = [],
+        responseInterceptors: [any CYResponseInterceptor] = [],
+        sessionConfiguration: URLSessionConfiguration
+    ) {
+        self.init(baseURL: baseURL, defaultHeaders: defaultHeaders, timeoutInterval: timeoutInterval,
+                  requestInterceptors: requestInterceptors, responseInterceptors: responseInterceptors,
+                  session: Session(configuration: sessionConfiguration))
+    }
+
     // MARK: - 拦截器管理
 
     /// 注册可选的凭证恢复动作。仅 `.required` 端点认证失败时执行并重放一次。
@@ -185,7 +200,7 @@ public final class CYNetworkClient: CYNetworkClientProtocol, Sendable {
         case .envelope:
             // 唯一走「业务码判定 + 401 自动刷新」的链路（对应 request）
             return try await performRequest(endpoint) {
-                let result: (value: T, response: URLResponse?, data: Data?) = try await self.fetchEnvelope(endpoint, urlRequest: urlRequest)
+                let result: NetworkSuccess<T> = try await self.fetchEnvelope(endpoint, urlRequest: urlRequest)
                 try await self.applyFinalResponseInterceptors(result.response, data: result.data)
                 return result.value
             }
@@ -217,7 +232,7 @@ public final class CYNetworkClient: CYNetworkClientProtocol, Sendable {
         urlRequest: URLRequest
     ) async throws -> T {
         do {
-            let result: (value: T, response: URLResponse?, data: Data?) = try await self.fetchDirect(endpoint, urlRequest: urlRequest)
+            let result: NetworkSuccess<T> = try await self.fetchDirect(endpoint, urlRequest: urlRequest)
             try await self.applyResponseInterceptors(result.response, data: result.data)
             return result.value
         } catch {

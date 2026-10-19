@@ -61,6 +61,9 @@ public enum CYAppError: Error, Equatable {
         if let appError = error as? CYAppError {
             return appError
         }
+        if case .loadFailed(let underlying) = error as? ImageLoaderError {
+            return resolve(underlying)
+        }
         if let networkError = error as? CYNetworkError {
             switch networkError {
             case .cancelled:
@@ -73,7 +76,7 @@ public enum CYAppError: Error, Equatable {
                 return .network(networkError.errorDescription ?? "网络错误")
             }
         }
-        if error is CancellationError {
+        if error is CancellationError || (error as? URLError)?.code == .cancelled {
             return .cancelled
         }
         if error is DecodingError {

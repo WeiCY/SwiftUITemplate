@@ -17,7 +17,7 @@ import CYAppCore
 /// ```swift
 /// appState.theme = .dark        // 自动保存
 /// appState.theme.colorScheme    // 转 SwiftUI ColorScheme
-/// CYThemeManager.saveAndApply(.dark)  // 如需立即应用到 UIKit 层
+/// CYThemeManager.shared.saveAndApply(.dark)  // MainActor；如需立即应用到 UIKit 层
 /// ```
 ///
 /// ## 多语言系统
@@ -58,7 +58,7 @@ public final class CYAppState {
     /// 主题偏好（赋值时自动持久化到 UserDefaults）
     ///
     /// 通过 `CYThemeManager.savedTheme()` 在 init 时自动恢复。
-    /// 如需立即应用到 UIKit 层，请调用 `CYThemeManager.saveAndApply(appState.theme)`。
+    /// 如需立即应用到 UIKit 层，请调用 `CYThemeManager.shared.saveAndApply(appState.theme)`。
     public var theme: CYAppTheme {
         didSet { themeManager.save(theme) }
     }

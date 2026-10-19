@@ -1,4 +1,5 @@
 import SwiftUI
+import CYAppCore
 
 // MARK: - 按钮组件
 //
@@ -18,13 +19,14 @@ import SwiftUI
 // MARK: - 按压缩放按钮样式
 
 /// 按压缩放按钮样式
-/// 点击时轻微缩小，提供触觉反馈
+/// 点击时轻微缩小，尊重减弱动态效果；不触发系统触觉。
 public struct CYScaledButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
-            .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1.0)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: configuration.isPressed)
     }
 }
 
@@ -51,7 +53,7 @@ public struct PrimaryButton: View {
             ZStack {
                 if isLoading {
                     ProgressView()
-                        .tint(.white)
+                        .tint(CYAppColor.onPrimary)
                 } else {
                     Text(title)
                         .font(CYAppFont.button)
@@ -60,11 +62,13 @@ public struct PrimaryButton: View {
             .frame(maxWidth: .infinity, minHeight: CYAppDimens.buttonHeight)
             .padding(.horizontal, CYAppDimens.marginM)
             .background(CYAppColor.primary.opacity(isInactive ? 0.4 : 1))
-            .foregroundStyle(.white.opacity(isDisabled && !isLoading ? 0.6 : 1))
+            .foregroundStyle(CYAppColor.onPrimary.opacity(isDisabled && !isLoading ? 0.6 : 1))
             .clipShape(.rect(cornerRadius: CYAppDimens.radiusM))
         }
         .buttonStyle(CYScaledButtonStyle())
         .disabled(isInactive)
+        .accessibilityLabel(title)
+        .accessibilityValue(isLoading ? "loading".cyLocalized : "")
     }
 }
 

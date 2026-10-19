@@ -41,6 +41,7 @@ public struct CYTag: View {
     let unselectedColor: Color
     let textColor: Color
     let action: () -> Void
+    let selectedTextColor: Color
 
     public init(
         title: String,
@@ -48,6 +49,7 @@ public struct CYTag: View {
         selectedColor: Color = CYAppColor.primary,
         unselectedColor: Color = CYAppColor.secondaryBackground,
         textColor: Color = CYAppColor.textPrimary,
+        selectedTextColor: Color = CYAppColor.onPrimary,
         action: @escaping () -> Void = {}
     ) {
         self.title = title
@@ -55,6 +57,7 @@ public struct CYTag: View {
         self.selectedColor = selectedColor
         self.unselectedColor = unselectedColor
         self.textColor = textColor
+        self.selectedTextColor = selectedTextColor
         self.action = action
     }
 
@@ -63,13 +66,14 @@ public struct CYTag: View {
             Text(title)
                 .font(CYAppFont.bodySmall)
                 .fontWeight(isSelected ? .semibold : .regular)
-                .foregroundStyle(isSelected ? .white : textColor)
+                .foregroundStyle(isSelected ? selectedTextColor : textColor)
                 .padding(.horizontal, CYAppDimens.marginM)
                 .padding(.vertical, CYAppDimens.marginS)
                 .background(isSelected ? selectedColor : unselectedColor)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

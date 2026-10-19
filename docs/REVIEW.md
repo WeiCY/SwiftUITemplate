@@ -1,97 +1,42 @@
-# 工程化评测
+# 当前工程复核
 
-> 评测日期：2026-10-13 ｜ 适用代码：当前主干（1.2.x 基线 + Unreleased）
->
-> 范围：模块边界、启动配置、Core / UI / Network / Image / Persistence、ExampleApp、测试与文档。
-> 验证：Swift 6 Package 构建通过；Package 测试全部通过（数量见 [CHANGELOG](../CHANGELOG.md)）。
->
-> **定位声明**：本评测优先按“个人 / 中小团队 SwiftUI **App Factory**”定位评价，而不是按大型企业平台 / SDK 标准评价。重点看新 App 起步速度、模块可裁剪性、宿主业务边界、依赖注入清晰度、ExampleApp 可复制性、公共 API 稳定性、文档一致性与真实 App 升级成本。
->
-> 本文随版本更新；历史快照见 [archive/REVIEW.md](archive/REVIEW.md)（不代表当前代码）。
+复核日期：2026-10-18。适用于主干 Unreleased；历史评测见 archive。本文记录代码和验证依据，不通过修改评分替代实现。
 
-## 结论
+## 当前结论
 
-工程稳定在“可组合 App Factory”阶段：7 个 Library 依赖单向，Network / Image / Persistence 可选，启动配置集中在宿主 `AppConfig` / `AppBootstrap`，账号、业务模型与固定 Tab 已从 Foundation 移出，ExampleApp 是可复制的新项目范例。当前**没有阻塞性架构问题**。
+第二轮独立接入与组件矩阵见 [MODULE_COMPONENT_REVIEW](MODULE_COMPONENT_REVIEW.md)，其证据补充下表，保留上轮稳定性成果。
 
-| 指标 | 评分 |
-|---|---:|
-| 综合工程质量 | **8.8 / 10** |
-| App Factory 适配度 | **9.0 / 10** |
+7 个 Library 依赖边界保持稳定。Network / Image / Persistence 可选，业务模型、路由和 Schema 归宿主。本轮补齐此前运行行为和宿主接入上的缺口；具体执行结果和工具链输出见 [ENGINEERING_VALIDATION](ENGINEERING_VALIDATION.md)。
 
-| 维度 | 评分 | 评价 |
-|---|---:|---|
-| 模块边界 | 9.1 | 7 个 Library；可选模块隔离清晰，业务模型已移出 Foundation。 |
-| DI / Composition Root | 9.2 | Base DI 与 `NetworkProviding` 拆分；`AppDependencies` 显式构造并注入。 |
-| Network | 9.0 | 默认无鉴权，端点策略清楚，凭证恢复 single-flight，账号语义归宿主。 |
-| Persistence | 8.8 | `CYPersistenceController` + Repository 协议通用；Schema 归宿主。 |
-| UI / DesignSystem | 8.5 | 默认 DesignSystem 实用，但仍是静态 Token，只支持主/强调色覆写。 |
-| ExampleApp | 9.3 | 覆盖网络 / loading / error / retry / 路由 / SwiftData / 设置，可直接复制。 |
-| 可裁剪性 | 8.9 | 离线 App 可不引入 Network；单 Tab App 不强制多 Tab。 |
-| 文档结构 | 9.0 | 6 篇核心文档职责单一，历史资料归档。 |
-| 文档一致性 | 8.8～9.0 | 已收敛；需持续随公共 API 同步。 |
-| App Factory 适配 | 9.0 | 新项目起步快，宿主边界清楚。 |
+| 领域 | 实施结果 | 依据 |
+|---|---|---|
+| UI 隔离 | 主题应用、设备 idiom、触觉方法显式 MainActor | iOS Package / App 编译；没有用 unchecked 或 unsafe 绕过 UIKit 警告 |
+| 分页 | 首次/刷新/追加失败分别展示，显式重试同页，空态可刷新 | PaginationRecovery、既有代次竞争回归及搜索组合测试 |
+| 持久化 | 可抛错创建、宿主错误页/重试、接收配置与迁移计划 | 原始错误捕获、磁盘 V1→V2 数据保留、CRUD 和宿主恢复 UI 测试 |
+| 图片 | 取消传递、一次恢复、网络返回原始字节 | 取消竞争状态机测试、Kingfisher URLProtocol 集成、URL 替换和恢复测试 |
+| 日志 | query/Header/结构化 JSON 统一脱敏，未知 Body 隐藏 | 嵌套数组、大小写、转义引号和损坏 JSON 回归 |
+| DI / 反馈 | Feature 注入，挂载同实例，Alert 支持存在类型 | Factory 快照恢复、注入测试、自定义 Toast/Loading/Alert 模拟器 UI 测试 |
+| 接入与组件 | 本地 Package Xcode 宿主、组件目录、三种组合示例 | App 构建、原生回归与 UI 测试；最短步骤见 README |
+| 品牌与扩展 | 单一启动 Token、Dynamic Type、工具边界与动画取消 | Token/日期/字符串/解码/取消测试；默认与第二品牌示例 |
 
-## 默认行为复核（2026-10-13）
+## 已明确保留的限制
 
-本次发现并修复语言观察/资源、分页交错、去重键/任务身份、缓存键、权限覆盖、
-HTTP 空响应、响应拦截器、图片切换、工具并发、系统视频和示例批量删除的边界缺陷。
-修复保留现有模块分层，没有新增业务抽象。原有 161 个测试继续通过，并加入对应回归。
-缓存升级到 v2，旧缓存会失效；宿主持久化模型与 Keychain 数据不受影响。
+- 品牌配置只保证启动时使用，尚无运行时品牌刷新保证。
+- 页码分页根据条数推导 hasMore，不新增游标或服务端快照框架。
+- 图片 Data 协议仍有视图解码，Kingfisher 缓存命中可能重新序列化；测量不能外推到 iOS 整体性能。
+- 日志规则依赖字段名，无法猜测未知普通字段和路径里的秘密；宿主日志同样需要约束。
+- 旧持久化 init 仍 fail-fast，迁移到抛错工厂才有恢复机会。
+- 系统 PhotosPicker 取消不会产生选择结果，但未承诺系统取消回调；网格/相机取消和系统导入失败有显式入口。
+- withTimeout 无法强行终止不配合取消的操作。
 
-验证覆盖 macOS 测试、iOS Library/ExampleApp/测试目标交叉编译及模拟器视频文件生命周期测试；签名、真机与
-实际 PhotosPicker 操作仍需宿主 App 验收。测试数量和结果见 CHANGELOG 的 Unreleased 记录。
+## 仍未完成的运行验收
 
-## 已达到的能力
+真机触觉、实际相册/相机交互、真实视频源、完整 VoiceOver/最大字号/后台生命周期矩阵、生产数据库副本迁移、真实后端和 TestFlight 流程仍需要宿主验收。模拟器 UI 测试和单元测试不替代这些结果。
 
-1. 离线 App 可以不选择 `CYAppNetwork`；Image 与 Persistence 同样按需。
-2. `networkClient` 拆到可选的 `NetworkProviding`，离线 Feature 只依赖 `DIContainerProtocol`（1.2.0）。
-3. `CYAppConfig` 只描述 Core，宿主 `AppBootstrap` 配置框架、`AppDependencies` 构造业务依赖。
-4. 网络端点默认 `.none`，无需账号的 App 没有认证成本。
-5. Router 管理任意 `CYTabID`，Persistence 接收宿主 Schema。
-6. ExampleApp 是完整接入范例，而非组件 Demo。
+后续任务见 [ROADMAP](ROADMAP.md)，公共 API 迁移见 [CHANGELOG](../CHANGELOG.md)。
 
-## 主要问题
+## 第二轮交付
 
-### P0
+五个 public-only 消费者与链接检查已接入 CI。分页新增宿主快照展示，旧 VM API 保留；Network 增加 Foundation 配置重载。七个模块、76 个公开 UI/支撑类型及扩展均有能力与未验收项记录。目录增加搜索索引/组合，UI 测试图片使用本地 Loader。没有因单例、继承、AnyView 或依赖箭头进行额外拆库。
 
-**当前没有阻塞性架构问题。** 模板已经可以实际用于新项目。
-
-### P1
-
-- 用真实的离线 App + 网络 App 验证从创建到 TestFlight 的完整流程。
-- `CYAppCore` 不继续膨胀：新能力必须先证明跨 App 高频复用。
-- `GETTING_STARTED` / `ExampleApp` / `ARCHITECTURE` 持续保持一致。
-- Image / Permission / Persistence 测试补强。
-- Feedback / DI 单例测试隔离（`setUp` / `tearDown` 统一重置）。
-- iOS App target / 真机生命周期验证（Package 测试不能替代）。
-
-### P2 / Future
-
-- Theme Token 动态注入 / Theme Pack。
-- Crash / Observability 方案。
-- 性能基准测试与完整 UI Test Matrix。
-- 多 App（5/10/20）版本治理、迁移日志与批量升级工具。
-- 自动生成器 / 复杂发布工具。
-- visionOS / watchOS 适配。
-
-> 以上 P2 并非当前模板缺陷，而是规模扩大后才可能需要的能力。
-
-## 第三方依赖
-
-| 依赖 | 评价 |
-|---|---|
-| FactoryKit | 已深入 DI，当前移除收益低；应控制其使用边界。 |
-| Alamofire | 隔离在 Optional Network，离线 App 可不链接。 |
-| Kingfisher | 隔离在 Optional Image，Core 保留轻量 URLSession 图片加载。 |
-
-当前没有必要为了“纯原生”立即替换依赖。更重要的是不让 Alamofire/Kingfisher 类型泄漏到 Feature 契约。
-
-## 下一步
-
-1. 用一个离线 App 和一个网络 App 走完创建到 TestFlight。
-2. 补 iOS target 构建与关键运行级测试。
-3. 已补图片状态、权限注册、示例批量删除和视频文件测试；继续补图片加载实现、系统权限、迁移/错误路径，并统一反馈管理器与 DI 容器的测试隔离。
-4. `OSLog` subsystem 可配置化。
-5. 等多个 App 出现真实重复需求后，再决定 Theme Token、设置组件或发布工具是否进入模板。
-
-当前最重要的不是继续拆模块或增加功能，而是验证这些边界能否减少新 App 的基础设施工作，并保持后续升级可迁移。
+本轮未发现仍阻塞一般接入的已确认 P1。启动全局配置、包级依赖解析、具体工具类型和平台系统服务边界保留；最低系统实跑/真实媒体/VoiceOver/iOS 大图性能未验收，不能以当前系统通过外推。

@@ -123,6 +123,7 @@ public struct CYSearchFilterBar: View {
                         .clipShape(RoundedRectangle(cornerRadius: CYAppDimens.radiusM))
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("filter".cyLocalized)
             }
         }
     }

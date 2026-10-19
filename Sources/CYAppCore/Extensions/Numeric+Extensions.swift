@@ -27,12 +27,13 @@ extension Double {
         return formatter.string(from: NSNumber(value: self)) ?? "\(self)"
     }
     
-    /// 格式化为人类可读的字节大小
+    /// 格式化为字节大小，有限值向零取整。无法表示为 Int64 时返回原数值文本，不伪装有效字节数。
     public func formattedAsBytes() -> String {
+        guard isFinite, let bytes = Int64(exactly: rounded(.towardZero)) else { return String(self) }
         let bcf = ByteCountFormatter()
         bcf.allowedUnits = [.useAll]
         bcf.countStyle = .file
-        return bcf.string(fromByteCount: Int64(self))
+        return bcf.string(fromByteCount: bytes)
     }
     
     /// 四舍五入到指定小数位

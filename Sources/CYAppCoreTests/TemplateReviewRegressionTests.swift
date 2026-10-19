@@ -31,7 +31,7 @@ private struct ReviewPermission: CYPermissionRequester {
 
 private struct ReviewEndpoint: CYEndpoint {
     let queryItems: [URLQueryItem]?
-    var headers: [String: String]? = nil
+    var headers: [String: String]?
     var path: String { "/search" }
     var method: CYHTTPMethod { .get }
 }

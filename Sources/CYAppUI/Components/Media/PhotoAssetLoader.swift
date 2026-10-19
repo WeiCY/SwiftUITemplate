@@ -134,7 +134,7 @@ public extension CYPhotoAssetLoader {
         // 「所有照片」的 count 和 coverAsset
         let allFetchOptions = fetchOptions(for: filter)
         let allResult = PHAsset.fetchAssets(with: allFetchOptions)
-        if allResult.count > 0 {
+        if allResult.firstObject != nil {
             albums[0] = CYAlbumInfo(
                 id: "__all_photos__",
                 title: "media_all_photos".cyLocalized,
@@ -156,7 +156,7 @@ public extension CYPhotoAssetLoader {
                 self.applyFilter(filter, to: opts)
 
                 let assets = PHAsset.fetchAssets(in: collection, options: opts)
-                guard assets.count > 0 else { return }
+                guard assets.firstObject != nil else { return }
 
                 // 获取实际 count（不带 fetchLimit）
                 let countOpts = PHFetchOptions()

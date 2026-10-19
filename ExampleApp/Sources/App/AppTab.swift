@@ -8,6 +8,7 @@ enum AppTab: String, CaseIterable, Identifiable {
     case home
     case bookmarks
     case settings
+    case components
 
     var id: CYTabID { CYTabID(rawValue: rawValue) }
 
@@ -16,6 +17,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .home: "home_title".exampleLocalized
         case .bookmarks: "bookmarks_title".exampleLocalized
         case .settings: "settings_title".exampleLocalized
+        case .components: "组件 / Components"
         }
     }
 
@@ -24,6 +26,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .home: "doc.text"
         case .bookmarks: "bookmark"
         case .settings: "gearshape"
+        case .components: "square.grid.2x2"
         }
     }
 }
