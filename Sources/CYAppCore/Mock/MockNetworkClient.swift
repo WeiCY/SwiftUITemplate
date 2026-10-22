@@ -179,12 +179,17 @@ public final class MockNetworkClient: CYNetworkClientProtocol, Sendable {
 
     public func upload<T: Decodable & Sendable>(
         _ endpoint: CYEndpoint,
+        strategy: CYResponseStrategy,
         parts: [CYMultipartPart],
         additionalParams: [String: String]?,
         progress: (@Sendable (Double) -> Void)?
     ) async throws -> T {
+        guard strategy == .envelope || strategy == .direct else {
+            throw CYNetworkError.decodingFailed(NSError(domain: "CYNetworkClient", code: -3,
+                userInfo: [NSLocalizedDescriptionKey: "Multipart requires .envelope or .direct"]))
+        }
         record(endpoint, parts: parts, additionalParams: additionalParams)
-        return try await resolveStrategy(endpoint, strategy: .envelope)
+        return try await resolveStrategy(endpoint, strategy: strategy)
     }
 
     public func download(

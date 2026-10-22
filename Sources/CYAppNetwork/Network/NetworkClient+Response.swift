@@ -88,7 +88,7 @@ extension CYNetworkClient {
 
     /// 解码直接响应值；204/205 空响应仅在 `T == CYEmptyResponse` 时视为成功
     /// （合成空实例，避免 Alamofire 抛 `.invalidEmptyResponse`）。
-    private func awaitDirectValue<T: Decodable & Sendable>(
+    func awaitDirectValue<T: Decodable & Sendable>(
         _ dataTask: DataTask<T>
     ) async throws -> NetworkSuccess<T> {
         let response = await dataTask.response

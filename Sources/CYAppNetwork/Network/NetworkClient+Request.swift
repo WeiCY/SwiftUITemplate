@@ -56,7 +56,7 @@ extension CYNetworkClient {
 
         var request = URLRequest(url: url)
         request.httpMethod = endpoint.method.rawValue
-        request.timeoutInterval = timeoutInterval
+        request.timeoutInterval = endpoint.timeoutInterval ?? timeoutInterval
 
         defaultHeaders.forEach { key, value in
             request.setValue(value, forHTTPHeaderField: key)

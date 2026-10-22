@@ -86,6 +86,8 @@ public protocol CYEndpoint: Sendable {
     var keyEncodingStrategy: JSONEncoder.KeyEncodingStrategy { get }
     /// 凭证策略。默认 `.none`，不需要账号体系的 App 无需任何配置。
     var authentication: CYAuthenticationPolicy { get }
+    /// Optional per-request timeout, for example a long-running multipart upload.
+    var timeoutInterval: TimeInterval? { get }
 }
 
 /// CYEndpoint 默认实现 — 可选属性提供默认值
@@ -96,6 +98,7 @@ public extension CYEndpoint {
     var keyDecodingStrategy: JSONDecoder.KeyDecodingStrategy { .convertFromSnakeCase }
     var keyEncodingStrategy: JSONEncoder.KeyEncodingStrategy { .convertToSnakeCase }
     var authentication: CYAuthenticationPolicy { .none }
+    var timeoutInterval: TimeInterval? { nil }
 }
 
 // MARK: - 网络客户端协议
@@ -160,7 +163,7 @@ public protocol CYNetworkClientProtocol: Sendable {
     /// 获取原始响应体 Data（图片、文件等二进制响应，不参与 envelope 解码）
     func requestData(_ endpoint: CYEndpoint) async throws -> Data
 
-    /// 多文件上传（multipart/form-data，带进度回调，fractionCompleted ∈ [0, 1]）
+    /// 多文件上传（显式 .envelope / .direct，带进度回调，fractionCompleted ∈ [0, 1]）
     ///
     /// ```swift
     /// let result = try await networkClient.upload(
@@ -174,6 +177,7 @@ public protocol CYNetworkClientProtocol: Sendable {
     /// ```
     func upload<T: Decodable & Sendable>(
         _ endpoint: CYEndpoint,
+        strategy: CYResponseStrategy,
         parts: [CYMultipartPart],
         additionalParams: [String: String]?,
         progress: (@Sendable (Double) -> Void)?
@@ -190,6 +194,23 @@ public protocol CYNetworkClientProtocol: Sendable {
 // MARK: - 便捷扩展（基于 send / upload / download 组合）
 
 public extension CYNetworkClientProtocol {
+    /// Multipart defaults to the envelope protocol; select .direct explicitly for REST resources.
+    func upload<T: Decodable & Sendable>(
+        _ endpoint: CYEndpoint,
+        parts: [CYMultipartPart],
+        additionalParams: [String: String]?,
+        progress: (@Sendable (Double) -> Void)?
+    ) async throws -> T {
+        try await upload(endpoint, strategy: .envelope, parts: parts, additionalParams: additionalParams, progress: progress)
+    }
+
+    func upload<T: Decodable & Sendable>(
+        _ endpoint: CYEndpoint,
+        strategy: CYResponseStrategy,
+        parts: [CYMultipartPart]
+    ) async throws -> T {
+        try await upload(endpoint, strategy: strategy, parts: parts, additionalParams: nil, progress: nil)
+    }
 
     /// 发起请求并自动解包 `CYAPIResponse.data`（等价 `send(.envelope)`）
     /// 业务错误码非 0 时自动抛出 `CYNetworkError.businessError`

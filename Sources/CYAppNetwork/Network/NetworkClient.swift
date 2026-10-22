@@ -198,14 +198,21 @@ public final class CYNetworkClient: CYNetworkClientProtocol, Sendable {
     ) async throws -> T {
         switch strategy {
         case .envelope:
-            // 唯一走「业务码判定 + 401 自动刷新」的链路（对应 request）
+            // 封套解包与业务码判定；required 请求可恢复认证。
             return try await performRequest(endpoint) {
                 let result: NetworkSuccess<T> = try await self.fetchEnvelope(endpoint, urlRequest: urlRequest)
                 try await self.applyFinalResponseInterceptors(result.response, data: result.data)
                 return result.value
             }
 
-        case .envelopeRaw, .direct:
+        case .direct:
+            return try await performRequest(endpoint) {
+                let result: NetworkSuccess<T> = try await self.fetchDirect(endpoint, urlRequest: urlRequest)
+                try await self.applyFinalResponseInterceptors(result.response, data: result.data)
+                return result.value
+            }
+
+        case .envelopeRaw:
             return try await sendDirect(endpoint, urlRequest: urlRequest)
 
         case .empty:
@@ -225,7 +232,7 @@ public final class CYNetworkClient: CYNetworkClientProtocol, Sendable {
         }
     }
 
-    /// raw 策略（envelopeRaw / direct / empty）的发送链路：不经业务码判定、不自动刷新，
+    /// raw 策略（envelopeRaw / empty）的发送链路：不经业务码判定、不自动刷新，
     /// 响应拦截器在终态统一调用。
     private func sendDirect<T: Decodable & Sendable>(
         _ endpoint: CYEndpoint,

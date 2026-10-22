@@ -319,7 +319,7 @@ task.cancel()
 - 仅 `.required` 端点在 HTTP 401 或业务码命中 `tokenExpiredCodes` 时触发恢复 + 重放
 - **最多重放一次**：重放仍 401 或恢复失败时直接抛错
 - `.none` 与 `.optional` 端点不触发凭证恢复
-- **`requestRaw` / `direct` / `empty` / `requestData`** → raw 语义，401 不触发刷新
+- **`requestRaw` / `empty` / `requestData`** → raw 语义，401 不触发刷新
 - 恢复动作由宿主通过 `CYCredentialRecovery` 提供，不绑定具体 Token 模型
 
 ---
@@ -456,3 +456,12 @@ mock.clearRecordedRequests()                   // 清空记录（保留已注册
 2. **响应拦截器只收到终态响应**：瞬态 401（刷新成功后重放的中间态）不会触发自动登出等逻辑。
 3. **`post` / `CYUploadConfig` 已删除**：改用 `request(_:body:)` / `upload(parts:)`。
 4. **协议收敛为 5 个核心要求**：`send`×2、`requestData`、`upload(parts:progress:)`、`download(progress:)`，其余为协议扩展。
+
+
+## REST 直接响应与 multipart
+
+对无封套的 REST API，使用 `send(endpoint, strategy: .direct)`。图片等 multipart 上传也支持显式 `upload(endpoint, strategy: .direct, parts: parts)`；不尝试自动识别或混用封套。`.direct` JSON 和上传都会遵循端点的 authentication 策略：仅 `.required` 在认证失败时使用宿主 `CYCredentialRecovery`，最多重放一次，瞬态 401 不调用终态退出拦截器。`.none` / `.optional` 不刷新。
+
+端点可以通过 `var timeoutInterval: TimeInterval? { 150 }` 覆盖客户端默认超时。普通 JSON 请求可保持 30 秒；长时间图片处理可独立配置。multipart 的显式策略目前仅支持 `.envelope` 与 `.direct`，不支持的策略在发送前报配置错误。
+
+新增 `DirectResponseTests` 覆盖 JSON / multipart 401 恢复、重试上限、公开端点边界、422 响应体和请求超时。该变更在 Linux 环境完成，Swift/Xcode 测试需在 macOS 运行，未宣称本地通过。

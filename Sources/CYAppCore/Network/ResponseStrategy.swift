@@ -25,6 +25,7 @@ public enum CYResponseStrategy: Sendable, Equatable {
 
     /// 响应体直接解码为 `T`（无外层 envelope）
     /// 适用于 OpenAPI / 第三方接口等非统一包装响应
+    /// .required 端点使用宿主配置的凭证恢复，最多重放一次；公开端点不恢复。
     case direct
 
     /// 显式空响应体策略（204/205），仅 `CYEmptyResponse` 可用

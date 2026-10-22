@@ -19,10 +19,15 @@ extension CYNetworkClient {
     /// ```
     public func upload<T: Decodable & Sendable>(
         _ endpoint: CYEndpoint,
+        strategy: CYResponseStrategy,
         parts: [CYMultipartPart],
         additionalParams: [String: String]?,
         progress: (@Sendable (Double) -> Void)?
     ) async throws -> T {
+        guard strategy == .envelope || strategy == .direct else {
+            throw CYNetworkError.decodingFailed(NSError(domain: "CYNetworkClient", code: -3,
+                userInfo: [NSLocalizedDescriptionKey: "Multipart requires .envelope or .direct"]))
+        }
         let limitMB = CYAppConstants.maxUploadSizeMB
         let limitBytes = limitMB * 1_024 * 1_024
         let totalBytes = parts.reduce(0) { $0 + $1.data.count }
@@ -36,7 +41,7 @@ extension CYNetworkClient {
             var urlRequest = try self.buildURLRequest(for: endpoint)
             try await self.applyRequestInterceptors(to: &urlRequest, authentication: endpoint.authentication)
 
-            let uploadTask = self.session.upload(multipartFormData: { formData in
+            let uploadRequest = self.session.upload(multipartFormData: { formData in
                 for part in parts {
                     formData.append(part.data, withName: part.paramName, fileName: part.fileName, mimeType: part.mimeType)
                 }
@@ -58,7 +63,15 @@ extension CYNetworkClient {
             .uploadProgress { uploadProgress in
                 progress?(uploadProgress.fractionCompleted)
             }
-            .serializingDecodable(CYAPIResponse<T>.self, decoder: self.makeDecoder(for: endpoint))
+
+            if strategy == .direct {
+                let task = uploadRequest.serializingDecodable(T.self, decoder: self.makeDecoder(for: endpoint))
+                let result = try await self.awaitDirectValue(task)
+                try await self.applyFinalResponseInterceptors(result.response, data: result.data)
+                return result.value
+            }
+
+            let uploadTask = uploadRequest.serializingDecodable(CYAPIResponse<T>.self, decoder: self.makeDecoder(for: endpoint))
 
             let response = await uploadTask.response
             let value: T
