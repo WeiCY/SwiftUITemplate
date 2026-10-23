@@ -69,7 +69,11 @@ extension CYNetworkClient {
         if endpoint.method != .get {
             if let encodableBody {
                 // 优先使用 Encodable 类型安全编码
-                request.httpBody = try makeEncoder(for: endpoint).encode(encodableBody)
+                do {
+                    request.httpBody = try makeEncoder(for: endpoint).encode(encodableBody)
+                } catch {
+                    throw CYNetworkError.encodingFailed(error)
+                }
                 if request.value(forHTTPHeaderField: "Content-Type") == nil {
                     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                 }
@@ -103,6 +107,7 @@ extension CYNetworkClient {
         to request: inout URLRequest,
         authentication: CYAuthenticationPolicy
     ) async throws {
+        guard !Task.isCancelled else { throw CYNetworkError.cancelled }
         let interceptors = currentRequestInterceptors()
         for interceptor in interceptors {
             if let authenticationInterceptor = interceptor as? any CYAuthenticationRequestInterceptor {
@@ -110,6 +115,7 @@ extension CYNetworkClient {
             } else {
                 await interceptor.intercept(&request)
             }
+            guard !Task.isCancelled else { throw CYNetworkError.cancelled }
         }
     }
 
@@ -123,6 +129,7 @@ extension CYNetworkClient {
     /// 凭证恢复链路的终态成功出口；保留拦截器错误来源，防止错误被当成请求认证失败重放。
     func applyFinalResponseInterceptors(_ response: URLResponse?, data: Data?) async throws {
         do {
+            guard !Task.isCancelled else { throw CYNetworkError.cancelled }
             try await applyResponseInterceptors(response, data: data)
         } catch {
             throw ResponseInterceptorFailure(error: error)

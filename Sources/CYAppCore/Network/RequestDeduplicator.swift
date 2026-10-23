@@ -106,32 +106,10 @@ public actor CYRequestDeduplicator {
 
 // MARK: - Endpoint 扩展（自动生成去重键）
 
-private struct DeduplicationQuery: Encodable {
-    let name: String
-    let value: String?
-}
-private struct DeduplicationIdentity: Encodable {
-    let method: String
-    let path: String
-    let query: [DeduplicationQuery]
-    let body: CYRequestParams?
-    let headers: [String: String]?
-    let authentication: String
-}
-
 extension CYEndpoint {
-    /// 结构化编码 method/path/query/body/headers/authentication 后生成稳定摘要。
-    /// query 保留原始顺序及 nil 值，避免重复参数、分隔符和空值被错误合并。
+    /// Stable digest of the same structured identity used by endpoint-specific mocks.
     public var deduplicationKey: String {
-        let identity = DeduplicationIdentity(
-            method: method.rawValue, path: path,
-            query: (queryItems ?? []).map { DeduplicationQuery(name: $0.name, value: $0.value) },
-            body: body, headers: headers, authentication: String(describing: authentication)
-        )
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        // 非法 JSON（例如 NaN）不能复用结果；实际请求仍会抛出编码错误。
-        guard let data = try? encoder.encode(identity) else { return UUID().uuidString }
+        guard let data = try? encodedRequestIdentity() else { return UUID().uuidString }
         return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }

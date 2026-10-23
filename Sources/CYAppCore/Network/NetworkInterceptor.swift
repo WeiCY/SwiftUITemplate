@@ -18,9 +18,9 @@ public protocol CYResponseInterceptor: Sendable {
 
 // MARK: - 日志拦截器
 
-/// 日志拦截器 — 打印完整的请求和响应信息
+/// 日志拦截器 — 默认记录脱敏后的 URL、Header 和状态，正文需显式开启。
 ///
-/// 输出示例：
+/// `includeBody: true` 的输出示例：
 /// ```
 /// → POST https://api.example.com/auth/login
 ///   Headers: [Content-Type: application/json]
@@ -33,7 +33,7 @@ public struct CYLoggingInterceptor: CYRequestInterceptor, CYResponseInterceptor,
     /// 是否打印请求/响应 Body
     private let includeBody: Bool
     
-    public init(includeBody: Bool = true) {
+    public init(includeBody: Bool = false) {
         self.includeBody = includeBody
     }
     
@@ -158,13 +158,40 @@ public actor CYCredentialRecoveryCoordinator {
         self.recovery = recovery
     }
 
+    /// 取消当前等待会返回 false，但不会中断共享恢复或触发 onFailure。
+    /// 调用方可用 Task.isCancelled 区分取消与恢复失败；网络客户端将取消映射为 .cancelled。
     public func recoverIfNeeded() async -> Bool {
-        if let existing = recoveryTask { return await existing.value }
-        let task = Task { await recovery.attemptRecovery() }
-        recoveryTask = task
-        let result = await task.value
+        let id = UUID()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                guard !Task.isCancelled else {
+                    continuation.resume(returning: false)
+                    return
+                }
+                waiters[id] = continuation
+                guard recoveryTask == nil else { return }
+                let task = Task { await recovery.attemptRecovery() }
+                recoveryTask = task
+                Task { finishRecovery(await task.value) }
+            }
+        } onCancel: {
+            Task { await self.cancelWaiter(id) }
+        }
+    }
+
+    // Cancellation releases only this caller; shared recovery may still rotate credentials
+    // for other requests. Do not cancel it, even when the last waiter leaves.
+    private var waiters: [UUID: CheckedContinuation<Bool, Never>] = [:]
+
+    private func cancelWaiter(_ id: UUID) {
+        waiters.removeValue(forKey: id)?.resume(returning: false)
+    }
+
+    private func finishRecovery(_ result: Bool) {
         recoveryTask = nil
-        return result
+        let pending = waiters.values
+        waiters.removeAll()
+        for continuation in pending { continuation.resume(returning: result) }
     }
 }
 

@@ -1,3 +1,7 @@
+# 2026-10-23 网络增量验证
+
+本轮单独记录于 [NETWORK_VALIDATION_2026-10-23.md](NETWORK_VALIDATION_2026-10-23.md)。下方为历史结果，不表示本次变更已通过 Apple 平台构建。
+
 # 工程验证记录
 
 日期：2026-10-18；主干 Unreleased。Xcode 26.5 (17F42)，Swift 6 模式，arm64 macOS；iOS 26.5 的 iPhone 17 模拟器。未提交、推送、打 tag 或发布。

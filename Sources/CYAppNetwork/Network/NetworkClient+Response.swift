@@ -24,6 +24,7 @@ extension CYNetworkClient {
         let dataTask = session.request(urlRequest)
             .validate(statusCode: 200..<300)
         let response = await dataTask.serializingData().response
+        guard !Task.isCancelled else { throw CYNetworkError.cancelled }
         if let error = response.error {
             try? await self.applyResponseInterceptors(response.response, data: response.data)
             let mapped = self.mapNetworkError(error, data: response.data)
@@ -47,21 +48,34 @@ extension CYNetworkClient {
         try await applyRequestInterceptors(to: &urlRequest, authentication: endpoint.authentication)
         let dataTask = session.request(urlRequest)
             .validate(statusCode: 200..<300)
-            .serializingDecodable(CYAPIResponse<T>.self, decoder: makeDecoder(for: endpoint))
+            .serializingData()
+        return try await awaitEnvelopeValue(dataTask, endpoint: endpoint)
+    }
+
+    /// JSON requests and multipart uploads share status, business-error and empty-body handling.
+    func awaitEnvelopeValue<T: Decodable & Sendable>(
+        _ dataTask: DataTask<Data>,
+        endpoint: CYEndpoint
+    ) async throws -> NetworkSuccess<T> {
         let response = await dataTask.response
         do {
-            // HTTP 空响应无需伪造业务码，也不受 successCodes 配置影响。
+            guard !Task.isCancelled else { throw CYNetworkError.cancelled }
+            if let error = response.error { throw error }
             if T.self == CYEmptyResponse.self,
                let status = response.response?.statusCode, (204...205).contains(status),
                response.data?.isEmpty ?? true,
                let empty = CYEmptyResponse() as? T {
-                if let error = response.error {
-                    // 仅绕过空 envelope 的序列化失败，保留取消等传输错误。
-                    guard case .responseSerializationFailed = error else { throw error }
-                }
                 return NetworkSuccess(value: empty, response: response.response, data: response.data)
             }
-            let envelope = try await dataTask.value
+            let data = try response.result.get()
+            let decoder = makeDecoder(for: endpoint)
+            // A failure body may contain validation details instead of the success model.
+            // Classify its envelope first; only successful data is decoded as T.
+            let metadata = try decoder.decode(NetworkEnvelopeMetadata.self, from: data)
+            let _: CYEmptyResponse = try resolveData(CYAPIResponse(
+                code: metadata.code, data: CYEmptyResponse(), message: metadata.message
+            ))
+            let envelope = try decoder.decode(CYAPIResponse<T>.self, from: data)
             return NetworkSuccess(value: try resolveData(envelope), response: response.response, data: response.data)
         } catch {
             throw NetworkFailure(
@@ -92,11 +106,19 @@ extension CYNetworkClient {
         _ dataTask: DataTask<T>
     ) async throws -> NetworkSuccess<T> {
         let response = await dataTask.response
+        guard !Task.isCancelled else { throw CYNetworkError.cancelled }
         if T.self == CYEmptyResponse.self,
            let statusCode = response.response?.statusCode,
            (204...205).contains(statusCode),
            response.data?.isEmpty ?? true,
            let empty = CYEmptyResponse() as? T {
+            if let error = response.error {
+                // Bypass only the serializer's lack of an EmptyResponse conformance.
+                guard case .responseSerializationFailed = error else {
+                    throw NetworkFailure(cyError: mapNetworkError(error, data: response.data),
+                                         response: response.response, data: response.data)
+                }
+            }
             return NetworkSuccess(value: empty, response: response.response, data: response.data)
         }
         do {
@@ -217,5 +239,20 @@ extension CYNetworkClient {
         // Error descriptions can contain server bodies, credentials or raw URLs.
         message += " | \(String(describing: type(of: error))) (details omitted)"
         return message
+    }
+}
+
+/// Deliberately omits data: error payloads do not have to conform to a success model.
+/// Raw envelope decoding retains CYAPIResponse's strict data validation.
+private struct NetworkEnvelopeMetadata: Decodable {
+    let code: Int
+    let message: String?
+
+    private enum CodingKeys: String, CodingKey { case code, message }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        code = container.contains(.code) ? try container.decode(Int.self, forKey: .code) : 0
+        message = try container.decodeIfPresent(String.self, forKey: .message)
     }
 }

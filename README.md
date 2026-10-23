@@ -78,7 +78,8 @@ python3 scripts/verify-component-matrix.py
 - [模板规则](docs/TEMPLATE_RULES.md)
 - [接入指南](docs/GETTING_STARTED.md)
 - [架构与扩展边界](docs/ARCHITECTURE.md)
-- [网络指南](docs/NETWORK_GUIDE.md)
+- [网络指南](docs/NETWORK_GUIDE.md)：统一 send、响应策略、可取消的凭证恢复和协议注入 Mock；日志正文默认关闭。
+- [本轮网络验证范围](docs/NETWORK_VALIDATION_2026-10-23.md)：Linux 针对性验证与 Apple 平台待验证项。
 - [当前复核结论](docs/REVIEW.md)
 - [路线图](docs/ROADMAP.md)
 - [变更与迁移](CHANGELOG.md)

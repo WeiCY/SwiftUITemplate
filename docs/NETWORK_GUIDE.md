@@ -362,8 +362,8 @@ query 保留顺序和 nil 值，Encodable body 使用端点编码策略和 sorte
 | 请求/响应体 | `password` / `token` / `access_token` / `refresh_token` / `secret` / `api_key` 等字段 → `***`，递归覆盖对象和数组，字段名忽略大小写、下划线和连字符 |
 
 ```swift
-CYLoggingInterceptor()                      // 打印请求 + 响应 Body
-CYLoggingInterceptor(includeBody: false)    // 只打印请求行与 Header
+CYLoggingInterceptor()                     // 默认省略 Body，保留脱敏后的 URL / Header / 状态
+CYLoggingInterceptor(includeBody: true)    // 调试时显式开启脱敏后的请求、响应 Body
 ```
 
 所有内置入口共用 `CYNetworkLogRedactor`。非 JSON 对象/数组的 Body（包括表单、二进制、损坏 JSON 和标量 JSON）只输出隐藏提示和字节数，不回退全文。响应 Body 在脱敏后截断。
@@ -412,8 +412,7 @@ let _: CYEmptyResponse = try await networkClient.request(UserEndpoint.delete(id:
   仅在 successCodes 包含 0 时成功。业务失败仍抛对应错误。
 - 非空结果类型不允许缺失 data；HTTP 204/205 空 body 也不会为非空类型合成数据。
 
-上传接口仍按 envelope 解码；上述 HTTP 空响应特例适用于 `send` / `request` /
-`requestVoid` 的 CYEmptyResponse 链路，不能视为 multipart 上传的空响应约定。
+`upload(strategy: .envelope)` 与普通请求共用空响应与业务码解析，204/205 + `CYEmptyResponse` 同样成功。`.direct` 上传继续支持无封套响应。空响应只绕过必要的空体解析，不会把传输失败或取消当成成功。
 
 ---
 
@@ -422,7 +421,7 @@ let _: CYEmptyResponse = try await networkClient.request(UserEndpoint.delete(id:
 ```swift
 let mock = MockNetworkClient()
 mock.registerResponse(User(id: 1, name: "Test"))          // 按类型注册
-mock.registerResponse(User(id: 2, name: "B"), for: UserEndpoint.profile)  // 按端点注册
+mock.registerResponse(for: UserEndpoint.profile, User(id: 2, name: "B"))  // 按端点注册
 mock.registerError(for: User.self, CYNetworkError.timeout) // 注册错误
 mock.shouldFail = true                                     // 全局失败
 
@@ -430,6 +429,10 @@ let user: User = try await mock.request(UserEndpoint.profile)          // 走 se
 let raw: CYAPIResponse<User> = try await mock.requestRaw(UserEndpoint.profile)  // 注册普通值自动包 envelope
 let data: Data = try await mock.requestData(ImageEndpoint.fetch)       // 注册 Data
 ```
+
+具体 `MockNetworkClient` 和注入为 `any CYNetworkClientProtocol` 时，`requestRaw` 使用同一条路径：注册普通 `T` 可自动包装为成功 envelope，显式注册的 envelope 或错误优先，不吞掉错误再回退。默认包装成功码仍为 0；需要自定义 code/message 时注册完整 `CYAPIResponse`。
+
+端点匹配包含 method、path、queryItems、字典 body、headers 和 authentication；同一路径不同分页参数不会互相覆盖。query 保留顺序、重复项和 nil/空值区别。用 `send(..., body:)` 传入的独立 Encodable body 不参与注册键；可通过记录断言它，或为不同场景创建不同 Mock 实例。
 
 Mock 只需实现 `send`×2 / `requestData` / `upload` / `download` 五个核心方法，其余 API 由协议扩展自动提供。
 
@@ -446,7 +449,7 @@ try JSONDecoder().decode(UpdateBody.self, from: body!)  // 断言实际发送内
 mock.clearRecordedRequests()                   // 清空记录（保留已注册响应）
 ```
 
-记录包含失败的调用（`shouldFail` 或注册错误），便于验证「请求已发出但失败」。
+记录包含失败的调用（`shouldFail` 或注册错误），便于验证「请求已发出但失败」。Encodable body 使用端点编码策略（默认 snake_case），编码失败抛 `.encodingFailed`，与生产客户端一致；这类发送前失败不会写入已发送记录。解码记录时也应使用对应的 `JSONDecoder.keyDecodingStrategy`。
 
 ---
 
@@ -465,3 +468,16 @@ mock.clearRecordedRequests()                   // 清空记录（保留已注册
 端点可以通过 `var timeoutInterval: TimeInterval? { 150 }` 覆盖客户端默认超时。普通 JSON 请求可保持 30 秒；长时间图片处理可独立配置。multipart 的显式策略目前仅支持 `.envelope` 与 `.direct`，不支持的策略在发送前报配置错误。
 
 新增 `DirectResponseTests` 覆盖 JSON / multipart 401 恢复、重试上限、公开端点边界、422 响应体和请求超时。该变更在 Linux 环境完成，Swift/Xcode 测试需在 macOS 运行，未宣称本地通过。
+
+
+## 17. 响应与取消边界补强（2026-10-23）
+
+本轮基于主分支 `1ca0451`，不是 SolarTerms 锁定的旧版 1.0.1。保留现有 `send` / `CYResponseStrategy` / Session 注入，不再增加平行的请求框架。
+
+- `.envelope` 先解析 code/message，再决定是否按成功模型解析 data。例如 `{"code":422,"message":"名称必填","data":{"fields":["name"]}}` 返回业务错误，data 不必符合成功模型。凭证过期错误也能继续进入现有恢复流程。
+- 成功响应保持严格解码，字段类型错误保留原 `DecodingError.codingPath`。`.envelopeRaw` 仍严格解码完整 envelope，不新增恢复行为。
+- 请求在拦截器等待或凭证恢复期间取消后，返回 `.cancelled`，不继续发送/重放。取消恢复等待会及时释放该调用方，不等待共享恢复动作完成；其他调用方仍可复用恢复结果。
+- 即使最后一个等待者取消，共享恢复仍运行至完成，避免中断已在轮换的凭证。宿主应给恢复动作设置合理的超时，并在宿主内处理账号切换/登出代次；此机制不替代账号生命周期管理。
+- 取消不能撤回服务端已经执行的写操作；原有“最多恢复并重放一次”契约保持。
+
+Linux 针对性验证命令：`CY_SWIFT=/path/to/swift python3 scripts/test-network-linux.py`。其范围及 Apple 平台待验证事项见 [本轮记录](NETWORK_VALIDATION_2026-10-23.md)。

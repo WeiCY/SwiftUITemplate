@@ -10,6 +10,17 @@
 
 ### [Unreleased]
 
+#### 网络行为补强（2026-10-23）
+
+- 基于最新主分支 `1ca0451` 保留现有网络 API，不新增依赖、不更改发布版本。
+- envelope 先判定业务码再解码成功数据，错误 data 的其他形状不再遮住业务错误或凭证恢复；成功数据与 raw envelope 继续严格解码。
+- 普通请求与 multipart 共用 envelope 解析，上传的 204/205 空成功响应支持 CYEmptyResponse；direct 空响应不再吞掉传输取消。
+- 拦截器及恢复等待期间取消不再继续发送/重放；取消等待立即释放该调用方，共享恢复继续服务其他请求。
+- Mock 通过协议注入后的 requestRaw 与具体类型一致，显式注册错误优先；端点匹配纳入 query/body/header/认证策略，编码遵循端点策略且显式抛错。生产 Encodable 编码错误统一映射为 encodingFailed。
+- **默认行为变化**：CYLoggingInterceptor 默认省略请求/响应正文；需要正文时显式 includeBody: true，仍执行既有脱敏规则。
+- 新增回归测试和独立 Linux 网络验证脚本；实际结果及未运行项见 docs/NETWORK_VALIDATION_2026-10-23.md。历史 Apple 平台结果不代表本次变更已在 Apple 平台通过。
+
+
 #### 最终交付收尾（2026-10-19）
 
 - 核对源码、资源、回归测试、ExampleApp工程、独立消费者、脚本及文档引用完整性，保留必要小屏验证截图；无新增功能或架构重构。

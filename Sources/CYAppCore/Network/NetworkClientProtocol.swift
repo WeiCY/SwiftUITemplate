@@ -67,7 +67,7 @@ public enum CYAuthenticationPolicy: Sendable, Equatable {
 ///
 /// // 在 ViewModel 中使用：
 /// let loginBody = LoginRequest(username: "john", password: "123", deviceId: "xxx")
-/// let user: User = try await networkClient.post(UserAPI.login, body: loginBody)
+/// let user: User = try await networkClient.request(UserAPI.login, body: loginBody)
 /// ```
 public protocol CYEndpoint: Sendable {
     /// 请求路径（如 "/api/user/profile"）
@@ -109,7 +109,7 @@ public extension CYEndpoint {
 ///
 /// **两种请求模式：**
 /// ```swift
-/// // 模式 1：自动解包 CYAPIResponse（推荐，99% 场景）
+/// // 模式 1：后端使用统一 envelope 时，自动解包 CYAPIResponse
 /// let user: User = try await networkClient.request(UserEndpoint.profile)
 ///
 /// // 模式 2：获取完整 CYAPIResponse
@@ -213,7 +213,7 @@ public extension CYNetworkClientProtocol {
     }
 
     /// 发起请求并自动解包 `CYAPIResponse.data`（等价 `send(.envelope)`）
-    /// 业务错误码非 0 时自动抛出 `CYNetworkError.businessError`
+    /// 按 `CYBusinessCodePolicy` 判断成功、业务错误和凭证恢复。
     func request<T: Decodable & Sendable>(_ endpoint: CYEndpoint) async throws -> T {
         try await send(endpoint, strategy: .envelope)
     }

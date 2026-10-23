@@ -147,8 +147,13 @@ public final class CYNetworkClient: CYNetworkClientProtocol, Sendable {
         hasRefreshed: Bool
     ) async throws -> T {
         do {
-            return try await build()
+            guard !Task.isCancelled else { throw CYNetworkError.cancelled }
+            let result = try await build()
+            guard !Task.isCancelled else { throw CYNetworkError.cancelled }
+            return result
         } catch {
+            // A cancelled caller must not replay a write or report a transient 401 as logout.
+            guard !Task.isCancelled else { throw CYNetworkError.cancelled }
             let failure = error as? NetworkFailure
             let interceptorFailure = error as? ResponseInterceptorFailure
             let rawError = interceptorFailure?.error ?? failure?.cyError ?? error
@@ -157,7 +162,9 @@ public final class CYNetworkClient: CYNetworkClientProtocol, Sendable {
             // 只有明确要求凭证的端点才允许恢复；公开或可选鉴权请求不会隐式改变账号状态。
             if !hasRefreshed, requiresRefresh, endpoint.authentication == .required,
                let coordinator = state.withLock({ $0.credentialRecoveryCoordinator }) {
-                if await coordinator.recoverIfNeeded() {
+                let recovered = await coordinator.recoverIfNeeded()
+                guard !Task.isCancelled else { throw CYNetworkError.cancelled }
+                if recovered {
                     // 重放时凭证拦截器会重新读取宿主更新后的 Authorization Header。
                     return try await _performRequest(endpoint, build, hasRefreshed: true)
                 }

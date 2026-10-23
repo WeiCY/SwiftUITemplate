@@ -71,24 +71,11 @@ extension CYNetworkClient {
                 return result.value
             }
 
-            let uploadTask = uploadRequest.serializingDecodable(CYAPIResponse<T>.self, decoder: self.makeDecoder(for: endpoint))
-
-            let response = await uploadTask.response
-            let value: T
-            do {
-                let apiResponse = try await uploadTask.value
-                value = try self.resolveData(apiResponse)
-            } catch {
-                // 解码失败：携带终态响应抛出，由上层在终态统一应用响应拦截器
-                throw NetworkFailure(
-                    cyError: self.mapNetworkError(error, data: response.data),
-                    response: response.response,
-                    data: response.data
-                )
-            }
-
-            try await self.applyFinalResponseInterceptors(response.response, data: response.data)
-            return value
+            let result: NetworkSuccess<T> = try await self.awaitEnvelopeValue(
+                uploadRequest.serializingData(), endpoint: endpoint
+            )
+            try await self.applyFinalResponseInterceptors(result.response, data: result.data)
+            return result.value
         }
     }
 

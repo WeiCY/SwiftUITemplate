@@ -1,0 +1,139 @@
+Focused network harness: real transport; Apple UI, OSLog and bundle localization excluded.
+Excluded on Linux (Foundation InputStream trap): DirectResponseTests.testMultipartDirectResponseRecoversOnceAndHonorsEndpointTimeout
+warning: /home/agent/.swiftpm/configuration is not accessible or not writable, disabling user-level cache features.
+warning: /home/agent/.swiftpm/security is not accessible or not writable, disabling user-level cache features.
+[0/1] Planning build
+Building for debugging...
+[0/3] Write sources
+[1/3] Write swift-version--BC72E87425739E5.txt
+[3/6] Compiling NetworkValidationTests NetworkReliabilityTests.swift
+/workspace/SwiftUITemplate/.build/network-linux/Sources/NetworkValidationTests/NetworkReliabilityTests.swift:228:69: warning: conformance of 'ReliabilityURLProtocol' to protocol 'Sendable' is already unavailable
+226 | }
+227 |
+228 | private final class ReliabilityURLProtocol: URLProtocol, @unchecked Sendable {
+    |                     |                                               `- warning: conformance of 'ReliabilityURLProtocol' to protocol 'Sendable' is already unavailable
+    |                     `- note: 'ReliabilityURLProtocol' inherits conformance to protocol 'Sendable' from superclass here
+229 |     static let handler = Mutex<(@Sendable (URLRequest) throws -> (Int, Data, URLError?))?>(nil)
+230 |     override class func canInit(with request: URLRequest) -> Bool { request.url?.host == "reliability.example.test" }
+[4/6] Compiling NetworkValidationTests CredentialCancellationTests.swift
+[5/6] Emitting module NetworkValidationTests
+/workspace/SwiftUITemplate/.build/network-linux/Sources/NetworkValidationTests/DirectResponseTests.swift:114:64: warning: conformance of 'DirectURLProtocol' to protocol 'Sendable' is already unavailable
+112 | }
+113 |
+114 | private final class DirectURLProtocol: URLProtocol, @unchecked Sendable {
+    |                     |                                          `- warning: conformance of 'DirectURLProtocol' to protocol 'Sendable' is already unavailable
+    |                     `- note: 'DirectURLProtocol' inherits conformance to protocol 'Sendable' from superclass here
+115 |     static let handler = Mutex<(@Sendable (URLRequest) throws -> (Int, Data))?>(nil)
+116 |     override class func canInit(with request: URLRequest) -> Bool { request.url?.host == "direct.example.test" }
+
+/workspace/SwiftUITemplate/.build/network-linux/Sources/NetworkValidationTests/NetworkReliabilityTests.swift:228:69: warning: conformance of 'ReliabilityURLProtocol' to protocol 'Sendable' is already unavailable
+226 | }
+227 |
+228 | private final class ReliabilityURLProtocol: URLProtocol, @unchecked Sendable {
+    |                     |                                               `- warning: conformance of 'ReliabilityURLProtocol' to protocol 'Sendable' is already unavailable
+    |                     `- note: 'ReliabilityURLProtocol' inherits conformance to protocol 'Sendable' from superclass here
+229 |     static let handler = Mutex<(@Sendable (URLRequest) throws -> (Int, Data, URLError?))?>(nil)
+230 |     override class func canInit(with request: URLRequest) -> Bool { request.url?.host == "reliability.example.test" }
+[6/13] /workspace/SwiftUITemplate/.build/network-linux/.build/x86_64-unknown-linux-gnu/debug/NetworkValidationPackageDiscoveredTests.derived/all-discovered-tests.swift
+[7/14] Write sources
+[8/14] Wrapping AST for NetworkValidationTests for debugging
+[10/17] Compiling NetworkValidationPackageDiscoveredTests all-discovered-tests.swift
+[11/17] Emitting module NetworkValidationPackageDiscoveredTests
+[12/17] Compiling NetworkValidationPackageDiscoveredTests NetworkValidationTests.swift
+[13/18] /workspace/SwiftUITemplate/.build/network-linux/.build/x86_64-unknown-linux-gnu/debug/NetworkValidationPackageTests.derived/runner.swift
+[14/19] Write sources
+[15/19] Wrapping AST for NetworkValidationPackageDiscoveredTests for debugging
+[17/21] Emitting module NetworkValidationPackageTests
+[18/21] Compiling NetworkValidationPackageTests runner.swift
+[19/21] Write Objects.LinkFileList
+[20/21] Linking NetworkValidationPackageTests.xctest
+Build complete! (2.49s)
+Test Suite 'Selected tests' started at 2026-10-23 16:28:54.705
+Test Suite 'CredentialCancellationTests' started at 2026-10-23 16:28:54.706
+Test Case 'CredentialCancellationTests.testAlreadyCancelledCallerDoesNotStartRecoveryOrRequest' started at 2026-10-23 16:28:54.706
+Test Case 'CredentialCancellationTests.testAlreadyCancelledCallerDoesNotStartRecoveryOrRequest' passed (0.004 seconds)
+Test Case 'CredentialCancellationTests.testCancelledCoordinatorCallerDoesNotStartRecovery' started at 2026-10-23 16:28:54.711
+Test Case 'CredentialCancellationTests.testCancelledCoordinatorCallerDoesNotStartRecovery' passed (0.0 seconds)
+Test Case 'CredentialCancellationTests.testCancelledWaiterReturnsBeforeRecoveryFinishesWithoutReplaying' started at 2026-10-23 16:28:54.711
+Test Case 'CredentialCancellationTests.testCancelledWaiterReturnsBeforeRecoveryFinishesWithoutReplaying' passed (0.001 seconds)
+Test Suite 'CredentialCancellationTests' passed at 2026-10-23 16:28:54.712
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.006 (0.006) seconds
+Test Suite 'DirectResponseTests' started at 2026-10-23 16:28:54.712
+Test Case 'DirectResponseTests.testDirectJSONRecovers401AndReappliesCredentials' started at 2026-10-23 16:28:54.712
+Test Case 'DirectResponseTests.testDirectJSONRecovers401AndReappliesCredentials' passed (0.004 seconds)
+Test Case 'DirectResponseTests.testDirectJSONStopsAfterOneReplayAndReportsOnlyTerminal401' started at 2026-10-23 16:28:54.716
+Test Case 'DirectResponseTests.testDirectJSONStopsAfterOneReplayAndReportsOnlyTerminal401' passed (0.002 seconds)
+Test Case 'DirectResponseTests.testDirectValidationFailurePreservesBodyWithoutRecovering' started at 2026-10-23 16:28:54.718
+Test Case 'DirectResponseTests.testDirectValidationFailurePreservesBodyWithoutRecovering' passed (0.001 seconds)
+Test Case 'DirectResponseTests.testPublicDirectJSONDoesNotRecoverCredentials' started at 2026-10-23 16:28:54.719
+Test Case 'DirectResponseTests.testPublicDirectJSONDoesNotRecoverCredentials' passed (0.001 seconds)
+Test Suite 'DirectResponseTests' passed at 2026-10-23 16:28:54.720
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.007 (0.007) seconds
+Test Suite 'MockNetworkReliabilityTests' started at 2026-10-23 16:28:54.720
+Test Case 'MockNetworkReliabilityTests.testMockDistinguishesBodyAndHeaders' started at 2026-10-23 16:28:54.720
+Test Case 'MockNetworkReliabilityTests.testMockDistinguishesBodyAndHeaders' passed (0.002 seconds)
+Test Case 'MockNetworkReliabilityTests.testMockDistinguishesPaginationQueryParameters' started at 2026-10-23 16:28:54.721
+Test Case 'MockNetworkReliabilityTests.testMockDistinguishesPaginationQueryParameters' passed (0.0 seconds)
+Test Case 'MockNetworkReliabilityTests.testMockPropagatesEncodingFailureWithoutRecordingASentRequest' started at 2026-10-23 16:28:54.722
+Test Case 'MockNetworkReliabilityTests.testMockPropagatesEncodingFailureWithoutRecordingASentRequest' passed (0.0 seconds)
+Test Case 'MockNetworkReliabilityTests.testMockUsesEndpointEncodingStrategy' started at 2026-10-23 16:28:54.722
+Test Case 'MockNetworkReliabilityTests.testMockUsesEndpointEncodingStrategy' passed (0.001 seconds)
+Test Case 'MockNetworkReliabilityTests.testProtocolTypedRawRequestWrapsRegisteredPayload' started at 2026-10-23 16:28:54.723
+Test Case 'MockNetworkReliabilityTests.testProtocolTypedRawRequestWrapsRegisteredPayload' passed (0.0 seconds)
+Test Case 'MockNetworkReliabilityTests.testRawEnvelopeRegistrationErrorIsNotSwallowedByPayloadFallback' started at 2026-10-23 16:28:54.723
+Test Case 'MockNetworkReliabilityTests.testRawEnvelopeRegistrationErrorIsNotSwallowedByPayloadFallback' passed (0.0 seconds)
+Test Suite 'MockNetworkReliabilityTests' passed at 2026-10-23 16:28:54.724
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.004 (0.004) seconds
+Test Suite 'NetworkClientTests' started at 2026-10-23 16:28:54.724
+Test Case 'NetworkClientTests.testBusinessErrorDoesNotTriggerRefresh' started at 2026-10-23 16:28:54.724
+Test Case 'NetworkClientTests.testBusinessErrorDoesNotTriggerRefresh' passed (0.1 seconds)
+Test Case 'NetworkClientTests.testNoRefreshCoordinatorThrowsWithoutRetry' started at 2026-10-23 16:28:54.824
+Test Case 'NetworkClientTests.testNoRefreshCoordinatorThrowsWithoutRetry' passed (0.0 seconds)
+Test Case 'NetworkClientTests.testRefreshAndRetrySucceeds' started at 2026-10-23 16:28:54.825
+Test Case 'NetworkClientTests.testRefreshAndRetrySucceeds' passed (0.0 seconds)
+Test Case 'NetworkClientTests.testRefreshFailureThrowsWithoutRetry' started at 2026-10-23 16:28:54.825
+Test Case 'NetworkClientTests.testRefreshFailureThrowsWithoutRetry' passed (0.0 seconds)
+Test Case 'NetworkClientTests.testRefreshSuccessButReplayStill401DoesNotLoop' started at 2026-10-23 16:28:54.825
+Test Case 'NetworkClientTests.testRefreshSuccessButReplayStill401DoesNotLoop' passed (0.0 seconds)
+Test Suite 'NetworkClientTests' passed at 2026-10-23 16:28:54.826
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.102 (0.102) seconds
+Test Suite 'NetworkRedactionTests' started at 2026-10-23 16:28:54.826
+Test Case 'NetworkRedactionTests.testMalformedAndNonJSONBodiesAreOmitted' started at 2026-10-23 16:28:54.826
+Test Case 'NetworkRedactionTests.testMalformedAndNonJSONBodiesAreOmitted' passed (0.0 seconds)
+Test Case 'NetworkRedactionTests.testNestedJSONAndEscapedQuotesAreRedacted' started at 2026-10-23 16:28:54.826
+Test Case 'NetworkRedactionTests.testNestedJSONAndEscapedQuotesAreRedacted' passed (0.001 seconds)
+Test Case 'NetworkRedactionTests.testURLRequestAndResponseUseSameQueryRedaction' started at 2026-10-23 16:28:54.827
+Test Case 'NetworkRedactionTests.testURLRequestAndResponseUseSameQueryRedaction' passed (0.0 seconds)
+Test Suite 'NetworkRedactionTests' passed at 2026-10-23 16:28:54.827
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'NetworkReliabilityTests' started at 2026-10-23 16:28:54.827
+Test Case 'NetworkReliabilityTests.testBusinessFailureWinsOverIncompatibleSuccessData' started at 2026-10-23 16:28:54.827
+Test Case 'NetworkReliabilityTests.testBusinessFailureWinsOverIncompatibleSuccessData' passed (0.002 seconds)
+Test Case 'NetworkReliabilityTests.testCancelledRequestDuringInterceptorNeverReachesTransport' started at 2026-10-23 16:28:54.829
+Test Case 'NetworkReliabilityTests.testCancelledRequestDuringInterceptorNeverReachesTransport' passed (0.001 seconds)
+Test Case 'NetworkReliabilityTests.testDirectEmptyDoesNotHideTransportCancellationAfterHeaders' started at 2026-10-23 16:28:54.830
+Test Case 'NetworkReliabilityTests.testDirectEmptyDoesNotHideTransportCancellationAfterHeaders' passed (0.001 seconds)
+Test Case 'NetworkReliabilityTests.testEmptyEnvelopeSupportsHTTPAndBusinessSuccessWithoutData' started at 2026-10-23 16:28:54.831
+Test Case 'NetworkReliabilityTests.testEmptyEnvelopeSupportsHTTPAndBusinessSuccessWithoutData' passed (0.002 seconds)
+Test Case 'NetworkReliabilityTests.testEncodableFailureIsMappedBeforeSending' started at 2026-10-23 16:28:54.833
+Test Case 'NetworkReliabilityTests.testEncodableFailureIsMappedBeforeSending' passed (0.001 seconds)
+Test Case 'NetworkReliabilityTests.testMultipartBusinessFailureUsesSameEnvelopeRules' started at 2026-10-23 16:28:54.833
+Test Case 'NetworkReliabilityTests.testMultipartBusinessFailureUsesSameEnvelopeRules' passed (0.001 seconds)
+Test Case 'NetworkReliabilityTests.testMultipartEnvelopeAccepts204And205WithoutData' started at 2026-10-23 16:28:54.835
+Test Case 'NetworkReliabilityTests.testMultipartEnvelopeAccepts204And205WithoutData' passed (0.001 seconds)
+Test Case 'NetworkReliabilityTests.testNonEmptyModelStillRejectsMissingData' started at 2026-10-23 16:28:54.836
+Test Case 'NetworkReliabilityTests.testNonEmptyModelStillRejectsMissingData' passed (0.002 seconds)
+Test Case 'NetworkReliabilityTests.testRawEnvelopeKeepsStrictDecodingAndDoesNotRecover' started at 2026-10-23 16:28:54.837
+Test Case 'NetworkReliabilityTests.testRawEnvelopeKeepsStrictDecodingAndDoesNotRecover' passed (0.001 seconds)
+Test Case 'NetworkReliabilityTests.testSuccessStillReportsPreciseDataDecodingPath' started at 2026-10-23 16:28:54.839
+Test Case 'NetworkReliabilityTests.testSuccessStillReportsPreciseDataDecodingPath' passed (0.001 seconds)
+Test Case 'NetworkReliabilityTests.testTokenExpiredWithErrorDataStillRecoversAndReplays' started at 2026-10-23 16:28:54.840
+Test Case 'NetworkReliabilityTests.testTokenExpiredWithErrorDataStillRecoversAndReplays' passed (0.001 seconds)
+Test Suite 'NetworkReliabilityTests' passed at 2026-10-23 16:28:54.841
+	 Executed 11 tests, with 0 failures (0 unexpected) in 0.014 (0.014) seconds
+Test Suite 'Selected tests' passed at 2026-10-23 16:28:54.841
+	 Executed 32 tests, with 0 failures (0 unexpected) in 0.134 (0.134) seconds
+◇ Test run started.
+↳ Testing Library Version: 6.3.3 (48d727cc1cf4eda)
+↳ Target Platform: x86_64-unknown-linux-gnu
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.

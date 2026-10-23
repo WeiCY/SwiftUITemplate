@@ -56,7 +56,7 @@ public final class MockNetworkClient: CYNetworkClientProtocol, Sendable {
     /// 可变状态统一由 `Mutex` 保护，避免数据竞争。
     private struct MutableState: Sendable {
         var typeResponses: [String: MockValue] = [:]
-        var endpointResponses: [String: MockValue] = [:]
+        var endpointResponses: [Data: MockValue] = [:]
         var storedRequests: [CYMockRequestRecord] = []
         var defaultDelay: TimeInterval = 0.1
         var shouldFail: Bool = false
@@ -143,19 +143,16 @@ public final class MockNetworkClient: CYNetworkClientProtocol, Sendable {
         strategy: CYResponseStrategy,
         body: B
     ) async throws -> T {
-        record(endpoint, body: try? JSONEncoder().encode(body))
-        return try await resolveStrategy(endpoint, strategy: strategy)
-    }
-
-    /// `requestRaw` 的 Mock 增强：注册普通值 `T` 时自动包一层成功 envelope（shadow 协议扩展默认实现）
-    public func requestRaw<T: Decodable & Sendable>(_ endpoint: CYEndpoint) async throws -> CYAPIResponse<T> {
-        record(endpoint)
-        try await applyFailureOrDelay()
-        if let envelope = try? resolve(endpoint: endpoint, as: CYAPIResponse<T>.self) {
-            return envelope
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = endpoint.keyEncodingStrategy
+        let encodedBody: Data
+        do {
+            encodedBody = try encoder.encode(body)
+        } catch {
+            throw CYNetworkError.encodingFailed(error)
         }
-        let value = try resolve(endpoint: endpoint, as: T.self)
-        return CYAPIResponse(code: 0, data: value, message: nil)
+        record(endpoint, body: encodedBody)
+        return try await resolveStrategy(endpoint, strategy: strategy)
     }
 
     public func requestData(_ endpoint: CYEndpoint) async throws -> Data {
@@ -219,7 +216,7 @@ public final class MockNetworkClient: CYNetworkClientProtocol, Sendable {
         try await applyFailureOrDelay()
         switch strategy {
         case .envelope, .envelopeRaw, .direct:
-            // envelopeRaw 需要注册完整 CYAPIResponse<X>（泛型无法自动包装内层值）
+            // Resolve raw envelopes here, so protocol-typed and concrete clients behave identically.
             return try resolve(endpoint: endpoint, as: T.self)
         case .empty:
             guard T.self == CYEmptyResponse.self, let empty = CYEmptyResponse() as? T else {
@@ -249,8 +246,8 @@ public final class MockNetworkClient: CYNetworkClientProtocol, Sendable {
         state.withLock { $0.storedRequests.append(entry) }
     }
 
-    private func key(for endpoint: CYEndpoint) -> String {
-        "\(endpoint.method.rawValue):\(endpoint.path)"
+    private func key(for endpoint: CYEndpoint) -> Data {
+        (try? endpoint.encodedRequestIdentity()) ?? Data(UUID().uuidString.utf8)
     }
 
     private func resolve<T: Decodable & Sendable>(endpoint: CYEndpoint, as type: T.Type) throws -> T {
@@ -267,6 +264,11 @@ public final class MockNetworkClient: CYNetworkClientProtocol, Sendable {
             return try resolve(value, as: T.self)
         }
 
+        if let envelopeType = T.self as? any MockEnvelopeResponse.Type,
+           let value = state.withLock({ $0.typeResponses[envelopeType.payloadTypeKey] }) {
+            return try resolve(value, as: T.self)
+        }
+
         throw CYNetworkError.unknown
     }
 
@@ -276,6 +278,10 @@ public final class MockNetworkClient: CYNetworkClientProtocol, Sendable {
             throw error
         case .response(let response):
             if let casted = response as? T { return casted }
+            if let envelopeType = T.self as? any MockEnvelopeResponse.Type,
+               let wrapped = envelopeType.wrapping(response) as? T {
+                return wrapped
+            }
             return try decode(response, as: T.self)
         }
     }
@@ -283,5 +289,20 @@ public final class MockNetworkClient: CYNetworkClientProtocol, Sendable {
     private func decode<T: Decodable>(_ value: Any, as type: T.Type) throws -> T {
         let data = try JSONSerialization.data(withJSONObject: value, options: .fragmentsAllowed)
         return try JSONDecoder().decode(T.self, from: data)
+    }
+}
+
+/// Type erasure is private to the mock; the production client protocol stays unchanged.
+private protocol MockEnvelopeResponse {
+    static var payloadTypeKey: String { get }
+    static func wrapping(_ value: any Sendable) -> (any Sendable)?
+}
+
+extension CYAPIResponse: MockEnvelopeResponse {
+    fileprivate static var payloadTypeKey: String { String(describing: T.self) }
+
+    fileprivate static func wrapping(_ value: any Sendable) -> (any Sendable)? {
+        guard let data = value as? T else { return nil }
+        return CYAPIResponse(code: 0, data: data, message: nil)
     }
 }

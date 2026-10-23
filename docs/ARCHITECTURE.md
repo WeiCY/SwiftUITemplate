@@ -56,6 +56,9 @@ Factory 注册不会自动替换无参数反馈修饰符。组合根解析一次
 
 ## 网络契约
 
+2026-10-23 补强：普通 JSON 与 multipart envelope 共用响应解析；业务错误先于成功模型解码，raw 语义保持。恢复协调器按调用方登记可取消的等待，单个调用方取消不终止共享恢复。Mock 与去重器复用内部结构化请求身份编码，不引入新的公开网络协议。正文日志改为显式开启；见 [网络指南](NETWORK_GUIDE.md)。
+
+
 请求链路：Endpoint → 构建请求 → 请求拦截器 → 发送/解码 → 必要时恢复凭证并重放一次 → 终态响应拦截器 → 结果。
 
 `send` 提供 envelope、envelopeRaw、direct、empty、data 策略。requestVoid 走 envelope + CYEmptyResponse；requestData 是 raw Data，不参与凭证恢复/去重。仅 required 鉴权允许自动恢复；raw/direct/empty 收到 401 不自动恢复。
