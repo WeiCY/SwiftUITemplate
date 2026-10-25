@@ -2,111 +2,102 @@ import Foundation
 import Network
 import Observation
 
-// MARK: - 网络状态监听
-//
-// 基于 NWPathMonitor 监听网络连接状态和类型变化。
-//
-// 用法：
-// ```swift
-// let monitor = CYNetworkMonitor.shared
-// monitor.startMonitoring()
-//
-// if monitor.isConnected { ... }
-// if monitor.connectionType == .wifi { ... }
-// if monitor.isExpensive { ... }  // 蜂窝数据
-// ```
-
+/// UI-facing path status, isolated to MainActor. Path availability does not guarantee a server is reachable.
+@MainActor
 @Observable
-public final class CYNetworkMonitor: @unchecked Sendable {
-    
-    /// 全局单例
+public final class CYNetworkMonitor {
     public static let shared = CYNetworkMonitor()
 
-    /// NWPathMonitor 回调所在的串行队列（非主线程）
-    private let queue = DispatchQueue(label: "CYNetworkMonitor")
+    public private(set) var isMonitoring = false
+    /// Optimistic initial value; inspect hasReceivedUpdate before treating this as a measured path.
+    public private(set) var isConnected = true
+    public private(set) var hasReceivedUpdate = false
+    public private(set) var connectionType: CYConnectionType = .unknown
+    public private(set) var isExpensive = false
+    public private(set) var isConstrained = false
 
-    /// 保护 `monitor` 与 `isMonitoring` 的串行队列，
-    /// 避免主线程（start/stop）与回调队列之间的读写竞争。
-    private let stateQueue = DispatchQueue(label: "CYNetworkMonitor.state")
+    @ObservationIgnored private var driver: (any CYNetworkPathDriving)?
+    @ObservationIgnored private var generation = UUID()
+    @ObservationIgnored private let makeDriver: @MainActor () -> any CYNetworkPathDriving
 
-    private var _monitor: NWPathMonitor?
-    private var _isMonitoring: Bool = false
-
-    /// 是否正在监听
-    public var isMonitoring: Bool {
-        stateQueue.sync { _isMonitoring }
-    }
-
-    /// 是否有网络连接
-    public var isConnected: Bool = true
-
-    /// 当前网络连接类型
-    public var connectionType: CYConnectionType = .unknown
-
-    /// 是否为计费网络（蜂窝数据）
-    public var isExpensive: Bool = false
-
-    /// 是否为低数据模式
-    public var isConstrained: Bool = false
-
-    /// 网络连接类型枚举
-    public enum CYConnectionType: String {
-        case wifi
-        case cellular
-        case wiredEthernet
-        case unknown
+    public enum CYConnectionType: String, Sendable {
+        case wifi, cellular, wiredEthernet, unknown
 
         public var displayName: String {
             switch self {
-            case .wifi: return "connection_wifi".cyLocalized
-            case .cellular: return "connection_cellular".cyLocalized
-            case .wiredEthernet: return "connection_wired".cyLocalized
-            case .unknown: return "connection_unknown".cyLocalized
+            case .wifi: "connection_wifi".cyLocalized
+            case .cellular: "connection_cellular".cyLocalized
+            case .wiredEthernet: "connection_wired".cyLocalized
+            case .unknown: "connection_unknown".cyLocalized
             }
         }
     }
 
-    private init() {}
+    private convenience init() { self.init(makeDriver: { CYSystemNetworkPathDriver() }) }
 
-    /// 开始监听网络状态变化。
-    /// NWPathMonitor.cancel() 不可逆，因此每次 start 都重建一个新的 monitor，
-    /// 使 stop 之后可再次 start。
+    init(makeDriver: @escaping @MainActor () -> any CYNetworkPathDriving) {
+        self.makeDriver = makeDriver
+    }
+
     public func startMonitoring() {
-        stateQueue.sync {
-            guard !_isMonitoring else { return }
-
-            let newMonitor = NWPathMonitor()
-            newMonitor.pathUpdateHandler = { [weak self] path in
-                guard let self else { return }
-                let isConnected = path.status == .satisfied
-                let isExpensive = path.isExpensive
-                let isConstrained = path.isConstrained
-                let connectionType: CYConnectionType = {
-                    if path.usesInterfaceType(.wifi) { return .wifi }
-                    if path.usesInterfaceType(.cellular) { return .cellular }
-                    if path.usesInterfaceType(.wiredEthernet) { return .wiredEthernet }
-                    return .unknown
-                }()
-
-                Task { @MainActor in
-                    self.isConnected = isConnected
-                    self.isExpensive = isExpensive
-                    self.isConstrained = isConstrained
-                    self.connectionType = connectionType
-                }
+        guard !isMonitoring else { return }
+        generation = UUID()
+        let current = generation
+        let next = makeDriver()
+        driver = next
+        isMonitoring = true
+        hasReceivedUpdate = false
+        next.start { [weak self] snapshot in
+            Task { @MainActor in
+                guard let self, self.isMonitoring, self.generation == current else { return }
+                self.isConnected = snapshot.isConnected
+                self.connectionType = snapshot.connectionType
+                self.isExpensive = snapshot.isExpensive
+                self.isConstrained = snapshot.isConstrained
+                self.hasReceivedUpdate = true
             }
-            newMonitor.start(queue: queue)
-            _monitor = newMonitor
-            _isMonitoring = true
         }
     }
 
-    /// 停止监听网络状态变化
+    /// Retains the last values for display, but marks them stale and rejects already queued callbacks.
     public func stopMonitoring() {
-        stateQueue.sync {
-            _monitor?.cancel()
-            _monitor = nil
-            _isMonitoring = false
-        }
+        generation = UUID()
+        isMonitoring = false
+        hasReceivedUpdate = false
+        driver?.cancel()
+        driver = nil
     }
+}
+
+struct CYNetworkPathSnapshot: Sendable {
+    let isConnected: Bool
+    let connectionType: CYNetworkMonitor.CYConnectionType
+    let isExpensive: Bool
+    let isConstrained: Bool
+}
+
+@MainActor
+protocol CYNetworkPathDriving: AnyObject {
+    func start(_ handler: @escaping @Sendable (CYNetworkPathSnapshot) -> Void)
+    func cancel()
+}
+
+@MainActor
+private final class CYSystemNetworkPathDriver: CYNetworkPathDriving {
+    private let monitor = NWPathMonitor()
+
+    func start(_ handler: @escaping @Sendable (CYNetworkPathSnapshot) -> Void) {
+        monitor.pathUpdateHandler = { path in
+            let type: CYNetworkMonitor.CYConnectionType
+            if path.usesInterfaceType(.wifi) { type = .wifi }
+            else if path.usesInterfaceType(.cellular) { type = .cellular }
+            else if path.usesInterfaceType(.wiredEthernet) { type = .wiredEthernet }
+            else { type = .unknown }
+            handler(CYNetworkPathSnapshot(isConnected: path.status == .satisfied, connectionType: type,
+                                          isExpensive: path.isExpensive, isConstrained: path.isConstrained))
+        }
+        monitor.start(queue: DispatchQueue(label: "CYNetworkMonitor"))
+    }
+
+    func cancel() { monitor.cancel() }
 }

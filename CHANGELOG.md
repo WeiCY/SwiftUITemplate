@@ -16,6 +16,30 @@
 
 ### [Unreleased]
 
+#### 组件与资源维护（2026-10-25）
+
+- Shimmer/Loading 动画跟随 Reduce Motion、Scene 与条件子树生命周期；Skeleton 处理负数/非有限输入。
+- FlowLayout 统一测量放置、处理无限宽度和 RTL；Onboarding 适配大字号/短屏滚动、品牌按钮和无障碍页码。
+- 系统媒体逐项错误回调；新增 loadVideoData(maximumBytes:)，旧 loadData 的文件视频默认限制为 32 MiB。
+- 缓存移除无界内存键索引，增加软内存限制和显式 trimDisk(to:) 磁盘淘汰。
+- 新增 8 项 Swift 回归（当前环境未运行），行为迁移及限制见 docs/COMPONENT_LIFECYCLE.md。
+
+#### 平台并发与隐私边界（2026-10-25）
+
+- **源码迁移**：CYLocationPermission/CYNetworkMonitor 改为 MainActor；网络状态只读，增加 hasReceivedUpdate；Location delegate 成为内部实现。
+- 定位多请求共享系统授权、逐调用者取消；网络 start/stop 按代次拒绝旧回调。
+- Bootstrap 日志级别覆盖全部未显式覆盖的分类；新增全局配置/重置覆盖 API，消息默认 private，显式分类可选择 publicMessages。
+- 增加 Core PrivacyInfo.xcprivacy 与用途说明，更新测试全局状态恢复；新增 6 项平台边界 XCTest（未在本环境执行）。
+- 迁移与发布验收限制见 docs/PLATFORM_BOUNDARIES.md。
+
+#### 使用边界修复（2026-10-25）
+
+- Toast 非正队列容量禁用排队，缩容即时裁剪；NaN/Infinity 时长回退到 2 秒。
+- 缓存支持系统清理目录后的重新创建；过期删除不回退到其他命名空间。
+- 默认 Analytics 增加 `init(maxPendingEvents: Int = 100)`，超限丢弃最旧项；不再输出身份/属性日志，明确 flush 仅清空内存。
+- 原有 `CYAnalyticsService()` 调用保持可用；依赖无限事件保留的宿主应迁移到自己的分析实现。
+- 新增 8 项 Swift 回归（当前环境未执行），库与组件评审见 docs/USAGE_REVIEW.md。
+
 #### 网络行为补强（2026-10-23）
 
 - 基于最新主分支 `1ca0451` 保留现有网络 API，不新增依赖、不更改发布版本。

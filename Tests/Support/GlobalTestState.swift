@@ -9,7 +9,8 @@ import FactoryKit
 public final class CYGlobalTestState {
     private let constants = CYAppConstants.configuration
     private let policy = CYBusinessCodePolicy.shared.withLock { $0 }
-    private let level = CYLogger.shared.minimumLevel
+    private let level = CYLogger.globalMinimumLevel
+    private let sharedLevel = CYLogger.shared.minimumLevelOverride
     private let design = CYDesignConfiguration.current
     private let toast = CYFeedbackConfiguration.shared.toastStyle
     private let loading = CYFeedbackConfiguration.shared.loadingStyle
@@ -34,7 +35,8 @@ public final class CYGlobalTestState {
         CYAppConstants.configure(constants)
         let policy = policy
         CYBusinessCodePolicy.configure { $0 = policy }
-        CYLogger.shared.setMinimumLevel(level)
+        CYLogger.setGlobalMinimumLevel(level)
+        if let sharedLevel { CYLogger.shared.setMinimumLevel(sharedLevel) } else { CYLogger.shared.resetMinimumLevel() }
         CYDesignConfiguration.configure(design)
         CYFeedbackConfiguration.configure(toastStyle: toast, loadingStyle: loading, errorStyle: error)
         Container.shared.manager.pop()

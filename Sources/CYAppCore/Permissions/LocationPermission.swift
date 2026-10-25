@@ -1,73 +1,100 @@
 import Foundation
 import CoreLocation
 
-/// 位置权限请求器
-/// 桥接 CoreLocation 框架权限 API
-///
-/// 注意：需要在 Info.plist 中添加以下 key：
-/// - `NSLocationWhenInUseUsageDescription`（使用期间定位）
-/// - `NSLocationAlwaysAndWhenInUseUsageDescription`（始终定位，如需要）
-public final class CYLocationPermission: NSObject, CYPermissionRequester, CLLocationManagerDelegate, @unchecked Sendable {
-    
-    /// 复用同一个 CLLocationManager 实例，避免每次请求都新建。
-    private let locationManager = CLLocationManager()
-    private let lock = NSLock()
-    private var continuation: CheckedContinuation<CYPermissionStatus, Never>?
-    
-    public override init() {
+/// 定位授权在主 actor 创建和驱动；并发调用共享系统授权弹窗。
+/// 宿主必须提供 NSLocationWhenInUseUsageDescription。
+/// 取消只结束该调用方的等待并返回当前状态，不关闭系统弹窗。
+@MainActor
+public final class CYLocationPermission: NSObject, CYPermissionRequester {
+    private let driver: any CYLocationAuthorizationDriving
+    private var waiters: [UUID: CheckedContinuation<CYPermissionStatus, Never>] = [:]
+    private var requestInFlight = false
+
+    public override convenience init() {
+        self.init(driver: CYSystemLocationAuthorizationDriver())
+    }
+
+    init(driver: any CYLocationAuthorizationDriving) {
+        self.driver = driver
         super.init()
+        driver.onChange = { [weak self] status in self?.receive(status) }
     }
-    
+
     public var status: CYPermissionStatus {
-        get async {
-            let status = locationManager.authorizationStatus
-            switch status {
-            case .authorizedWhenInUse, .authorizedAlways: return .authorized
-            case .denied: return .denied
-            case .restricted: return .restricted
-            case .notDetermined: return .notDetermined
-            @unknown default: return .notDetermined
-            }
-        }
+        get async { Self.map(driver.authorizationStatus) }
     }
-    
+
     public func request() async -> CYPermissionStatus {
-        let currentStatus = await status
-        guard currentStatus == .notDetermined else { return currentStatus }
-        
-        return await withCheckedContinuation { continuation in
-            lock.lock()
-            // 已有进行中的请求：直接以当前状态唤醒新续体，避免覆盖导致原续体泄漏 / 永不恢复
-            if self.continuation != nil {
-                lock.unlock()
-                continuation.resume(returning: currentStatus)
-                return
+        let current = Self.map(driver.authorizationStatus)
+        guard current == .notDetermined, !Task.isCancelled else { return current }
+        let id = UUID()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                // Cancellation may have arrived before registration.
+                let latest = Self.map(driver.authorizationStatus)
+                guard !Task.isCancelled, latest == .notDetermined else {
+                    continuation.resume(returning: latest)
+                    return
+                }
+                waiters[id] = continuation
+                if !requestInFlight {
+                    requestInFlight = true
+                    driver.requestWhenInUseAuthorization()
+                }
             }
-            self.continuation = continuation
-            lock.unlock()
-            
-            locationManager.delegate = self
-            locationManager.requestWhenInUseAuthorization()
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.waiters.removeValue(forKey: id)?.resume(returning: Self.map(self.driver.authorizationStatus))
+            }
         }
     }
-    
-    // MARK: - CLLocationManagerDelegate
-    
-    public func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        let status: CYPermissionStatus
-        switch manager.authorizationStatus {
-        case .authorizedWhenInUse, .authorizedAlways: status = .authorized
-        case .denied: status = .denied
-        case .restricted: status = .restricted
-        case .notDetermined: status = .notDetermined
-        @unknown default: status = .notDetermined
+
+    private func receive(_ authorization: CLAuthorizationStatus) {
+        let status = Self.map(authorization)
+        // CoreLocation also reports its initial state; this is not a user decision.
+        guard status != .notDetermined else { return }
+        requestInFlight = false
+        let pending = waiters
+        waiters.removeAll()
+        for continuation in pending.values { continuation.resume(returning: status) }
+    }
+
+    private static func map(_ status: CLAuthorizationStatus) -> CYPermissionStatus {
+        switch status {
+        case .authorizedWhenInUse, .authorizedAlways: .authorized
+        case .denied: .denied
+        case .restricted: .restricted
+        case .notDetermined: .notDetermined
+        @unknown default: .notDetermined
         }
-        
-        lock.lock()
-        let continuation = self.continuation
-        self.continuation = nil
-        lock.unlock()
-        
-        continuation?.resume(returning: status)
+    }
+}
+
+@MainActor
+protocol CYLocationAuthorizationDriving: AnyObject {
+    var authorizationStatus: CLAuthorizationStatus { get }
+    var onChange: (@MainActor (CLAuthorizationStatus) -> Void)? { get set }
+    func requestWhenInUseAuthorization()
+}
+
+@MainActor
+private final class CYSystemLocationAuthorizationDriver: NSObject, CYLocationAuthorizationDriving, CLLocationManagerDelegate {
+    private let manager = CLLocationManager()
+    var onChange: (@MainActor (CLAuthorizationStatus) -> Void)?
+    var authorizationStatus: CLAuthorizationStatus { manager.authorizationStatus }
+
+    override init() {
+        super.init()
+        manager.delegate = self
+    }
+
+    func requestWhenInUseAuthorization() { manager.requestWhenInUseAuthorization() }
+
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.onChange?(self.manager.authorizationStatus)
+        }
     }
 }

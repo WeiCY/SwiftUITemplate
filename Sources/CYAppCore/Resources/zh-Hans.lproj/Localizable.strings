@@ -97,3 +97,6 @@
 "verification_code_placeholder" = "输入验证码";
 "verification_code_hint" = "请输入 %ld 位数字，仅支持 0 到 9。";
 "verification_code_progress" = "已输入 %ld / %ld 位";
+
+"onboarding_progress" = "页码";
+"onboarding_previous" = "上一页";

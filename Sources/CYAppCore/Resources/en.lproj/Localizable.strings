@@ -97,3 +97,6 @@
 "verification_code_placeholder" = "Enter code";
 "verification_code_hint" = "Enter %ld digits using 0 through 9.";
 "verification_code_progress" = "%ld of %ld digits";
+
+"onboarding_progress" = "Page";
+"onboarding_previous" = "Previous";

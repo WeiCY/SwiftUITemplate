@@ -18,36 +18,30 @@ public struct CYLoadingIndicator: View {
     public let style: CYLoadingStyle
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var pulseScale: CGFloat
+    @Environment(\.scenePhase) private var scenePhase
 
     public init(message: String?, style: CYLoadingStyle = .default) {
         self.message = message
         self.style = style
-        _pulseScale = State(initialValue: style.pulseScaleRange.lowerBound)
     }
 
     public var body: some View {
         VStack(spacing: style.card.contentSpacing) {
             ZStack {
-                Circle()
-                    .fill(style.indicator.color.opacity(style.indicator.backgroundOpacity))
-                    .frame(width: style.indicator.size, height: style.indicator.size)
-                    .scaleEffect(pulseScale)
+                if reduceMotion || scenePhase != .active {
+                    Circle()
+                        .fill(style.indicator.color.opacity(style.indicator.backgroundOpacity))
+                        .frame(width: style.indicator.size, height: style.indicator.size)
+                } else {
+                    LoadingPulse(style: style)
+                        .id(style.pulseScaleRange)
+                }
 
                 ProgressView()
                     .scaleEffect(style.indicator.scale)
                     .tint(style.indicator.color)
             }
-            .onAppear {
-                pulseScale = style.pulseScaleRange.lowerBound
-                guard !reduceMotion else {
-                    pulseScale = 1
-                    return
-                }
-                withAnimation(style.pulseAnimation) {
-                    pulseScale = style.pulseScaleRange.upperBound
-                }
-            }
+
 
             if let message {
                 Text(message)
@@ -71,6 +65,21 @@ public struct CYLoadingIndicator: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(message ?? "loading".cyLocalized)
         .accessibilityAddTraits(.updatesFrequently)
+    }
+}
+
+// State belongs to this conditional child, so disabling motion destroys the repeating animation.
+private struct LoadingPulse: View {
+    let style: CYLoadingStyle
+    @State private var expanded = false
+
+    var body: some View {
+        Circle()
+            .fill(style.indicator.color.opacity(style.indicator.backgroundOpacity))
+            .frame(width: style.indicator.size, height: style.indicator.size)
+            .scaleEffect(expanded ? style.pulseScaleRange.upperBound : style.pulseScaleRange.lowerBound)
+            .onAppear { withAnimation(style.pulseAnimation) { expanded = true } }
+            .accessibilityHidden(true)
     }
 }
 

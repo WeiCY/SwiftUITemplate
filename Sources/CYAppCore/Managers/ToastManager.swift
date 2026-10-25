@@ -28,10 +28,7 @@ public enum CYToastQueueMode: Sendable {
 
 /// 管理全局 Toast 的展示、队列和自动消失。
 ///
-/// 带有操作按钮（`action`）的 Toast 不会自动消失，需要用户主动交互：
-/// - 点击操作按钮（`performAction()`）
-/// - 点击关闭按钮或 Toast 本体（`dismiss()`）
-/// - 点击空白区域（需 `tapOutsideToDismiss` 样式开启）
+/// Toast 用于短提示并自动消失；需要操作按钮时使用 DesignSystem 的 Snackbar。
 @Observable
 @MainActor
 public final class CYToastManager: CYToastManagerProtocol, @unchecked Sendable {
@@ -45,8 +42,17 @@ public final class CYToastManager: CYToastManagerProtocol, @unchecked Sendable {
     public private(set) var queueCount = 0
     public var queueMode: CYToastQueueMode = .replace
 
-    /// 队列模式下最多保留的待展示消息数，超出时会丢弃最旧消息。默认 10。
-    public var maxQueueSize: Int = 10
+    /// 最多保留的待展示消息数，默认 10。非正值禁用排队，不影响当前提示。
+    /// 缩小容量时立即丢弃最旧的待展示消息。
+    public var maxQueueSize: Int = 10 {
+        didSet {
+            if maxQueueSize < 0 { maxQueueSize = 0 }
+            if queue.count > maxQueueSize {
+                queue.removeFirst(queue.count - maxQueueSize)
+            }
+            queueCount = queue.count
+        }
+    }
 
     @ObservationIgnored
     private var dismissTask: Task<Void, Never>?
@@ -55,7 +61,7 @@ public final class CYToastManager: CYToastManagerProtocol, @unchecked Sendable {
 
     public nonisolated init() {}
 
-    /// 显示 Toast。空白消息会被忽略，时长最短为 0.1 秒。
+    /// 显示 Toast。空白消息会被忽略，时长最短为 0.1 秒，非有限时长回退为 2 秒。
     ///
     /// - Parameters:
     ///   - message: Toast 文案。
@@ -72,10 +78,11 @@ public final class CYToastManager: CYToastManagerProtocol, @unchecked Sendable {
         let request = ToastRequest(
             message: message,
             type: type,
-            duration: max(duration, 0.1)
+            duration: duration.isFinite ? max(duration, 0.1) : 2
         )
 
         if queueMode == .queue, isPresented {
+            guard maxQueueSize > 0 else { return }
             if queue.count >= maxQueueSize {
                 queue.removeFirst()
             }

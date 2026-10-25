@@ -63,6 +63,7 @@ public struct CYMediaPicker<Label: View>: View {
     let onPicked: ([CYMediaItem]) -> Void
     let onCancel: () -> Void
     let onImportFailure: () -> Void
+    let onItemImportFailure: (Int, Error) -> Void
     let label: () -> Label
 
     // MARK: - Grid 样式状态
@@ -90,6 +91,7 @@ public struct CYMediaPicker<Label: View>: View {
         preselected: [String] = [],
         onCancel: @escaping () -> Void = {},
         onImportFailure: @escaping () -> Void = {},
+        onItemImportFailure: @escaping (Int, Error) -> Void = { _, _ in },
         onPicked: @escaping ([CYMediaItem]) -> Void,
         @ViewBuilder label: @escaping () -> Label
     ) {
@@ -104,6 +106,7 @@ public struct CYMediaPicker<Label: View>: View {
         self.onPicked = onPicked
         self.onCancel = onCancel
         self.onImportFailure = onImportFailure
+        self.onItemImportFailure = onItemImportFailure
         self.label = label
     }
 
@@ -117,6 +120,7 @@ public struct CYMediaPicker<Label: View>: View {
         selectionIDs: Binding<[String]>,
         onCancel: @escaping () -> Void = {},
         onImportFailure: @escaping () -> Void = {},
+        onItemImportFailure: @escaping (Int, Error) -> Void = { _, _ in },
         onPicked: @escaping ([CYMediaItem]) -> Void,
         @ViewBuilder label: @escaping () -> Label
     ) {
@@ -131,6 +135,7 @@ public struct CYMediaPicker<Label: View>: View {
         self.onPicked = onPicked
         self.onCancel = onCancel
         self.onImportFailure = onImportFailure
+        self.onItemImportFailure = onItemImportFailure
         self.label = label
     }
 
@@ -142,6 +147,7 @@ public struct CYMediaPicker<Label: View>: View {
         filter: CYMediaFilter = .images,
         onCancel: @escaping () -> Void = {},
         onImportFailure: @escaping () -> Void = {},
+        onItemImportFailure: @escaping (Int, Error) -> Void = { _, _ in },
         onPicked: @escaping ([CYMediaItem]) -> Void,
         @ViewBuilder label: @escaping () -> Label
     ) {
@@ -156,6 +162,7 @@ public struct CYMediaPicker<Label: View>: View {
         self.onPicked = onPicked
         self.onCancel = onCancel
         self.onImportFailure = onImportFailure
+        self.onItemImportFailure = onItemImportFailure
         self.label = label
     }
 
@@ -244,19 +251,29 @@ public struct CYMediaPicker<Label: View>: View {
             let newItems = photoItems
             guard !newItems.isEmpty else { return }
             var items: [CYMediaItem] = []
-            for item in newItems {
+            var failures: [(Int, Error)] = []
+            for (index, item) in newItems.enumerated() {
                 guard !Task.isCancelled else { return }
-                if item.supportedContentTypes.contains(where: { $0.conforms(to: .movie) || $0.conforms(to: .video) }) {
-                    if let file = try? await item.loadTransferable(type: CYMediaVideoFile.self) {
+                do {
+                    if item.supportedContentTypes.contains(where: { $0.conforms(to: .movie) || $0.conforms(to: .video) }) {
+                        guard let file = try await item.loadTransferable(type: CYMediaVideoFile.self) else {
+                            throw CocoaError(.fileReadCorruptFile)
+                        }
                         items.append(CYMediaItem(videoFile: file))
+                    } else {
+                        guard let data = try await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else {
+                            throw CocoaError(.fileReadCorruptFile)
+                        }
+                        items.append(CYMediaItem(image: image))
                     }
-                } else if let data = try? await item.loadTransferable(type: Data.self),
-                          let image = UIImage(data: data) {
-                    items.append(CYMediaItem(image: image))
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    failures.append((index, error))
                 }
             }
             guard !Task.isCancelled else { return }
-            if items.count != newItems.count { onImportFailure() }
+            for (index, error) in failures { onItemImportFailure(index, error) }
+            if !failures.isEmpty { onImportFailure() }
             if !items.isEmpty { onPicked(items) }
             // 清空选择，允许重复选择同一媒体再次触发回调。
             photoItems = []

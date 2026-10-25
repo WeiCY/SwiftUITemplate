@@ -27,7 +27,7 @@ import OSLog
 //
 // ## 设置最低日志级别
 // ```swift
-// CYLogger.shared.setMinimumLevel(.warning)  // 只输出 warning 及以上
+// CYLogger.setGlobalMinimumLevel(.warning)  // 所有未显式覆盖的分类
 // ```
 
 /// 日志级别
@@ -92,7 +92,7 @@ public final class CYLogger: Sendable {
     /// 最低日志级别（低于此级别的日志会被过滤）。
     /// 使用 `OSAllocatedUnfairLock` 保护，避免跨 actor 并发读写竞争。
     /// 默认值：开发环境为 .debug，生产环境为 .info。
-    private let minimumLevelLock = OSAllocatedUnfairLock(initialState: {
+    private static let globalLevelLock = OSAllocatedUnfairLock(initialState: {
         if CYAppEnvironment.current.isDebugLoggingEnabled {
             return CYLogLevel.debug
         } else {
@@ -100,8 +100,12 @@ public final class CYLogger: Sendable {
         }
     }())
     
-    /// 初始化（可指定分类）
-    public init(category: String = "App") {
+    private let minimumLevelLock = OSAllocatedUnfairLock(initialState: nil as CYLogLevel?)
+    private let publicMessages: Bool
+
+    /// 消息默认在统一日志中标记为 private；仅确认不含用户数据的分类才显式开启 publicMessages。
+    public init(category: String = "App", publicMessages: Bool = false) {
+        self.publicMessages = publicMessages
         self.category = category
         self.logger = os.Logger(
             subsystem: Bundle.main.bundleIdentifier ?? "com.myapp",
@@ -111,9 +115,20 @@ public final class CYLogger: Sendable {
     
     // MARK: - 日志级别控制
     
-    public var minimumLevel: CYLogLevel { minimumLevelLock.withLock { $0 } }
+    public static var globalMinimumLevel: CYLogLevel { globalLevelLock.withLock { $0 } }
 
-    /// 设置最低日志级别
+    /// 修改全部已有/未来分类的默认级别；显式的分类覆盖仍然优先。
+    public static func setGlobalMinimumLevel(_ level: CYLogLevel) {
+        globalLevelLock.withLock { $0 = level }
+    }
+
+    public var minimumLevelOverride: CYLogLevel? { minimumLevelLock.withLock { $0 } }
+    public var minimumLevel: CYLogLevel { minimumLevelOverride ?? Self.globalMinimumLevel }
+
+    /// 清除分类覆盖，重新跟随全局配置。
+    public func resetMinimumLevel() { minimumLevelLock.withLock { $0 = nil } }
+
+    /// 设置此分类的最低日志级别覆盖
     ///
     /// - Parameter level: 低于此级别的日志将被过滤
     public func setMinimumLevel(_ level: CYLogLevel) {
@@ -166,24 +181,15 @@ public final class CYLogger: Sendable {
     
     /// 内部统一日志输出
     private func log(level: CYLogLevel, message: String, file: String, function: String, line: Int) {
-        guard level >= minimumLevelLock.withLock({ $0 }) else { return }
+        guard level >= minimumLevel else { return }
         
         let fileName = (file as NSString).lastPathComponent
         let formattedMessage = "\(level.prefix) [\(category)] \(fileName):\(line) \(function) -> \(message)"
         
-        switch level.osLogType {
-        case .debug:
-            logger.debug("\(formattedMessage, privacy: .public)")
-        case .info:
-            logger.info("\(formattedMessage, privacy: .public)")
-        case .default:
-            logger.log("\(formattedMessage, privacy: .public)")
-        case .error:
-            logger.error("\(formattedMessage, privacy: .public)")
-        case .fault:
-            logger.fault("\(formattedMessage, privacy: .public)")
-        default:
-            logger.log("\(formattedMessage, privacy: .public)")
+        if publicMessages {
+            logger.log(level: level.osLogType, "\(formattedMessage, privacy: .public)")
+        } else {
+            logger.log(level: level.osLogType, "\(formattedMessage, privacy: .private)")
         }
     }
 }

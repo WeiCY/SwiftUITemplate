@@ -2,156 +2,100 @@
 import SwiftUI
 import CYAppDesignSystem
 
-/// 新手引导视图
-/// 使用 TabView + .page 样式实现滑动引导
+/// Paged onboarding; accessibility text sizes use one scrollable page with explicit navigation controls.
 public struct CYOnboardingView: View {
     @Binding var hasCompleted: Bool
     @State private var currentPage = 0
-    
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let pages: [CYOnboardingPage]
-    
-    /// 创建引导页视图。
-    /// - Parameters:
-    ///   - hasCompleted: 是否已完成引导的绑定。
-    ///   - pages: 引导页数据，默认使用 `CYOnboardingPage.allPages`。
-    public init(
-        hasCompleted: Binding<Bool>,
-        pages: [CYOnboardingPage] = CYOnboardingPage.allPages
-    ) {
+
+    public init(hasCompleted: Binding<Bool>, pages: [CYOnboardingPage] = CYOnboardingPage.allPages) {
         self._hasCompleted = hasCompleted
         self.pages = pages
     }
 
     public var body: some View {
-        ZStack {
-            CYAppColor.secondaryBackground.ignoresSafeArea()
-
-            if pages.isEmpty {
-                // 无引导页时视为已完成，避免停留在空白引导界面
-                Color.clear.onAppear { hasCompleted = true }
-            } else {
-                content
-            }
-        }
-    }
-
-    /// 最后一页下标（`pages` 为空时安全返回 0）
-    private var lastPageIndex: Int { max(0, pages.count - 1) }
-
-    private var content: some View {
-        VStack(spacing: 0) {
-            // 跳过按钮
-            HStack {
-                Spacer()
-                if currentPage < lastPageIndex {
-                    Button("onboarding_skip".cyLocalized) {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            hasCompleted = true
+        GeometryReader { geometry in
+            Group {
+                if pages.isEmpty {
+                    Color.clear.onAppear { hasCompleted = true }
+                } else if dynamicTypeSize.isAccessibilitySize || geometry.size.height < 400 {
+                    ScrollView {
+                        VStack(spacing: CYAppDimens.marginL) {
+                            skipButton
+                            pageView(pages[min(currentPage, pages.count - 1)])
+                            controls
                         }
+                        .padding()
                     }
-                    .font(CYAppFont.button)
-                    .foregroundStyle(CYAppColor.textSecondary)
-                    .padding(.horizontal, CYAppDimens.marginL)
-                    .padding(.top, CYAppDimens.marginM)
-                }
-            }
-            .frame(height: 44)
-
-            // 页面内容
-            TabView(selection: $currentPage) {
-                ForEach(Array(pages.enumerated()), id: \.element.id) { index, page in
-                    onboardingPageView(page)
-                        .tag(index)
-                }
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .animation(.easeInOut(duration: 0.3), value: currentPage)
-
-            // 底部：页面指示器 + 按钮
-            VStack(spacing: CYAppDimens.marginL) {
-                // 页面指示器
-                HStack(spacing: 8) {
-                    ForEach(0..<pages.count, id: \.self) { index in
-                        Capsule()
-                            .fill(index == currentPage ? CYAppColor.primary : CYAppColor.border)
-                            .frame(width: index == currentPage ? 24 : 8, height: 8)
-                            .animation(.spring(response: 0.3), value: currentPage)
-                    }
-                }
-
-                // 操作按钮
-                if currentPage >= lastPageIndex {
-                    // 最后一页：开始按钮
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            hasCompleted = true
-                        }
-                    } label: {
-                        Text("onboarding_start".cyLocalized)
-                            .font(CYAppFont.button)
-                            .foregroundStyle(CYAppColor.background)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: CYAppDimens.buttonHeight)
-                            .background(CYAppColor.primary)
-                            .clipShape(RoundedRectangle(cornerRadius: CYAppDimens.radiusL))
-                    }
-                    .buttonStyle(CYScaledButtonStyle())
                 } else {
-                    // 其他页：下一页按钮
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            currentPage += 1
+                    VStack(spacing: CYAppDimens.marginM) {
+                        skipButton
+                        TabView(selection: $currentPage) {
+                            ForEach(Array(pages.enumerated()), id: \.element.id) { index, page in
+                                ScrollView { pageView(page).padding(.vertical) }.tag(index)
+                            }
                         }
-                    } label: {
-                        Text("onboarding_next".cyLocalized)
-                            .font(CYAppFont.button)
-                            .foregroundStyle(CYAppColor.primary)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: CYAppDimens.buttonHeight)
-                            .background(
-                                RoundedRectangle(cornerRadius: CYAppDimens.radiusL)
-                                    .stroke(CYAppColor.primary, lineWidth: CYAppDimens.borderWidth)
-                            )
+                        .tabViewStyle(.page(indexDisplayMode: .never))
+                        controls
                     }
-                    .buttonStyle(CYScaledButtonStyle())
+                    .padding()
                 }
             }
-            .padding(.horizontal, CYAppDimens.marginL)
-            .padding(.bottom, CYAppDimens.marginXXL)
+            .background(CYAppColor.secondaryBackground.ignoresSafeArea())
+            .onChange(of: pages.count) { _, count in currentPage = min(currentPage, max(0, count - 1)) }
         }
     }
-    
-    private func onboardingPageView(_ page: CYOnboardingPage) -> some View {
-        VStack(spacing: CYAppDimens.marginXL) {
+
+    private var skipButton: some View {
+        HStack {
             Spacer()
-            
-            // 图标
+            Button("onboarding_skip".cyLocalized) { hasCompleted = true }
+                .font(CYAppFont.button)
+                .frame(minHeight: 44)
+        }
+    }
+
+    private var controls: some View {
+        VStack(spacing: CYAppDimens.marginM) {
+            Text("\(currentPage + 1) / \(pages.count)")
+                .monospacedDigit()
+                .accessibilityLabel("onboarding_progress".cyLocalized)
+                .accessibilityValue("\(currentPage + 1) / \(pages.count)")
+            if currentPage >= pages.count - 1 {
+                PrimaryButton(title: "onboarding_start".cyLocalized, action: { hasCompleted = true })
+            } else {
+                PrimaryButton(title: "onboarding_next".cyLocalized, action: {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) { currentPage += 1 }
+                })
+            }
+            if currentPage > 0 {
+                Button("onboarding_previous".cyLocalized) {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) { currentPage -= 1 }
+                }
+                .frame(minHeight: 44)
+            }
+        }
+    }
+
+    private func pageView(_ page: CYOnboardingPage) -> some View {
+        VStack(spacing: CYAppDimens.marginL) {
             Image(systemName: page.icon)
                 .font(.system(size: 80, weight: .thin))
                 .foregroundStyle(CYAppColor.primary)
-                .frame(width: 120, height: 120)
-            
-            // 标题
+                .accessibilityHidden(true)
             Text(page.title)
                 .font(CYAppFont.h2)
-                .foregroundStyle(CYAppColor.textPrimary)
-                .multilineTextAlignment(.center)
-            
-            // 描述
+                .accessibilityAddTraits(.isHeader)
             Text(page.description)
                 .font(CYAppFont.bodyLarge)
-                .foregroundStyle(CYAppColor.textSecondary)
-                .multilineTextAlignment(.center)
-                .lineSpacing(6)
-                .padding(.horizontal, CYAppDimens.marginXL)
-            
-            Spacer()
-            Spacer()
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .multilineTextAlignment(.center)
+        .foregroundStyle(CYAppColor.textPrimary)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal)
     }
-}
-
-#Preview {
-    CYOnboardingView(hasCompleted: .constant(false))
 }
 #endif

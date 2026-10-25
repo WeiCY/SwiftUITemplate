@@ -6,25 +6,26 @@ import SwiftUI
 public struct ShimmerModifier: ViewModifier {
     let isActive: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var phase: CGFloat = -1.5
+    @Environment(\.scenePhase) private var scenePhase
 
     public func body(content: Content) -> some View {
         content
             .overlay {
-                if isActive, !reduceMotion {
+                if isActive, !reduceMotion, scenePhase == .active {
                     LinearGradient(
                         colors: [.clear, .white.opacity(0.5), .clear],
                         startPoint: .leading,
                         endPoint: .trailing
                     )
                     .blendMode(.plusLighter)
-                    .offset(x: phase * 200)
-                    .mask(content)
-                    .onAppear {
-                        withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) {
-                            phase = 1.5
-                        }
+                    .phaseAnimator([CGFloat(-1.5), CGFloat(1.5)]) { gradient, phase in
+                        gradient.offset(x: phase * 200)
+                    } animation: { phase in
+                        phase > 0 ? .linear(duration: 1.2) : nil
                     }
+                    .mask(content)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
                 }
             }
     }
@@ -51,14 +52,17 @@ public struct SkeletonRow: View {
         self.widthRatio = widthRatio
     }
     
+    private var safeHeight: CGFloat { height.isFinite ? max(0, height) : 14 }
+    private var safeWidthRatio: CGFloat { widthRatio.isFinite ? min(1, max(0, widthRatio)) : 1 }
+
     public var body: some View {
         GeometryReader { geometry in
             RoundedRectangle(cornerRadius: 6)
                 .fill(CYAppColor.tertiaryBackground)
-                .frame(width: geometry.size.width * widthRatio, height: height)
+                .frame(width: geometry.size.width * safeWidthRatio, height: safeHeight)
                 .shimmer()
         }
-        .frame(height: height)
+        .frame(height: safeHeight)
     }
 }
 
@@ -80,7 +84,7 @@ public struct SkeletonCard: View {
                 .shimmer()
             
             // 内容行
-            ForEach(0..<lineCount, id: \.self) { index in
+            ForEach(0..<max(0, lineCount), id: \.self) { index in
                 RoundedRectangle(cornerRadius: 4)
                     .fill(CYAppColor.tertiaryBackground)
                     .frame(height: 12)
@@ -110,7 +114,7 @@ public struct SkeletonList: View {
     public var body: some View {
         VStack(spacing: CYAppDimens.marginM) {
             // 卡片骨架
-            ForEach(0..<cardCount, id: \.self) { _ in
+            ForEach(0..<max(0, cardCount), id: \.self) { _ in
                 SkeletonCard()
             }
             

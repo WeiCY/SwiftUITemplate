@@ -93,6 +93,9 @@ python3 scripts/verify-component-matrix.py
 - [架构与扩展边界](docs/ARCHITECTURE.md)
 - [网络指南](docs/NETWORK_GUIDE.md)：统一 send、响应策略、可取消的凭证恢复和协议注入 Mock；日志正文默认关闭。
 - [本轮网络验证范围](docs/NETWORK_VALIDATION_2026-10-23.md)：Linux 针对性验证与 Apple 平台待验证项。
+- [实际使用规范、库与组件复核](docs/USAGE_REVIEW.md)
+- [定位、网络监听、日志与隐私迁移](docs/PLATFORM_BOUNDARIES.md)
+- [组件、媒体与缓存优化及迁移](docs/COMPONENT_LIFECYCLE.md)
 - [当前复核结论](docs/REVIEW.md)
 - [路线图](docs/ROADMAP.md)
 - [变更与迁移](CHANGELOG.md)

@@ -126,15 +126,47 @@ public struct CYMediaItem: Identifiable, Hashable {
         return nil
     }
 
-    /// 异步加载图片 Data（用于上传）
+    /// 图片 Data 或最多 32 MiB 的文件视频。失败/超限返回 nil。
+    /// 大视频上传优先使用 videoURL，保持此 item 存活直至上传结束。
+    /// PHAsset 视频需宿主通过 Photos 导出文件，不作为图片解码。
     public func loadData() async -> Data? {
-        if let videoURL {
-            return await Task.detached { try? Data(contentsOf: videoURL) }.value
-        }
-        if let asset { return await CYPhotoAssetLoader.shared.loadData(for: asset) }
+        guard !Task.isCancelled else { return nil }
+        if videoURL != nil { return try? await loadVideoData() }
+        if let asset, asset.mediaType == .image { return await CYPhotoAssetLoader.shared.loadData(for: asset) }
         if let image { return image.jpegData(compressionQuality: 0.9) }
         return nil
     }
+
+    /// 文件视频的有界读取；超限抛 fileReadTooLarge，取消抛 CancellationError。
+    /// 逐块读取以防文件大小在预检后变化；不要通过调高上限处理任意大的视频。
+    public func loadVideoData(maximumBytes: Int = 32 * 1_024 * 1_024) async throws -> Data {
+        try Task.checkCancellation()
+        guard let url = videoURL else { throw CocoaError(.fileReadUnsupportedScheme) }
+        // Capture storage to keep an imported temporary file alive until the read finishes.
+        let storage = videoStorage
+        let task = Task.detached {
+            defer { withExtendedLifetime(storage) {} }
+            guard maximumBytes >= 0 else { throw CocoaError(.fileReadTooLarge) }
+            try Task.checkCancellation()
+            let handle = try FileHandle(forReadingFrom: url)
+            defer { try? handle.close() }
+            var result = Data()
+            while true {
+                try Task.checkCancellation()
+                let remaining = maximumBytes - result.count
+                let amount = remaining >= 65_536 ? 65_536 : remaining + 1
+                guard let chunk = try handle.read(upToCount: amount), !chunk.isEmpty else { return result }
+                guard chunk.count <= remaining else { throw CocoaError(.fileReadTooLarge) }
+                result.append(chunk)
+            }
+        }
+        return try await withTaskCancellationHandler {
+            let result = try await task.value
+            try Task.checkCancellation()
+            return result
+        } onCancel: { task.cancel() }
+    }
+
 }
 
 // MARK: - Array 扩展

@@ -1,5 +1,12 @@
 # 公开 API 与组件复用评审
 
+## 2026-10-25 增量更新
+
+ShimmerModifier/LoadingIndicator 的动画随条件子树销毁；Skeleton 归一化数量；CYFlowLayout 处理有限宽度和 RTL；CYOnboardingView 适配滚动与辅助功能字号。
+CYMediaPicker 增加 system 逐项导入失败回调，CYMediaItem 提供限量视频 Data 读取。保留已有类型与目录，不新增公共组件。
+详细行为、迁移和未验收项见 [COMPONENT_LIFECYCLE](COMPONENT_LIFECYCLE.md)。
+
+
 ## 第四轮：公开 API 清理与控件整顿（当前，2026-10-19）
 
 > 下段工作区/不提交说明记录第四轮实施阶段；随后用户授权最终收尾保存本地Git基线。收尾未新增功能，结果见ENGINEERING_VALIDATION文末；当前API和迁移结论不变。

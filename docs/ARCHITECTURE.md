@@ -134,3 +134,24 @@ OTP由一个可见系统TextField拥有输入和无障碍语义，局部editing 
 模板升级通过依赖 revision 和迁移说明完成，不重复生成覆盖业务。
 骨架默认只选择 Core/FeedbackStyle/DesignSystem/UI，组合根显式注入反馈。
 来源与 Product 记录在 manifest；使用说明和当前验证限制见 [APP_FACTORY](APP_FACTORY.md)。
+
+## 工具默认行为边界（使用复核）
+
+Toast 的待展示队列非正容量表示不排队，缩容立即裁剪最旧项；非有限时长回退 2 秒。
+缓存磁盘操作可重建被系统清理的目录，创建错误通过原有 Result 返回。
+默认 Analytics 仅为有界内存缓冲，默认 100 条，`flush()` 只清空而不上传；
+生产分析实现由宿主注入，日志不输出事件正文与身份字段。具体评审见 [USAGE_REVIEW](USAGE_REVIEW.md)。
+
+## 平台服务与日志边界
+
+定位权限和网络路径状态统一 MainActor。定位并发等待按调用者隔离取消；网络回调按监听代次提交。
+底层系统驱动通过内部协议替换测试，不增加公开容器。网络状态对外只读。
+Logger 采用全局默认级别 + 每实例可选覆盖，Bootstrap 更新全局默认；消息默认 OSLog private。
+Core Resources 携带 PrivacyInfo.xcprivacy。兼容性变化、用途约束与待验收范围见 [PLATFORM_BOUNDARIES](PLATFORM_BOUNDARIES.md)。
+
+## 组件和资源维护
+
+循环装饰动画由条件子视图拥有生命周期；流式布局共享测量/放置规则，引导页根据字号与高度选择滚动布局。
+媒体系统导入支持逐项错误，文件视频 Data 读取有容量上限；大文件走宿主文件上传。
+缓存不保留 NSCache 外部键索引，磁盘容量通过显式 trimDisk 维护，避免每次写入扫描目录。
+行为变化和范围见 [COMPONENT_LIFECYCLE](COMPONENT_LIFECYCLE.md)。

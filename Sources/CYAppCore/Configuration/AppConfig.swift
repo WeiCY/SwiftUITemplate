@@ -24,6 +24,6 @@ public struct CYAppConfig: Sendable {
 public enum CYCoreBootstrap {
     public static func configure(_ config: CYAppConfig) {
         CYAppConstants.configure(config.values)
-        CYLogger.shared.setMinimumLevel(config.minimumLogLevel)
+        CYLogger.setGlobalMinimumLevel(config.minimumLogLevel)
     }
 }

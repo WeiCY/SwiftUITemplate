@@ -1,91 +1,73 @@
 import SwiftUI
 
-// MARK: - 流式换行布局
-
-/// 流式换行布局：子视图按行排列，超出可用宽度时自动换行。
-///
-/// 适合标签云、筛选 Chip、话题列表等需要自动换行的场景。
-///
-/// ```swift
-/// CYFlowLayout(spacing: 8) {
-///     ForEach(tags) { tag in
-///         CYTag(title: tag.name)
-///     }
-/// }
-/// ```
+/// Wrapping layout with constrained measurement and semantic leading-to-trailing placement.
 public struct CYFlowLayout: Layout {
-
-    /// 同一行内子视图的水平间距
     public var spacing: CGFloat
-    /// 行与行之间的垂直间距（默认等于 `spacing`）
     public var lineSpacing: CGFloat
+    @Environment(\.layoutDirection) private var layoutDirection
 
     public init(spacing: CGFloat = 8, lineSpacing: CGFloat? = nil) {
         self.spacing = spacing
         self.lineSpacing = lineSpacing ?? spacing
     }
 
-    public func sizeThatFits(
-        proposal: ProposedViewSize,
-        subviews: Subviews,
-        cache: inout ()
-    ) -> CGSize {
-        let maxWidth = proposal.width ?? .infinity
-        let result = FlowResult(in: maxWidth, subviews: subviews, spacing: spacing, lineSpacing: lineSpacing)
-        // 宽度已知时填满可用宽度（利于对齐）；宽度未指定时返回内容固有宽度，
-        // 避免向父布局返回无限宽（此前 bug）。
-        let width = proposal.width ?? result.intrinsicWidth
-        return CGSize(width: width, height: result.height)
+    public func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = CYFlowGeometry.finiteWidth(proposal.width)
+        let result = measure(subviews, width: width)
+        return CGSize(width: width ?? result.width, height: result.height)
     }
 
-    public func placeSubviews(
-        in bounds: CGRect,
-        proposal: ProposedViewSize,
-        subviews: Subviews,
-        cache: inout ()
-    ) {
-        let result = FlowResult(in: bounds.width, subviews: subviews, spacing: spacing, lineSpacing: lineSpacing)
+    public func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let width = CYFlowGeometry.finiteWidth(bounds.width)
+        let result = measure(subviews, width: width)
         for (index, subview) in subviews.enumerated() {
-            let position = result.positions[index]
-            subview.place(
-                at: CGPoint(x: bounds.minX + position.x, y: bounds.minY + position.y),
-                proposal: .unspecified
-            )
+            let frame = result.frames[index]
+            let x = layoutDirection == .rightToLeft ? bounds.maxX - frame.maxX : bounds.minX + frame.minX
+            subview.place(at: CGPoint(x: x, y: bounds.minY + frame.minY), anchor: .topLeading,
+                          proposal: ProposedViewSize(width: width, height: nil))
         }
     }
 
-    // MARK: - 布局计算
+    private func measure(_ subviews: Subviews, width: CGFloat?) -> CYFlowGeometry {
+        let sizes = subviews.map { $0.sizeThatFits(ProposedViewSize(width: width, height: nil)) }
+        return CYFlowGeometry(sizes: sizes, maxWidth: width, spacing: spacing, lineSpacing: lineSpacing)
+    }
+}
 
-    private struct FlowResult {
-        var positions: [CGPoint] = []
-        /// 内容固有宽度（最长一行的实际宽度）
-        var intrinsicWidth: CGFloat = 0
-        /// 内容总高度
-        var height: CGFloat = 0
+// Shared by measuring and placement; finite results even for infinite proposals or invalid spacing.
+struct CYFlowGeometry {
+    var frames: [CGRect] = []
+    var width: CGFloat = 0
+    var height: CGFloat = 0
 
-        init(in maxWidth: CGFloat, subviews: Subviews, spacing: CGFloat, lineSpacing: CGFloat) {
-            var x: CGFloat = 0
-            var y: CGFloat = 0
-            var lineHeight: CGFloat = 0
-            var maxLineWidth: CGFloat = 0
+    static func finiteWidth(_ width: CGFloat?) -> CGFloat? {
+        guard let width, width.isFinite else { return nil }
+        return max(0, width)
+    }
 
-            for subview in subviews {
-                let size = subview.sizeThatFits(.unspecified)
-                if x > 0, x + size.width > maxWidth {
-                    maxLineWidth = max(maxLineWidth, x - spacing)
-                    x = 0
-                    y += lineHeight + lineSpacing
-                    lineHeight = 0
-                }
-
-                positions.append(CGPoint(x: x, y: y))
-                lineHeight = max(lineHeight, size.height)
-                x += size.width + spacing
+    init(sizes: [CGSize], maxWidth: CGFloat?, spacing: CGFloat, lineSpacing: CGFloat) {
+        let limit = Self.finiteWidth(maxWidth) ?? .infinity
+        let gap = spacing.isFinite ? max(0, spacing) : 0
+        let rowGap = lineSpacing.isFinite ? max(0, lineSpacing) : 0
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var hasItem = false
+        for raw in sizes {
+            let size = CGSize(width: raw.width.isFinite ? max(0, raw.width) : 0,
+                              height: raw.height.isFinite ? max(0, raw.height) : 0)
+            if hasItem, x + size.width > limit {
+                x = 0
+                y += rowHeight + rowGap
+                rowHeight = 0
+                hasItem = false
             }
-
-            maxLineWidth = max(maxLineWidth, max(0, x - spacing))
-            self.intrinsicWidth = maxLineWidth
-            self.height = y + lineHeight
+            frames.append(CGRect(origin: CGPoint(x: x, y: y), size: size))
+            width = max(width, x + size.width)
+            rowHeight = max(rowHeight, size.height)
+            height = y + rowHeight
+            x += size.width + gap
+            hasItem = true
         }
     }
 }

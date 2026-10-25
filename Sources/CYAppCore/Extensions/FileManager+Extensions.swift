@@ -22,6 +22,7 @@ extension FileManager {
 
     // MARK: - File Operations
 
+    /// 模板默认隐私声明仅覆盖 App 容器内文件；外部文件访问需宿主核对用途与声明。
     public func fileSize(at url: URL) -> UInt64? {
         try? attributesOfItem(atPath: url.path)[.size] as? UInt64
     }
@@ -45,12 +46,14 @@ extension FileManager {
 
     // MARK: - Disk Space
 
+    /// 仅用于向用户展示空间或检查写入空间，不得用于指纹识别或传出设备。
     public var availableDiskSpace: UInt64? {
         guard let attrs = try? attributesOfFileSystem(forPath: NSHomeDirectory()),
               let free = attrs[.systemFreeSize] as? UInt64 else { return nil }
         return free
     }
 
+    /// 仅用于向用户展示空间，不得用于指纹识别或传出设备。
     public var totalDiskSpace: UInt64? {
         guard let attrs = try? attributesOfFileSystem(forPath: NSHomeDirectory()),
               let total = attrs[.systemSize] as? UInt64 else { return nil }
