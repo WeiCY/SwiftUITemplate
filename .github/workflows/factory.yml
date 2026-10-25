@@ -1,0 +1,26 @@
+name: App Factory
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  generator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m unittest discover -s scripts/tests -v
+  generated-host:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen swiftlint
+      - name: Generate clean consumer against this checkout
+        run: >-
+          python3 scripts/create-app.py --name FactorySmoke
+          --bundle-id com.example.factorysmoke --template-path "$GITHUB_WORKSPACE"
+          --output "$RUNNER_TEMP/FactorySmoke"
+      - name: Build Debug and Release and run launch/feedback test
+        run: bash "$RUNNER_TEMP/FactorySmoke/ci.sh"

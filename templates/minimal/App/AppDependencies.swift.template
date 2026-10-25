@@ -1,0 +1,9 @@
+import CYAppCore
+
+// 唯一组合根：Feature 通过初始化接收所需协议。
+@MainActor
+final class AppDependencies {
+    let toast: any CYToastManagerProtocol = CYToastManager()
+    let loading: any CYLoadingManagerProtocol = CYLoadingManager()
+    let alert: any CYAlertManagerProtocol = CYAlertManager()
+}

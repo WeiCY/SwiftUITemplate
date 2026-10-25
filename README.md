@@ -2,6 +2,19 @@
 
 iOS 18+ / macOS 15+、Swift 6 的 SwiftUI 模板。保留 7 个 Library，网络、图片实现和 SwiftData 均可按需接入；业务模型、路由和 Schema 留在宿主。
 
+## 批量创建独立 App
+
+使用最小骨架生成独立 iOS App，统一组合根、目录、Debug/Release 配置和 CI：
+
+```bash
+python3 scripts/create-app.py --name MyApp --bundle-id com.example.myapp \
+  --template-path "$PWD" --output ../MyApp
+```
+
+本地 path 用于开发验证；正式项目用 `--template-revision` 固定已发布的完整提交 SHA。
+在 macOS 安装 XcodeGen 后，在新目录运行 `xcodegen generate --spec project.json`。
+详见 [工厂化评审、使用与优先级](docs/APP_FACTORY.md)。生成宿主的 Xcode 编译和模拟器测试仍待 macOS 验证。
+
 ## 先运行示例
 
 1. 用 Xcode 打开 `ExampleApp/ExampleApp.xcodeproj`。
@@ -86,4 +99,4 @@ python3 scripts/verify-component-matrix.py
 
 文档对应主干 Unreleased；使用已发布 tag 时请阅读该 tag 的文档。
 
-本次最终收尾只保存本地Git基线；本机验证与未验收范围见工程记录，不代表远端CI通过或新版本已发布。
+历史本地基线见工程记录；新增工厂流程的验证范围见工厂化评审，未宣称远端 CI 通过或新版本已发布。

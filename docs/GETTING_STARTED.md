@@ -2,6 +2,11 @@
 
 适用于当前主干 Unreleased，iOS 18+ / macOS 15+、Swift 6。规则见 [TEMPLATE_RULES](TEMPLATE_RULES.md)，网络细节统一见 [NETWORK_GUIDE](NETWORK_GUIDE.md)。
 
+## 0. 新建独立 App
+
+批量创建项目优先使用 [App 工厂](APP_FACTORY.md) 的最小生成器；ExampleApp 用于了解完整能力，避免将演示业务复制到每个新 App。
+生成器提供项目骨架与构建配置；下面的章节用于后续按需接入模块。
+
 ## 1. 先启动宿主
 
 打开 `ExampleApp/ExampleApp.xcodeproj`，选 `ExampleApp` 和模拟器运行。无需签名，默认 Mock。工程直接编译 `ExampleApp/Sources` 并引用上一级本地 Package。

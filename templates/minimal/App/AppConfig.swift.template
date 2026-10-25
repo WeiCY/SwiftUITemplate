@@ -1,0 +1,11 @@
+import CYAppCore
+
+enum AppConfig {
+    static var environment: CYAppEnvironment {
+        #if DEBUG
+        .development
+        #else
+        .production
+        #endif
+    }
+}

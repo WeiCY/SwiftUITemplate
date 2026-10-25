@@ -1,0 +1,28 @@
+import SwiftUI
+import CYAppCore
+import CYAppUI
+
+@main
+@MainActor
+struct @@APP_NAME@@App: App {
+    @State private var state = CYAppState()
+    @State private var dependencies = AppDependencies()
+
+    init() {
+        AppBootstrap.start()
+    }
+
+    var body: some Scene {
+        WindowGroup {
+            NavigationStack {
+                HomeView(toast: dependencies.toast)
+            }
+            .environment(state)
+            .preferredColorScheme(state.theme.colorScheme)
+            .environment(\.locale, Locale(identifier: state.language))
+            .id(state.language)
+            .feedbackOverlay(toastManager: dependencies.toast, loadingManager: dependencies.loading)
+            .alertManager(manager: dependencies.alert)
+        }
+    }
+}

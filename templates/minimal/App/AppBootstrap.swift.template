@@ -1,0 +1,10 @@
+import CYAppCore
+import CYAppDesignSystem
+
+@MainActor
+enum AppBootstrap {
+    static func start() {
+        CYCoreBootstrap.configure(CYAppConfig(environment: AppConfig.environment))
+        CYDesignConfiguration.configure(CYDesignTokens())
+    }
+}

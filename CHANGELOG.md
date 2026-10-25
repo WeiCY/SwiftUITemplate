@@ -1,5 +1,11 @@
 # 变更记录
 
+## 工厂化补充（Unreleased，2026-10-25）
+
+- 新增最小 iOS App 生成器、组合根骨架、Debug/Release 配置、固定模板来源记录与宿主 CI。
+- 添加生成器回归和生成宿主的 macOS CI；本地通过 6 项生成器测试，iOS 构建与运行待验收。
+- 增加工厂化整体评审与使用指南。未修改公共 Swift API。
+
 > 已发布版本的变更记录在下方；尚未发布的进行中变更统一放在 [Unreleased] 小节。未来计划请查看 [docs/ROADMAP.md](docs/ROADMAP.md)。
 >
 > 版本号遵循 [语义化版本（Semantic Versioning）](https://semver.org/lang/zh-CN/) 规范：`MAJOR.MINOR.PATCH`

@@ -1,5 +1,11 @@
 # 路线图
 
+## 工厂化补充（2026-10-25）
+
+当前新增最小独立 App 生成流程、构建配置和生成产物 CI；整体评审、P0/P1/P2 优先级与验证边界见 [APP_FACTORY](APP_FACTORY.md)。
+下一步优先验收生成宿主、补齐包级隐私清单与固定发布版本，再用真实 App 验证发布及升级。
+下文的历轮“收尾范围”是历史记录，不限制后续工厂化工作。
+
 当前主干 Unreleased；已发布版本历史见 [CHANGELOG](../CHANGELOG.md)。规则见 [TEMPLATE_RULES](TEMPLATE_RULES.md)，验证依据见 [ENGINEERING_VALIDATION](ENGINEERING_VALIDATION.md)。
 
 ## 本轮已实施

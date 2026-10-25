@@ -1,0 +1,12 @@
+import XCTest
+
+final class AppUITests: XCTestCase {
+    @MainActor
+    func testLaunchAndFeedback() {
+        let app = XCUIApplication()
+        app.launch()
+        XCTAssertTrue(app.staticTexts["home.title"].waitForExistence(timeout: 10))
+        app.buttons["home.continue"].tap()
+        XCTAssertTrue(app.staticTexts["Ready"].waitForExistence(timeout: 5))
+    }
+}

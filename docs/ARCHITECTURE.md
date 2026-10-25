@@ -126,3 +126,11 @@ Keychain以service/account定位并更新，缺失后才add，重复插入时重
 OTP由一个可见系统TextField拥有输入和无障碍语义，局部editing policy只处理ASCII规范化/完成边沿，不管理网络、账号或导航。宿主通过原生focused控制初始/完成焦点。普通字段是窄屏和大字体的默认表现，没有透明输入或固定格宽。
 
 底栏保留ActionBar的布局和品牌价值，safeAreaInset/导航栏/分栏/键盘安全区交回原生。低价值更名扩展移除，安全下标、格式化、抛错解码、重试/超时取消及表单规则保留。网络通用凭证注入与恢复协调保持，登录/用户/订单等业务流程仍归宿主。
+
+## 独立 App 工厂
+
+`templates/minimal` 是宿主骨架，`scripts/create-app.py` 生成独立目录与 XcodeGen 工程配置。
+公共能力仍来自七个 Library，不复制框架源码。生成只发生一次，后续业务修改属于宿主；
+模板升级通过依赖 revision 和迁移说明完成，不重复生成覆盖业务。
+骨架默认只选择 Core/FeedbackStyle/DesignSystem/UI，组合根显式注入反馈。
+来源与 Product 记录在 manifest；使用说明和当前验证限制见 [APP_FACTORY](APP_FACTORY.md)。
