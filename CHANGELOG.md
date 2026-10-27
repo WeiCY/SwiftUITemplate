@@ -1,20 +1,28 @@
 # 变更记录
 
-## 工厂化补充（Unreleased，2026-10-25）
-
-- 新增最小 iOS App 生成器、组合根骨架、Debug/Release 配置、固定模板来源记录与宿主 CI。
-- 添加生成器回归和生成宿主的 macOS CI；本地通过 6 项生成器测试，iOS 构建与运行待验收。
-- 增加工厂化整体评审与使用指南。未修改公共 Swift API。
-
 > 已发布版本的变更记录在下方；尚未发布的进行中变更统一放在 [Unreleased] 小节。未来计划请查看 [docs/ROADMAP.md](docs/ROADMAP.md)。
 >
-> 版本号遵循 [语义化版本（Semantic Versioning）](https://semver.org/lang/zh-CN/) 规范：`MAJOR.MINOR.PATCH`
+> 版本号通常遵循 [语义化版本（Semantic Versioning）](https://semver.org/lang/zh-CN/) 规范：`MAJOR.MINOR.PATCH`。本次 `1.2.2` 按维护者决定沿用补丁版本号，但包含源码不兼容变更，详见下方迁移说明。
 
 ---
 
 ## 版本历史
 
 ### [Unreleased]
+
+暂无。
+
+### [1.2.2] - 2026-10-27
+
+- 汇总 `1.2.1` 之后的模板、网络、组件、平台边界及 App 生成器改动。
+- **升级须知**：本版本包含公开 API 删除、存储接口调整与 MainActor 隔离变化。升级项目需按 [组件 API 迁移清单](docs/MODULE_COMPONENT_REVIEW.md)、[接入指南](docs/GETTING_STARTED.md) 和 [平台边界说明](docs/PLATFORM_BOUNDARIES.md) 适配并验证；不保证与 `1.2.1` 源码兼容。
+- 下方各轮记录中的“不发布/不改版本”描述为当时的开发范围；这些改动现统一纳入 `1.2.2`。历史验证结果及未验收范围保留，不代表本次已重新通过全部平台验证。
+
+#### 工厂化补充（2026-10-25）
+
+- 新增最小 iOS App 生成器、组合根骨架、Debug/Release 配置、固定模板来源记录与宿主 CI。
+- 添加生成器回归和生成宿主的 macOS CI；本地通过 6 项生成器测试，iOS 构建与运行待验收。
+- 增加工厂化整体评审与使用指南。未修改公共 Swift API。
 
 #### 组件与资源维护（2026-10-25）
 
